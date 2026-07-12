@@ -35,7 +35,9 @@ export function SettingsPanel({
   onSettingsChange?: (settings: UserSettings) => void;
 }) {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [memoryDraft, setMemoryDraft] = useState("");
   const [saved, setSaved] = useState(false);
+  const [memorySaving, setMemorySaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -52,13 +54,15 @@ export function SettingsPanel({
       .maybeSingle();
 
     if (data) {
-      setSettings({
+      const loaded = {
         memory_content: data.memory_content ?? "",
         screen_share_enabled: data.screen_share_enabled ?? false,
         response_length: data.response_length ?? "balanced",
         language_preference: data.language_preference ?? "auto",
         default_model: data.default_model ?? "nexio-1.1",
-      });
+      };
+      setSettings(loaded);
+      setMemoryDraft(loaded.memory_content);
     }
     setLoading(false);
   }
@@ -74,6 +78,12 @@ export function SettingsPanel({
     setTimeout(() => setSaved(false), 1500);
   }
 
+  async function handleSaveMemory() {
+    setMemorySaving(true);
+    await saveSettings({ ...settings, memory_content: memoryDraft });
+    setMemorySaving(false);
+  }
+
   function handleClearHistory() {
     if (!confirmClear) {
       setConfirmClear(true);
@@ -84,6 +94,8 @@ export function SettingsPanel({
   }
 
   if (!open) return null;
+
+  const memoryDirty = memoryDraft !== settings.memory_content;
 
   return (
     <div
@@ -112,16 +124,23 @@ export function SettingsPanel({
                 <h3 className="font-display text-sm font-semibold">Long-term Memory</h3>
               </div>
               <p className="mt-1 text-xs text-ink-muted">
-                Add anything you want NEXO to always remember about you — your name, preferences, or context.
+                Add anything you want NEXO to always remember about you — your name, preferences, or context. Tap Save to store it permanently.
               </p>
               <textarea
-                value={settings.memory_content}
-                onChange={(e) => setSettings((s) => ({ ...s, memory_content: e.target.value }))}
-                onBlur={() => saveSettings(settings)}
+                value={memoryDraft}
+                onChange={(e) => setMemoryDraft(e.target.value)}
                 placeholder="e.g. My name is Hasith, I'm a developer from Sri Lanka…"
                 rows={3}
                 className="mt-2 w-full resize-none rounded-lg border border-edge bg-void px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-cyan/50"
               />
+              <button
+                onClick={handleSaveMemory}
+                disabled={!memoryDirty || memorySaving}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-cyan py-2 text-sm font-semibold text-white transition hover:bg-cyan-dim disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="h-4 w-4" />
+                {memorySaving ? "Saving…" : memoryDirty ? "Save memory" : "Saved"}
+              </button>
             </section>
 
             {/* Screen Share */}
@@ -239,4 +258,4 @@ export function SettingsPanel({
       </div>
     </div>
   );
-                                 }
+}
