@@ -2,9 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-void: 245 244 239;
+  --color-panel: 255 255 255;
+  --color-panel-raised: 251 250 247;
+  --color-edge: 229 226 217;
+  --color-cyan: 217 119 87;
+  --color-cyan-dim: 193 95 60;
+  --color-cyan-glow: 232 148 120;
+  --color-indigo: 184 92 56;
+  --color-indigo-dim: 143 69 41;
+  --color-ink: 31 30 28;
+  --color-ink-muted: 107 104 98;
+  --color-ink-faint: 168 164 154;
+}
+
+.dark {
+  --color-void: 10 14 26;
+  --color-panel: 17 23 42;
+  --color-panel-raised: 22 29 51;
+  --color-edge: 40 48 74;
+  --color-cyan: 0 229 255;
+  --color-cyan-dim: 0 168 191;
+  --color-cyan-glow: 95 251 241;
+  --color-indigo: 61 90 254;
+  --color-indigo-dim: 42 62 158;
+  --color-ink: 232 236 251;
+  --color-ink-muted: 140 150 184;
+  --color-ink-faint: 90 100 130;
+}
+
 ::selection {
-  background: #d97757;
-  color: #ffffff;
+  background: rgb(var(--color-cyan));
+  color: rgb(var(--color-void));
 }
 
 html {
@@ -12,11 +42,11 @@ html {
 }
 
 body {
-  background-color: #f5f4ef;
-  color: #1f1e1c;
+  background-color: rgb(var(--color-void));
+  color: rgb(var(--color-ink));
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Signature element: the signal waveform bars — used in hero + chat thinking state */
 .signal-bars {
   display: inline-flex;
   align-items: center;
@@ -27,7 +57,7 @@ body {
   display: block;
   width: 2.5px;
   height: 100%;
-  background: #d97757;
+  background: rgb(var(--color-cyan));
   border-radius: 2px;
   animation: pulse_signal 1.1s ease-in-out infinite;
 }
@@ -37,15 +67,13 @@ body {
 .signal-bars span:nth-child(4) { animation-delay: 360ms; }
 .signal-bars span:nth-child(5) { animation-delay: 480ms; }
 
-/* Faint grid backdrop for panels */
 .grid-backdrop {
   background-image:
-    linear-gradient(rgba(229, 226, 217, 0.6) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(229, 226, 217, 0.6) 1px, transparent 1px);
+    linear-gradient(rgb(var(--color-edge) / 0.6) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--color-edge) / 0.6) 1px, transparent 1px);
   background-size: 42px 42px;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -54,14 +82,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e5e2d9;
+  background: rgb(var(--color-edge));
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #d97757;
+  background: rgb(var(--color-cyan));
 }
 
-/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -73,17 +100,15 @@ body {
   }
 }
 
-/* Visible keyboard focus */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #d97757;
+  outline: 2px solid rgb(var(--color-cyan));
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Markdown content inside chat bubbles */
 .prose-nexo p {
   margin: 0 0 0.75em 0;
   line-height: 1.7;
@@ -92,8 +117,8 @@ textarea:focus-visible {
   margin-bottom: 0;
 }
 .prose-nexo pre {
-  background: #f5f4ef;
-  border: 1px solid #e5e2d9;
+  background: rgb(var(--color-void));
+  border: 1px solid rgb(var(--color-edge));
   border-radius: 10px;
   padding: 14px 16px;
   overflow-x: auto;
@@ -104,8 +129,8 @@ textarea:focus-visible {
   font-size: 0.875em;
 }
 .prose-nexo :not(pre) > code {
-  background: rgba(217, 119, 87, 0.1);
-  color: #b85c38;
+  background: rgb(var(--color-cyan) / 0.1);
+  color: rgb(var(--color-cyan-dim));
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -117,12 +142,12 @@ textarea:focus-visible {
   margin-bottom: 0.3em;
 }
 .prose-nexo a {
-  color: #d97757;
+  color: rgb(var(--color-cyan));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .prose-nexo strong {
-  color: #1f1e1c;
+  color: rgb(var(--color-ink));
   font-weight: 600;
 }
 .prose-nexo h1,
@@ -130,5 +155,5 @@ textarea:focus-visible {
 .prose-nexo h3 {
   font-family: var(--font-space-grotesk), sans-serif;
   margin: 0.9em 0 0.4em 0;
-  color: #1f1e1c;
+  color: rgb(var(--color-ink));
 }
