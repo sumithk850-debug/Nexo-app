@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,23 +9,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: "#F5F4EF",
-        panel: "#FFFFFF",
-        "panel-raised": "#FBFAF7",
-        edge: "#E5E2D9",
+        void: "rgb(var(--color-void) / <alpha-value>)",
+        panel: "rgb(var(--color-panel) / <alpha-value>)",
+        "panel-raised": "rgb(var(--color-panel-raised) / <alpha-value>)",
+        edge: "rgb(var(--color-edge) / <alpha-value>)",
         cyan: {
-          DEFAULT: "#D97757",
-          dim: "#C15F3C",
-          glow: "#E89478",
+          DEFAULT: "rgb(var(--color-cyan) / <alpha-value>)",
+          dim: "rgb(var(--color-cyan-dim) / <alpha-value>)",
+          glow: "rgb(var(--color-cyan-glow) / <alpha-value>)",
         },
         indigo: {
-          DEFAULT: "#B85C38",
-          dim: "#8F4529",
+          DEFAULT: "rgb(var(--color-indigo) / <alpha-value>)",
+          dim: "rgb(var(--color-indigo-dim) / <alpha-value>)",
         },
         ink: {
-          DEFAULT: "#1F1E1C",
-          muted: "#6B6862",
-          faint: "#A8A49A",
+          DEFAULT: "rgb(var(--color-ink) / <alpha-value>)",
+          muted: "rgb(var(--color-ink-muted) / <alpha-value>)",
+          faint: "rgb(var(--color-ink-faint) / <alpha-value>)",
         },
       },
       fontFamily: {
@@ -34,9 +35,9 @@ const config: Config = {
       },
       backgroundImage: {
         "signal-gradient":
-          "linear-gradient(90deg, transparent 0%, #D97757 50%, transparent 100%)",
+          "linear-gradient(90deg, transparent 0%, rgb(var(--color-cyan)) 50%, transparent 100%)",
         "grid-fade":
-          "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(217,119,87,0.12), transparent)",
+          "radial-gradient(ellipse 80% 50% at 50% -20%, rgb(var(--color-cyan) / 0.12), transparent)",
       },
       keyframes: {
         pulse_signal: {
