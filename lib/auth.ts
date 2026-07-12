@@ -5,8 +5,24 @@ export interface AuthUser {
   email: string;
 }
 
-export async function signUp(email: string, password: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+export interface SignUpDetails {
+  email: string;
+  password: string;
+  fullName: string;
+  birthday: string; // YYYY-MM-DD
+}
+
+export async function signUp(details: SignUpDetails) {
+  const { data, error } = await supabase.auth.signUp({
+    email: details.email,
+    password: details.password,
+    options: {
+      data: {
+        full_name: details.fullName,
+        birthday: details.birthday,
+      },
+    },
+  });
   return { data, error };
 }
 
@@ -34,4 +50,4 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
     }
   });
   return data.subscription;
-}
+  }
