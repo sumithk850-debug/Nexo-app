@@ -8,12 +8,13 @@ import { TypingIndicator } from "@/components/TypingIndicator";
 import { Signal } from "@/components/Signal";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { AuthModal } from "@/components/AuthModal";
+import { SettingsPanel } from "@/components/SettingsPanel";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
-import { X, FileText } from "lucide-react";
+import { X, FileText, Settings } from "lucide-react";
 
 const UNLOCKED_TIERS = ["Free"];
 
@@ -34,6 +35,7 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
   const [chats, setChats] = useState<DbChat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -152,6 +154,20 @@ export default function ChatPage() {
   async function handleSignOut() {
     await signOut();
     setUser(null);
+  }
+
+  async function handleClearHistory() {
+    setChats([]);
+    setActiveChatId(null);
+    setMessages([]);
+    try {
+      for (const chat of chats) {
+        await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
+      }
+    } catch {
+      // best-effort cleanup
+    }
+    setSettingsOpen(false);
   }
 
   async function streamResponse(
@@ -317,6 +333,16 @@ export default function ChatPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <AnnouncementBanner />
 
+        <div className="flex items-center justify-end border-b border-edge px-4 py-2">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition hover:bg-panel hover:text-ink"
+            aria-label="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
             <EmptyState modelName={activeModel?.name ?? ""} />
@@ -371,6 +397,13 @@ export default function ChatPage() {
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
       />
+
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        sessionId={sessionId}
+        onClearHistory={handleClearHistory}
+      />
     </div>
   );
 }
@@ -404,4 +437,4 @@ function EmptyState({ modelName }: { modelName: string }) {
       </div>
     </div>
   );
-        }
+      }
