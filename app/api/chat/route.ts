@@ -48,6 +48,20 @@ async function checkAndIncrementRateLimit(sessionId: string): Promise<{ allowed:
   return { allowed: true, remaining: DAILY_MESSAGE_LIMIT - currentCount - 1 };
 }
 
+async function getUserMemory(sessionId: string): Promise<string> {
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from("user_settings")
+      .select("memory_content")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    return data?.memory_content?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -55,9 +69,6 @@ export async function POST(req: NextRequest) {
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
 
-    // Rate limiting — only enforced when a sessionId is provided.
-    // This keeps the API safe to call even if the client hasn't set up
-    // a session yet, while still protecting the common path.
     if (sessionId) {
       const { allowed, remaining } = await checkAndIncrementRateLimit(sessionId);
       if (!allowed) {
@@ -69,7 +80,6 @@ export async function POST(req: NextRequest) {
           { status: 429 }
         );
       }
-      // Remaining count is available here if we want to surface it to the client later.
       void remaining;
     }
 
@@ -96,6 +106,13 @@ export async function POST(req: NextRequest) {
 
     const endpoint = config.provider === "github" ? GITHUB_ENDPOINT : GROQ_ENDPOINT;
 
+    // Fetch any saved long-term memory for this session and weave it into
+    // the system prompt so the model actually has access to it.
+    const memory = sessionId ? await getUserMemory(sessionId) : "";
+    const systemPrompt = memory
+      ? `${config.systemPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
+      : config.systemPrompt;
+
     const upstreamRes = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -109,7 +126,7 @@ export async function POST(req: NextRequest) {
         top_p: 1.0,
         max_tokens: 1000,
         messages: [
-          { role: "system", content: config.systemPrompt },
+          { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
         ],
       }),
@@ -178,4 +195,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-    }
+}
