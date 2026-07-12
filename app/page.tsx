@@ -40,6 +40,7 @@ export default function ChatPage() {
   const [chats, setChats] = useState<DbChat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -71,6 +72,8 @@ export default function ChatPage() {
   }
 
   async function loadMessages(chatId: string) {
+    setMessagesLoading(true);
+    setMessages([]);
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`);
       const data = await res.json();
@@ -86,6 +89,8 @@ export default function ChatPage() {
       }
     } catch {
       setMessages([]);
+    } finally {
+      setMessagesLoading(false);
     }
   }
 
@@ -344,7 +349,12 @@ export default function ChatPage() {
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          {messages.length === 0 ? (
+          {messagesLoading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <Signal size="md" />
+              <p className="font-mono text-xs text-ink-muted">Loading conversation…</p>
+            </div>
+          ) : messages.length === 0 ? (
             <EmptyState modelName={activeModel?.name ?? ""} />
           ) : (
             <div className="mx-auto max-w-3xl py-4">
@@ -437,4 +447,4 @@ function EmptyState({ modelName }: { modelName: string }) {
       </div>
     </div>
   );
-      }
+          }
