@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { Signal } from "./Signal";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
+import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
 
 export function ChatSidebar({
   chats,
@@ -29,9 +31,24 @@ export function ChatSidebar({
   onOpenAuth: () => void;
   onSignOut: () => void;
 }) {
+  const [theme, setTheme] = useState<Theme>("light");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    setTheme(getStoredTheme());
+  }, []);
+
+  function handleToggleTheme() {
+    setTheme(toggleTheme());
+  }
+
+  const filteredChats = searchQuery.trim()
+    ? chats.filter((c) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : chats;
+
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm md:hidden"
@@ -60,28 +77,74 @@ export function ChatSidebar({
           </button>
         </div>
 
-        <div className="p-4">
+        <div className="space-y-1 p-4 pb-2">
           <button
             onClick={onNewChat}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 text-ink-muted" />
             New chat
+          </button>
+
+          <button
+            onClick={() => setSearchOpen((v) => !v)}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+          >
+            <Search className="h-4 w-4 text-ink-muted" />
+            Search chats
+          </button>
+
+          {searchOpen && (
+            <div className="px-1 pb-1">
+              <input
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search…"
+                className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-cyan/50"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={handleToggleTheme}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4 text-ink-muted" />
+            ) : (
+              <Moon className="h-4 w-4 text-ink-muted" />
+            )}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+
+          <button
+            disabled
+            className="flex w-full cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-ink-faint"
+          >
+            <span className="flex items-center gap-2.5">
+              <Plug className="h-4 w-4" />
+              Connectors
+            </span>
+            <span className="rounded-full border border-edge px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-ink-faint">
+              Soon
+            </span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
           <p className="mb-2 px-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
             Chats
           </p>
 
-          {chats.length === 0 ? (
+          {filteredChats.length === 0 ? (
             <p className="px-1 text-xs text-ink-faint">
-              No conversations yet.
+              {searchQuery ? "No matching chats." : "No conversations yet."}
             </p>
           ) : (
             <div className="flex flex-col gap-1">
-              {chats.map((chat) => (
+              {filteredChats.map((chat) => (
                 <div
                   key={chat.id}
                   className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
