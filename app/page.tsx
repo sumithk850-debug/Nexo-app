@@ -52,7 +52,10 @@ export default function ChatPage() {
     setSessionId(sid);
     if (sid) loadChats(sid);
 
-    getCurrentUser().then((u) => setUser(u));
+    getCurrentUser().then((u) => {
+      setUser(u);
+      if (u) checkBirthday(u.id);
+    });
     const subscription = onAuthStateChange((u) => setUser(u));
     return () => subscription.unsubscribe();
   }, []);
@@ -60,6 +63,46 @@ export default function ChatPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
+
+  async function checkBirthday(userId: string) {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, birthday, last_birthday_wish_year")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (!profile?.birthday) return;
+
+      const today = new Date();
+      const bday = new Date(profile.birthday);
+      const isBirthdayToday =
+        today.getMonth() === bday.getMonth() && today.getDate() === bday.getDate();
+      const alreadyWishedThisYear = profile.last_birthday_wish_year === today.getFullYear();
+
+      if (isBirthdayToday && !alreadyWishedThisYear) {
+        const name = profile.full_name?.split(" ")[0] || "there";
+        const wishMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `🎉 Happy Birthday, ${name}!
+
+Wishing you a day filled with joy, good company, and everything that makes you smile. Thank you for being part of the NEXO AI family — here's to another wonderful year ahead. 🎂
+
+— NEXO AI`,
+          modelId: "nexio-1.1",
+        };
+        setMessages((prev) => [...prev, wishMsg]);
+
+        await supabase
+          .from("profiles")
+          .update({ last_birthday_wish_year: today.getFullYear() })
+          .eq("id", userId);
+      }
+    } catch {
+      // birthday wish is a nice-to-have, fail silently
+    }
+  }
 
   async function loadChats(sid: string) {
     try {
@@ -153,6 +196,8 @@ export default function ChatPage() {
         .from("profiles")
         .update({ welcomed: true })
         .eq("id", currentUser.id);
+    } else if (currentUser) {
+      checkBirthday(currentUser.id);
     }
   }
 
@@ -447,4 +492,4 @@ function EmptyState({ modelName }: { modelName: string }) {
       </div>
     </div>
   );
-          }
+        }
