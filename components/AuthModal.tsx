@@ -12,10 +12,12 @@ export function AuthModal({
   open,
   onClose,
   onSuccess,
+  mandatory = false,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess: (isNewUser: boolean) => void;
+  mandatory?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("signup");
   const [step, setStep] = useState<SignupStep>("credentials");
@@ -41,6 +43,7 @@ export function AuthModal({
   }
 
   function handleClose() {
+    if (mandatory) return;
     resetAll();
     onClose();
   }
@@ -124,9 +127,11 @@ export function AuthModal({
               NEXO<span className="text-cyan">AI</span>
             </span>
           </div>
-          <button onClick={handleClose} className="text-ink-faint hover:text-ink" aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
+          {!mandatory && (
+            <button onClick={handleClose} className="text-ink-faint hover:text-ink" aria-label="Close">
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         {mode === "login" ? (
