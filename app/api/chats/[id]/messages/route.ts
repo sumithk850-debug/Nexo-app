@@ -10,7 +10,6 @@ function getSupabase() {
   );
 }
 
-// GET /api/chats/[id]/messages — list all messages for a chat
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -18,9 +17,10 @@ export async function GET(
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("messages")
-    .select("*")
+    .select("id, role, content, model_id, created_at")
     .eq("chat_id", params.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(200);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -28,10 +28,12 @@ export async function GET(
     });
   }
 
-  return new Response(JSON.stringify({ messages: data }), { status: 200 });
+  return new Response(JSON.stringify({ messages: data }), {
+    status: 200,
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
-// POST /api/chats/[id]/messages — save a new message
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -64,7 +66,6 @@ export async function POST(
     });
   }
 
-  // Touch the parent chat's updated_at so chat list sorts correctly
   await supabase
     .from("chats")
     .update({ updated_at: new Date().toISOString() })
