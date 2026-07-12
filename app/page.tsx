@@ -154,39 +154,11 @@ export default function ChatPage() {
     setUser(null);
   }
 
-  async function handleSend() {
-    const text = input.trim();
-    if ((!text && !attachedFile) || isStreaming) return;
-
-    const chatId = await ensureChat();
-
-    const messageText = attachedFile
-      ? `${text}\n\n[Attached file: ${attachedFile.name}]`
-      : text;
-
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: messageText };
-    const assistantId = crypto.randomUUID();
-
-    const nextMessages = [...messages, userMsg];
-    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: selectedModel }]);
-    setInput("");
-    setAttachedFile(null);
-    setIsStreaming(true);
-
-    if (chatId) saveMessage(chatId, "user", messageText);
-
-    if (chatId && messages.length === 0) {
-      const title = messageText.slice(0, 40) + (messageText.length > 40 ? "…" : "");
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, title, modelId: selectedModel }),
-      }).catch(() => {});
-      setChats((prev) =>
-        prev.map((c) => (c.id === chatId ? { ...c, title } : c))
-      );
-    }
-
+  async function streamResponse(
+    chatId: string | null,
+    conversationSoFar: ChatMessage[],
+    assistantId: string
+  ) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -194,7 +166,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           modelId: selectedModel,
           sessionId,
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
@@ -245,6 +217,58 @@ export default function ChatPage() {
     } finally {
       setIsStreaming(false);
     }
+  }
+
+  async function handleSend() {
+    const text = input.trim();
+    if ((!text && !attachedFile) || isStreaming) return;
+
+    const chatId = await ensureChat();
+
+    const messageText = attachedFile
+      ? `${text}\n\n[Attached file: ${attachedFile.name}]`
+      : text;
+
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: messageText };
+    const assistantId = crypto.randomUUID();
+
+    const nextMessages = [...messages, userMsg];
+    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: selectedModel }]);
+    setInput("");
+    setAttachedFile(null);
+    setIsStreaming(true);
+
+    if (chatId) saveMessage(chatId, "user", messageText);
+
+    if (chatId && messages.length === 0) {
+      const title = messageText.slice(0, 40) + (messageText.length > 40 ? "…" : "");
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, title, modelId: selectedModel }),
+      }).catch(() => {});
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, title } : c))
+      );
+    }
+
+    await streamResponse(chatId, nextMessages, assistantId);
+  }
+
+  async function handleRegenerate() {
+    if (isStreaming || messages.length < 2) return;
+
+    const lastUserIndex = [...messages].reverse().findIndex((m) => m.role === "user");
+    if (lastUserIndex === -1) return;
+
+    const cutIndex = messages.length - 1 - lastUserIndex;
+    const conversationSoFar = messages.slice(0, cutIndex + 1);
+    const assistantId = crypto.randomUUID();
+
+    setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: selectedModel }]);
+    setIsStreaming(true);
+
+    await streamResponse(activeChatId, conversationSoFar, assistantId);
   }
 
   function handleNewChat() {
@@ -298,8 +322,13 @@ export default function ChatPage() {
             <EmptyState modelName={activeModel?.name ?? ""} />
           ) : (
             <div className="mx-auto max-w-3xl py-4">
-              {messages.map((m) => (
-                <MessageBubble key={m.id} message={m} />
+              {messages.map((m, i) => (
+                <MessageBubble
+                  key={m.id}
+                  message={m}
+                  isLast={i === messages.length - 1 && m.role === "assistant"}
+                  onRegenerate={handleRegenerate}
+                />
               ))}
               {isStreaming && messages[messages.length - 1]?.content === "" && (
                 <TypingIndicator />
@@ -375,4 +404,4 @@ function EmptyState({ modelName }: { modelName: string }) {
       </div>
     </div>
   );
-    }
+        }
