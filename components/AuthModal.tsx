@@ -102,9 +102,17 @@ export function AuthModal({
       setError(signUpError.message);
       return;
     }
-    if (data.user) {
+    // If a session is returned, the user is signed in immediately -> go to chat.
+    if (data.session) {
       onSuccess(true);
       handleClose();
+      return;
+    }
+    // No session means Supabase is configured to require email confirmation.
+    if (data.user) {
+      setError(
+        "Account created! Please check your email to confirm your address, then sign in.",
+      );
     }
   }
 
