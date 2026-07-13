@@ -34,6 +34,7 @@ Welcome aboard — let's build something great together.
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
@@ -54,9 +55,13 @@ export default function ChatPage() {
 
     getCurrentUser().then((u) => {
       setUser(u);
+      setAuthLoading(false);
       if (u) checkBirthday(u.id);
     });
-    const subscription = onAuthStateChange((u) => setUser(u));
+    const subscription = onAuthStateChange((u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -364,6 +369,40 @@ Wishing you a day filled with joy, good company, and everything that makes you s
   }
 
   const activeModel = getPublicModel(selectedModel);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-void">
+        <Signal size="lg" />
+        <p className="font-mono text-xs text-ink-muted">Loading NEXO AI…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
+        <div className="flex flex-col items-center gap-5">
+          <Signal size="lg" />
+          <div>
+            <h1 className="font-display text-3xl font-bold text-ink">
+              NEXO<span className="text-cyan">AI</span>
+            </h1>
+            <p className="mt-2 max-w-sm text-sm text-ink-muted">
+              Sign in or create an account to start chatting. Your conversations and profile are saved to your account.
+            </p>
+          </div>
+        </div>
+
+        <AuthModal
+          open
+          mandatory
+          onClose={() => {}}
+          onSuccess={handleAuthSuccess}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-void">

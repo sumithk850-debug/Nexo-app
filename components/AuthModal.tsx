@@ -12,10 +12,12 @@ export function AuthModal({
   open,
   onClose,
   onSuccess,
+  mandatory = false,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess: (isNewUser: boolean) => void;
+  mandatory?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("signup");
   const [step, setStep] = useState<SignupStep>("credentials");
@@ -41,6 +43,7 @@ export function AuthModal({
   }
 
   function handleClose() {
+    if (mandatory) return;
     resetAll();
     onClose();
   }
@@ -99,9 +102,17 @@ export function AuthModal({
       setError(signUpError.message);
       return;
     }
-    if (data.user) {
+    // If a session is returned, the user is signed in immediately -> go to chat.
+    if (data.session) {
       onSuccess(true);
       handleClose();
+      return;
+    }
+    // No session means Supabase is configured to require email confirmation.
+    if (data.user) {
+      setError(
+        "Account created! Please check your email to confirm your address, then sign in.",
+      );
     }
   }
 
@@ -124,9 +135,11 @@ export function AuthModal({
               NEXO<span className="text-cyan">AI</span>
             </span>
           </div>
-          <button onClick={handleClose} className="text-ink-faint hover:text-ink" aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
+          {!mandatory && (
+            <button onClick={handleClose} className="text-ink-faint hover:text-ink" aria-label="Close">
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         {mode === "login" ? (
