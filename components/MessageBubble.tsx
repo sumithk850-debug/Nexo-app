@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
-import { Copy, Check, RotateCw } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export function MessageBubble({
   message,
@@ -20,6 +20,7 @@ export function MessageBubble({
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
   async function handleCopy() {
     try {
@@ -29,6 +30,10 @@ export function MessageBubble({
     } catch {
       // clipboard access may be blocked — fail silently
     }
+  }
+
+  function handleFeedback(value: "up" | "down") {
+    setFeedback((prev) => (prev === value ? null : value));
   }
 
   if (isUser) {
@@ -83,6 +88,28 @@ export function MessageBubble({
                 <RotateCw className="h-3.5 w-3.5" />
               </button>
             )}
+
+            <button
+              onClick={() => handleFeedback("up")}
+              className={`flex items-center gap-1 rounded-md p-1.5 transition hover:bg-panel ${
+                feedback === "up" ? "text-cyan" : "text-ink-faint hover:text-ink"
+              }`}
+              aria-label="Like response"
+              title="Like"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              onClick={() => handleFeedback("down")}
+              className={`flex items-center gap-1 rounded-md p-1.5 transition hover:bg-panel ${
+                feedback === "down" ? "text-cyan" : "text-ink-faint hover:text-ink"
+              }`}
+              aria-label="Dislike response"
+              title="Dislike"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
       </div>
