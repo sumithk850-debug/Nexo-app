@@ -312,12 +312,15 @@ Wishing you a day filled with joy, good company, and everything that makes you s
     if (chatId) saveMessage(chatId, "user", messageText);
 
     if (chatId && messages.length === 0) {
-      const title = messageText.slice(0, 40) + (messageText.length > 40 ? "…" : "");
+      const words = messageText.split(/\s+/).filter(Boolean);
+      const title = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
+      
       fetch("/api/chats", {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, title, modelId: selectedModel }),
+        body: JSON.stringify({ id: chatId, title }),
       }).catch(() => {});
+
       setChats((prev) =>
         prev.map((c) => (c.id === chatId ? { ...c, title } : c))
       );
@@ -350,6 +353,7 @@ Wishing you a day filled with joy, good company, and everything that makes you s
   }
 
   async function handleSelectChat(chatId: string) {
+    if (activeChatId === chatId) return;
     setActiveChatId(chatId);
     setSidebarOpen(false);
     await loadMessages(chatId);
@@ -365,6 +369,21 @@ Wishing you a day filled with joy, good company, and everything that makes you s
       await fetch(`/api/chats?id=${chatId}`, { method: "DELETE" });
     } catch {
       // list already updated optimistically
+    }
+  }
+
+  async function handleRenameChat(chatId: string, newTitle: string) {
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c))
+    );
+    try {
+      await fetch("/api/chats", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: chatId, title: newTitle }),
+      });
+    } catch {
+      // fail silently
     }
   }
 
@@ -412,6 +431,7 @@ Wishing you a day filled with joy, good company, and everything that makes you s
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         user={user}

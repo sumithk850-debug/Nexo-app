@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Signal } from "./Signal";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug, Edit2, Check } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -14,6 +14,7 @@ export function ChatSidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onRenameChat,
   open,
   onClose,
   user,
@@ -25,6 +26,7 @@ export function ChatSidebar({
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, newTitle: string) => void;
   open: boolean;
   onClose: () => void;
   user: AuthUser | null;
@@ -34,6 +36,8 @@ export function ChatSidebar({
   const [theme, setTheme] = useState<Theme>("light");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   useEffect(() => {
     setTheme(getStoredTheme());
@@ -41,6 +45,18 @@ export function ChatSidebar({
 
   function handleToggleTheme() {
     setTheme(toggleTheme());
+  }
+
+  function startEditing(chat: DbChat) {
+    setEditingChatId(chat.id);
+    setEditTitle(chat.title);
+  }
+
+  function saveRename() {
+    if (editingChatId && editTitle.trim()) {
+      onRenameChat(editingChatId, editTitle.trim());
+      setEditingChatId(null);
+    }
   }
 
   const filteredChats = searchQuery.trim()
@@ -153,26 +169,54 @@ export function ChatSidebar({
                       : "hover:bg-panel/60"
                   }`}
                 >
-                  <button
-                    onClick={() => onSelectChat(chat.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 text-ink-faint" />
-                    <span
-                      className={`truncate text-sm ${
-                        activeChatId === chat.id ? "text-cyan" : "text-ink"
-                      }`}
-                    >
-                      {chat.title}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => onDeleteChat(chat.id)}
-                    className="flex-shrink-0 text-ink-faint opacity-0 transition hover:text-red-500 group-hover:opacity-100"
-                    aria-label="Delete chat"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {editingChatId === chat.id ? (
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                        onBlur={saveRename}
+                        className="w-full bg-transparent text-sm text-ink focus:outline-none"
+                      />
+                      <button onClick={saveRename} className="text-cyan">
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onSelectChat(chat.id)}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 text-ink-faint" />
+                        <span
+                          className={`truncate text-sm ${
+                            activeChatId === chat.id ? "text-cyan" : "text-ink"
+                          }`}
+                        >
+                          {chat.title}
+                        </span>
+                      </button>
+                      <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button
+                          onClick={() => startEditing(chat)}
+                          className="text-ink-faint hover:text-ink"
+                          aria-label="Rename chat"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteChat(chat.id)}
+                          className="text-ink-faint hover:text-red-500"
+                          aria-label="Delete chat"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

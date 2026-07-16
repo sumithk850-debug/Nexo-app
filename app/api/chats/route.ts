@@ -66,6 +66,34 @@ export async function POST(req: NextRequest) {
   return new Response(JSON.stringify({ chat: data }), { status: 201 });
 }
 
+// PATCH /api/chats — update chat title
+export async function PATCH(req: NextRequest) {
+  const body = await req.json();
+  const { id, title } = body;
+
+  if (!id || !title) {
+    return new Response(JSON.stringify({ error: "Missing id or title" }), {
+      status: 400,
+    });
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("chats")
+    .update({ title })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+    });
+  }
+
+  return new Response(JSON.stringify({ chat: data }), { status: 200 });
+}
+
 // DELETE /api/chats?id=xxx — delete a chat
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
