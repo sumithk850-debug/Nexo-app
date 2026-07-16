@@ -3,10 +3,18 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Signal } from "./Signal";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug, Edit2, Check } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug, Edit2, Check, Code2, Palette } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
-import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
+import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
+
+const NEXO_THEMES: { id: Theme; color: string; name: string }[] = [
+  { id: "dark", color: "#0A0E1A", name: "Deep Void" },
+  { id: "nebula", color: "#8B5CF6", name: "Cyan Nebula" },
+  { id: "emerald", color: "#10B981", name: "Emerald Matrix" },
+  { id: "amethyst", color: "#D946EF", name: "Royal Amethyst" },
+  { id: "slate", color: "#38BDF8", name: "Midnight Slate" },
+];
 
 export function ChatSidebar({
   chats,
@@ -20,6 +28,8 @@ export function ChatSidebar({
   user,
   onOpenAuth,
   onSignOut,
+  isCoderMode,
+  onToggleCoderMode,
 }: {
   chats: DbChat[];
   activeChatId: string | null;
@@ -32,19 +42,25 @@ export function ChatSidebar({
   user: AuthUser | null;
   onOpenAuth: () => void;
   onSignOut: () => void;
+  isCoderMode: boolean;
+  onToggleCoderMode: () => void;
 }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [currentTheme, setCurrentTheme] = useState<Theme>("dark");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [themesOpen, setThemesOpen] = useState(false);
 
   useEffect(() => {
-    setTheme(getStoredTheme());
+    const stored = getStoredTheme();
+    setCurrentTheme(stored);
+    applyTheme(stored);
   }, []);
 
-  function handleToggleTheme() {
-    setTheme(toggleTheme());
+  function handleThemeChange(theme: Theme) {
+    setCurrentTheme(theme);
+    applyTheme(theme);
   }
 
   function startEditing(chat: DbChat) {
@@ -103,6 +119,19 @@ export function ChatSidebar({
           </button>
 
           <button
+            onClick={onToggleCoderMode}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+              isCoderMode ? "bg-cyan/10 text-cyan shadow-sm" : "text-ink hover:bg-panel"
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <Code2 className="h-4 w-4" />
+              Nexo Coder
+            </span>
+            {isCoderMode && <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse"></span>}
+          </button>
+
+          <button
             onClick={() => setSearchOpen((v) => !v)}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
           >
@@ -123,30 +152,31 @@ export function ChatSidebar({
             </div>
           )}
 
-          <button
-            onClick={handleToggleTheme}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4 text-ink-muted" />
-            ) : (
-              <Moon className="h-4 w-4 text-ink-muted" />
+          <div className="pt-2">
+            <button
+              onClick={() => setThemesOpen((v) => !v)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+            >
+              <Palette className="h-4 w-4 text-ink-muted" />
+              Nexo Themes
+            </button>
+            
+            {themesOpen && (
+              <div className="mt-2 flex flex-wrap gap-2 px-3 pb-2">
+                {NEXO_THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleThemeChange(t.id)}
+                    title={t.name}
+                    className={`h-6 w-6 rounded-full border-2 transition ${
+                      currentTheme === t.id ? "border-cyan scale-110" : "border-edge hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: t.color }}
+                  />
+                ))}
+              </div>
             )}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-
-          <button
-            disabled
-            className="flex w-full cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-ink-faint"
-          >
-            <span className="flex items-center gap-2.5">
-              <Plug className="h-4 w-4" />
-              Connectors
-            </span>
-            <span className="rounded-full border border-edge px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-ink-faint">
-              Soon
-            </span>
-          </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">

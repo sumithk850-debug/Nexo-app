@@ -32,6 +32,57 @@
   --color-ink-faint: 90 100 130;
 }
 
+/* Nexo Signature Themes */
+.theme-nebula {
+  --color-void: 10 10 32;
+  --color-panel: 18 18 48;
+  --color-panel-raised: 24 24 64;
+  --color-edge: 48 48 96;
+  --color-cyan: 139 92 246;
+  --color-cyan-dim: 109 40 217;
+  --color-cyan-glow: 167 139 250;
+}
+
+.theme-emerald {
+  --color-void: 6 24 20;
+  --color-panel: 12 42 36;
+  --color-panel-raised: 18 56 48;
+  --color-edge: 32 80 72;
+  --color-cyan: 16 185 129;
+  --color-cyan-dim: 5 150 105;
+  --color-cyan-glow: 52 211 153;
+}
+
+.theme-matrix {
+  --color-void: 0 0 0;
+  --color-panel: 10 10 10;
+  --color-panel-raised: 20 20 20;
+  --color-edge: 30 255 30 / 0.2;
+  --color-cyan: 0 255 0;
+  --color-cyan-dim: 0 200 0;
+  --color-cyan-glow: 100 255 100;
+}
+
+.theme-amethyst {
+  --color-void: 24 10 32;
+  --color-panel: 42 12 56;
+  --color-panel-raised: 56 18 72;
+  --color-edge: 80 32 96;
+  --color-cyan: 217 70 239;
+  --color-cyan-dim: 192 38 211;
+  --color-cyan-glow: 232 121 249;
+}
+
+.theme-slate {
+  --color-void: 15 23 42;
+  --color-panel: 30 41 59;
+  --color-panel-raised: 51 65 85;
+  --color-edge: 71 85 105;
+  --color-cyan: 56 189 248;
+  --color-cyan-dim: 14 165 233;
+  --color-cyan-glow: 125 211 252;
+}
+
 ::selection {
   background: rgb(var(--color-cyan));
   color: rgb(var(--color-void));
@@ -44,7 +95,7 @@ html {
 body {
   background-color: rgb(var(--color-void));
   color: rgb(var(--color-ink));
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .signal-bars {
