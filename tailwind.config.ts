@@ -57,6 +57,7 @@ const config: Config = {
         signal: "pulse_signal 1.2s ease-in-out infinite",
         drift: "drift 8s linear infinite",
         "fade-up": "fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "spin-slow": "spin 8s linear infinite",
       },
     },
   },

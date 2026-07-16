@@ -13,6 +13,7 @@ interface IncomingMessage {
 const GITHUB_ENDPOINT = "https://models.github.ai/inference/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
+const CODER_DAILY_LIMIT = 5;
 
 function getSupabase() {
   return createClient(
@@ -21,31 +22,36 @@ function getSupabase() {
   );
 }
 
-async function checkAndIncrementRateLimit(sessionId: string): Promise<{ allowed: boolean; remaining: number }> {
+async function checkAndIncrementRateLimit(sessionId: string, isCoder: boolean): Promise<{ allowed: boolean; remaining: number; limit: number }> {
   const supabase = getSupabase();
   const today = new Date().toISOString().slice(0, 10);
+  const column = isCoder ? "coder_count" : "message_count";
+  const limit = isCoder ? CODER_DAILY_LIMIT : DAILY_MESSAGE_LIMIT;
 
   const { data: existing } = await supabase
     .from("rate_limits")
-    .select("message_count")
+    .select(`message_count, coder_count`)
     .eq("session_id", sessionId)
     .eq("date", today)
     .maybeSingle();
 
-  const currentCount = existing?.message_count ?? 0;
+  const currentCount = (isCoder ? existing?.coder_count : existing?.message_count) ?? 0;
 
-  if (currentCount >= DAILY_MESSAGE_LIMIT) {
-    return { allowed: false, remaining: 0 };
+  if (currentCount >= limit) {
+    return { allowed: false, remaining: 0, limit };
   }
+
+  const updateData: any = { session_id: sessionId, date: today };
+  updateData[column] = currentCount + 1;
 
   await supabase
     .from("rate_limits")
     .upsert(
-      { session_id: sessionId, date: today, message_count: currentCount + 1 },
+      updateData,
       { onConflict: "session_id,date" }
     );
 
-  return { allowed: true, remaining: DAILY_MESSAGE_LIMIT - currentCount - 1 };
+  return { allowed: true, remaining: limit - currentCount - 1, limit };
 }
 
 async function getUserMemory(sessionId: string): Promise<string> {
@@ -68,19 +74,23 @@ export async function POST(req: NextRequest) {
     const modelId = body.modelId as NexoModelId;
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
+    const isCoderMode = body.isCoderMode as boolean | undefined;
 
     if (sessionId) {
-      const { allowed, remaining } = await checkAndIncrementRateLimit(sessionId);
+      const { allowed, remaining, limit } = await checkAndIncrementRateLimit(sessionId, !!isCoderMode);
       if (!allowed) {
         return new Response(
           JSON.stringify({
             error: "rate_limit_exceeded",
-            message: `You've reached today's limit of ${DAILY_MESSAGE_LIMIT} messages. Come back tomorrow, or upgrade for unlimited access.`,
+            message: isCoderMode 
+              ? `You've reached your free limit of ${CODER_DAILY_LIMIT} Nexo Coder queries today. Upgrade for unlimited access.`
+              : `You've reached today's limit of ${DAILY_MESSAGE_LIMIT} messages. Come back tomorrow, or upgrade for unlimited access.`,
           }),
           { status: 429 }
         );
       }
       void remaining;
+      void limit;
     }
 
     const config = PROVIDER_CONFIG[modelId];
@@ -106,8 +116,6 @@ export async function POST(req: NextRequest) {
 
     const endpoint = config.provider === "github" ? GITHUB_ENDPOINT : GROQ_ENDPOINT;
 
-    // Fetch any saved long-term memory for this session and weave it into
-    // the system prompt so the model actually has access to it.
     const memory = sessionId ? await getUserMemory(sessionId) : "";
     const systemPrompt = memory
       ? `${config.systemPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
