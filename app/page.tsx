@@ -446,7 +446,7 @@ Wishing you a day filled with joy, good company, and everything that makes you s
   }
 
   return (
-    <div className={`flex h-screen bg-void transition-all duration-700 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
+    <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
       <ChatSidebar
         chats={chats}
         activeChatId={activeChatId}
@@ -466,51 +466,43 @@ Wishing you a day filled with joy, good company, and everything that makes you s
       <div className="flex min-w-0 flex-1 flex-col">
         <AnnouncementBanner />
 
-        <div className="flex items-center justify-between border-b border-edge px-6 py-3 bg-panel/20 backdrop-blur-md">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between border-b border-edge px-4 py-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden text-ink-muted hover:text-ink transition-colors"
+              className="md:hidden text-ink-muted hover:text-ink"
             >
               <Signal size="sm" />
             </button>
             {isCoderMode && (
-              <div className="group relative flex items-center gap-2.5 rounded-full bg-cyan/10 border border-cyan/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-cyan shadow-[0_0_15px_rgba(0,229,255,0.1)]">
-                <div className="absolute inset-0 rounded-full bg-cyan/5 animate-pulse"></div>
-                <Sparkles className="h-3 w-3 animate-spin-slow" />
-                Nexo Coder Agent Active
-                <div className="ml-2 flex items-center gap-1 border-l border-cyan/20 pl-2 text-cyan/60">
-                  <Zap className="h-2.5 w-2.5" />
-                  Free Tier
-                </div>
+              <div className="flex items-center gap-2 rounded-full bg-cyan/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan">
+                <Sparkles className="h-3 w-3" />
+                Nexo Coder Active
               </div>
             )}
           </div>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-muted transition-all hover:bg-panel hover:text-ink hover:scale-105"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition hover:bg-panel hover:text-ink"
             aria-label="Settings"
           >
-            <Settings className="h-4.5 w-4.5" />
+            <Settings className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex flex-1 min-h-0">
           {/* Chat Section */}
-          <div className={`flex flex-col min-w-0 transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1) ${isCoderMode ? 'w-[45%]' : 'w-full'}`}>
+          <div className={`flex flex-col min-w-0 transition-all duration-500 ${isCoderMode ? 'w-1/2' : 'w-full'}`}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
               {messagesLoading ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 blur-xl bg-cyan/20 animate-pulse"></div>
-                    <Signal size="md" />
-                  </div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">Initializing Nexus Stream…</p>
+                <div className="flex h-full flex-col items-center justify-center gap-3">
+                  <Signal size="md" />
+                  <p className="font-mono text-xs text-ink-muted">Loading conversation…</p>
                 </div>
               ) : messages.length === 0 ? (
-                <EmptyState modelName={isCoderMode ? "Nexo Coder Agent" : activeModel?.name ?? ""} />
+                <EmptyState modelName={isCoderMode ? "Nexo Coder" : activeModel?.name ?? ""} />
               ) : (
-                <div className="mx-auto w-full max-w-3xl py-6">
+                <div className="mx-auto w-full max-w-3xl py-4">
                   {messages.map((m, i) => (
                     <MessageBubble
                       key={m.id}
@@ -526,7 +518,7 @@ Wishing you a day filled with joy, good company, and everything that makes you s
               )}
             </div>
 
-            <div className="mx-auto w-full max-w-3xl p-6">
+            <div className="mx-auto w-full max-w-3xl p-4">
               <ChatInput
                 value={input}
                 onChange={setInput}
@@ -540,8 +532,8 @@ Wishing you a day filled with joy, good company, and everything that makes you s
                 disabled={isStreaming}
               />
               {isCoderMode && (
-                <p className="mt-3 text-center font-mono text-[9px] uppercase tracking-widest text-ink-faint/60">
-                  Free Tier: 5 Coder Queries Daily • <span className="text-cyan/60">Craft V3 Model</span>
+                <p className="mt-2 text-center font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                  Free Tier: 5 Coder Queries Daily • <span className="text-cyan">Craft V3 Model</span>
                 </p>
               )}
             </div>
@@ -549,7 +541,7 @@ Wishing you a day filled with joy, good company, and everything that makes you s
 
           {/* Nexo Coder Preview Section */}
           {isCoderMode && (
-            <div className="w-[55%] border-l border-edge p-6 bg-void/30 backdrop-blur-sm animate-fade-up">
+            <div className="w-1/2 border-l border-edge p-4 bg-void/50 animate-fade-up">
               {lastExtractedCode ? (
                 <NexoCoder 
                   code={lastExtractedCode.code} 
@@ -557,16 +549,13 @@ Wishing you a day filled with joy, good company, and everything that makes you s
                   fileName={lastExtractedCode.file}
                 />
               ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-white/5 bg-white/[0.02] p-12 text-center group">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 blur-2xl bg-cyan/5 group-hover:bg-cyan/10 transition-all"></div>
-                    <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-panel/50 border border-white/5 text-ink-faint group-hover:text-cyan transition-all duration-500">
-                      <Code2 className="h-8 w-8" />
-                    </div>
+                <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-edge bg-panel/30 p-8 text-center">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-faint">
+                    <Code2 className="h-6 w-6" />
                   </div>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-ink">Nexus Sandbox Ready</h3>
-                  <p className="mt-3 max-w-xs text-xs leading-relaxed text-ink-muted/80">
-                    Deploy your code architecture here. Ask Nexo Coder to build a component, schema, or logic block to begin.
+                  <h3 className="text-sm font-bold text-ink">Waiting for Code</h3>
+                  <p className="mt-2 max-w-xs text-xs text-ink-muted">
+                    Ask Nexo Coder to write some code, and it will appear here for review and preview.
                   </p>
                 </div>
               )}
@@ -587,24 +576,16 @@ Wishing you a day filled with joy, good company, and everything that makes you s
 
 function EmptyState({ modelName }: { modelName: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 text-center animate-fade-up">
-      <div className="relative mb-8 group">
-        <div className="absolute inset-0 blur-3xl bg-cyan/10 group-hover:bg-cyan/20 transition-all duration-700"></div>
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-panel border border-edge shadow-2xl transition-transform duration-500 group-hover:scale-110">
-          <Signal size="md" />
-        </div>
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-panel shadow-sm">
+        <Signal size="md" />
       </div>
-      <h2 className="font-display text-2xl font-black tracking-tight text-ink">
-        NEXO<span className="text-cyan">AI</span> Protocol <span className="text-cyan/50">v1.1</span>
+      <h2 className="font-display text-xl font-bold text-ink">
+        How can <span className="text-cyan">{modelName}</span> help you?
       </h2>
-      <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-muted/80">
-        Initialized as <span className="text-cyan font-bold">{modelName}</span>. Ready to process your linguistic or technical requests in Sinhala and English.
+      <p className="mt-2 max-w-sm text-sm text-ink-muted">
+        Start a new conversation or pick up where you left off. Nexo is ready to assist you in Sinhala or English.
       </p>
-      <div className="mt-10 flex gap-3">
-        <div className="h-1 w-8 rounded-full bg-cyan/20"></div>
-        <div className="h-1 w-8 rounded-full bg-cyan/40"></div>
-        <div className="h-1 w-8 rounded-full bg-cyan/20"></div>
-      </div>
     </div>
   );
 }
