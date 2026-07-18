@@ -63,7 +63,7 @@ export const PROVIDER_CONFIG: Record<NexoModelId, ProviderConfig> = {
   },
   "craft-v3": {
     provider: "groq",
-    model: "gpt-4o-120b",
+    model: "openai/gpt-oss-120b",
     systemPrompt: CRAFT_V3_SYSTEM_PROMPT,
   },
 };
