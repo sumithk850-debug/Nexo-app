@@ -52,7 +52,12 @@ export function ChatInput({
     setIsListening(false);
     cancelAnimationFrame(rafRef.current);
     try {
-      recognitionRef.current?.stop();
+      if (recognitionRef.current) {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      }
     } catch {
       // recognition may already be stopped
     }
@@ -81,6 +86,7 @@ export function ChatInput({
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       function tick() {
+        if (!audioCtxRef.current) return;
         analyser.getByteFrequencyData(dataArray);
         const bars = Array.from({ length: WAVE_BAR_COUNT }, (_, i) => {
           const idx = Math.floor((i / WAVE_BAR_COUNT) * dataArray.length);
@@ -113,17 +119,31 @@ export function ChatInput({
               interim += transcript;
             }
           }
-          onChange((finalTranscript + interim).trim());
+          const currentText = (finalTranscript + interim).trim();
+          if (currentText) {
+            onChange(currentText);
+          }
         };
-        recognition.onerror = () => stopListening();
-        recognition.onend = () => setIsListening((prev) => (prev ? false : prev));
+        recognition.onerror = (e: any) => {
+          console.error("Speech recognition error", e);
+          stopListening();
+        };
+        recognition.onend = () => {
+          if (isListening) {
+            try {
+              recognition.start();
+            } catch {
+              setIsListening(false);
+            }
+          }
+        };
         recognition.start();
         recognitionRef.current = recognition;
       }
 
       setIsListening(true);
-    } catch {
-      // microphone permission denied or unsupported — fail silently
+    } catch (err) {
+      console.error("Mic access error", err);
     }
   }
 
