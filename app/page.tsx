@@ -161,6 +161,20 @@ export default function ChatPage() {
     setUser(null);
   }
 
+  async function handleClearHistory() {
+    setChats([]);
+    setActiveChatId(null);
+    setMessages([]);
+    try {
+      for (const chat of chats) {
+        await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
+      }
+    } catch {
+      // best-effort cleanup
+    }
+    setSettingsOpen(false);
+  }
+
   async function streamResponse(
     chatId: string | null,
     conversationSoFar: ChatMessage[],
@@ -225,6 +239,22 @@ export default function ChatPage() {
     } finally {
       setIsStreaming(false);
     }
+  }
+
+  async function handleRegenerate() {
+    if (isStreaming || messages.length < 2) return;
+
+    const lastUserIndex = [...messages].reverse().findIndex((m) => m.role === "user");
+    if (lastUserIndex === -1) return;
+
+    const cutIndex = messages.length - 1 - lastUserIndex;
+    const conversationSoFar = messages.slice(0, cutIndex + 1);
+    const assistantId = crypto.randomUUID();
+
+    setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setIsStreaming(true);
+
+    await streamResponse(activeChatId, conversationSoFar, assistantId);
   }
 
   async function handleSend() {
@@ -344,6 +374,7 @@ export default function ChatPage() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         user={user}
+        onOpenAuth={() => setAuthModalOpen(true)}
         onSignOut={handleSignOut}
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
@@ -441,6 +472,7 @@ export default function ChatPage() {
       <SettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        sessionId={sessionId}
         onClearHistory={handleClearHistory}
       />
     </div>

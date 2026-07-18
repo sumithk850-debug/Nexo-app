@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Signal } from "./Signal";
 import { getLoadingMessage } from "@/lib/loadingMessages";
 
-export function TypingIndicator() {
+export function TypingIndicator({ modelId }: { modelId?: string }) {
   const [message, setMessage] = useState(() => getLoadingMessage());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -22,7 +22,12 @@ export function TypingIndicator() {
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-edge bg-panel">
         <Signal size="sm" />
       </div>
-      <span className="font-mono text-xs text-ink-muted">{message}</span>
+      <div className="flex flex-col">
+        <span className="font-mono text-xs text-ink-muted">{message}</span>
+        {modelId && (
+          <span className="text-[10px] text-ink-faint uppercase tracking-wider">{modelId} is thinking...</span>
+        )}
+      </div>
     </div>
   );
 }
