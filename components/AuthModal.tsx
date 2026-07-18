@@ -102,13 +102,11 @@ export function AuthModal({
       setError(signUpError.message);
       return;
     }
-    // If a session is returned, the user is signed in immediately -> go to chat.
     if (data.session) {
       onSuccess(true);
       handleClose();
       return;
     }
-    // No session means Supabase is configured to require email confirmation.
     if (data.user) {
       setError(
         "Account created! Please check your email to confirm your address, then sign in.",
@@ -117,26 +115,34 @@ export function AuthModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-edge bg-panel p-6 shadow-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-void px-4 overflow-hidden">
+      {/* Animated Background Bubbles */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-cyan/10 blur-[120px] animate-drift"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-indigo-500/10 blur-[120px] animate-drift [animation-delay:4s]"></div>
+        <div className="absolute top-[20%] right-[10%] h-[30%] w-[30%] rounded-full bg-cyan/5 blur-[100px] animate-pulse"></div>
+        <div className="absolute bottom-[20%] left-[10%] h-[30%] w-[30%] rounded-full bg-indigo-500/5 blur-[100px] animate-pulse [animation-delay:2s]"></div>
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-edge bg-panel/80 p-8 shadow-2xl backdrop-blur-xl animate-fade-up">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {mode === "signup" && step !== "credentials" && (
               <button
                 onClick={() => setStep(step === "confirm" ? "profile" : "credentials")}
-                className="text-ink-faint hover:text-ink"
+                className="text-ink-faint hover:text-ink transition-colors"
                 aria-label="Back"
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
             <Signal size="sm" />
-            <span className="font-display text-base font-bold text-ink">
+            <span className="font-display text-lg font-black tracking-tight text-ink">
               NEXO<span className="text-cyan">AI</span>
             </span>
           </div>
           {!mandatory && (
-            <button onClick={handleClose} className="text-ink-faint hover:text-ink" aria-label="Close">
+            <button onClick={handleClose} className="text-ink-faint hover:text-ink transition-colors" aria-label="Close">
               <X className="h-5 w-5" />
             </button>
           )}
@@ -144,39 +150,39 @@ export function AuthModal({
 
         {mode === "login" ? (
           <>
-            <h2 className="mt-5 font-display text-xl font-bold text-ink">Welcome back</h2>
-            <p className="mt-1 text-sm text-ink-muted">Sign in to continue where you left off.</p>
+            <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Welcome back</h2>
+            <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Sign in to continue your journey with NEXO.</p>
 
-            <form onSubmit={handleLogin} className="mt-5 space-y-3">
-              <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                <Mail className="h-4 w-4 text-ink-faint" />
+            <form onSubmit={handleLogin} className="mt-7 space-y-4">
+              <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50 focus-within:ring-1 focus-within:ring-cyan/50">
+                <Mail className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                 <input
                   type="email"
                   required
-                  placeholder="Email"
+                  placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                  className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
                 />
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                <Lock className="h-4 w-4 text-ink-faint" />
+              <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50 focus-within:ring-1 focus-within:ring-cyan/50">
+                <Lock className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                 <input
                   type="password"
                   required
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                  className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
                 />
               </div>
 
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && <p className="text-xs font-bold text-red-500 animate-pulse">{error}</p>}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-cyan py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-dim disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg hover:shadow-cyan/20 active:scale-95 disabled:opacity-60"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Sign in
@@ -187,46 +193,46 @@ export function AuthModal({
           <>
             {step === "credentials" && (
               <>
-                <h2 className="mt-5 font-display text-xl font-bold text-ink">Create your account</h2>
-                <p className="mt-1 text-sm text-ink-muted">Step 1 of 3 — your login details</p>
+                <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Create account</h2>
+                <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Phase 1 — Setup your secure credentials</p>
 
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-cyan/30 bg-cyan/10 p-3">
+                <div className="mt-4 flex items-start gap-3 rounded-2xl border border-cyan/20 bg-cyan/5 p-4">
                   <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
-                  <p className="text-xs text-ink-muted">
-                    Please create a <span className="font-semibold text-ink">new password just for NEXO AI</span> — don&apos;t reuse your email account password.
+                  <p className="text-[11px] font-medium leading-relaxed text-ink-muted">
+                    Security protocol: Use a <span className="font-bold text-ink underline decoration-cyan/30">unique password</span> for NEXO AI. Do not reuse your email password.
                   </p>
                 </div>
 
-                <form onSubmit={handleCredentialsNext} className="mt-4 space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                    <Mail className="h-4 w-4 text-ink-faint" />
+                <form onSubmit={handleCredentialsNext} className="mt-5 space-y-4">
+                  <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
+                    <Mail className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="email"
                       required
-                      placeholder="Email"
+                      placeholder="Email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
                     />
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                    <Lock className="h-4 w-4 text-ink-faint" />
+                  <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
+                    <Lock className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="password"
                       required
                       minLength={6}
-                      placeholder="Create a NEXO password"
+                      placeholder="Create a password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
                     />
                   </div>
 
-                  {error && <p className="text-xs text-red-500">{error}</p>}
+                  {error && <p className="text-xs font-bold text-red-500">{error}</p>}
 
                   <button
                     type="submit"
-                    className="w-full rounded-full bg-cyan py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-dim"
+                    className="w-full rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg active:scale-95"
                   >
                     Continue
                   </button>
@@ -236,37 +242,37 @@ export function AuthModal({
 
             {step === "profile" && (
               <>
-                <h2 className="mt-5 font-display text-xl font-bold text-ink">Tell us about you</h2>
-                <p className="mt-1 text-sm text-ink-muted">Step 2 of 3 — your name and birthday</p>
+                <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Tell us more</h2>
+                <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Phase 2 — Personalize your experience</p>
 
-                <form onSubmit={handleProfileNext} className="mt-4 space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                    <User className="h-4 w-4 text-ink-faint" />
+                <form onSubmit={handleProfileNext} className="mt-5 space-y-4">
+                  <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
+                    <User className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="text"
                       required
-                      placeholder="Full name"
+                      placeholder="Your full name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
                     />
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg border border-edge bg-void px-3 py-2.5">
-                    <Cake className="h-4 w-4 text-ink-faint" />
+                  <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
+                    <Cake className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="date"
                       required
                       value={birthday}
                       onChange={(e) => setBirthday(e.target.value)}
-                      className="w-full bg-transparent text-sm text-ink focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-ink focus:outline-none"
                     />
                   </div>
 
-                  {error && <p className="text-xs text-red-500">{error}</p>}
+                  {error && <p className="text-xs font-bold text-red-500">{error}</p>}
 
                   <button
                     type="submit"
-                    className="w-full rounded-full bg-cyan py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-dim"
+                    className="w-full rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg active:scale-95"
                   >
                     Continue
                   </button>
@@ -276,30 +282,30 @@ export function AuthModal({
 
             {step === "confirm" && (
               <>
-                <h2 className="mt-5 font-display text-xl font-bold text-ink">Confirm your details</h2>
-                <p className="mt-1 text-sm text-ink-muted">Step 3 of 3 — review before creating your account</p>
+                <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Review details</h2>
+                <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Phase 3 — Confirm before initialization</p>
 
-                <div className="mt-4 space-y-2 rounded-lg border border-edge bg-void p-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-ink-muted">Email</span>
-                    <span className="font-medium text-ink">{email}</span>
+                <div className="mt-5 space-y-3 rounded-2xl border border-edge bg-void/50 p-5 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Email</span>
+                    <span className="font-bold text-ink">{email}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink-muted">Name</span>
-                    <span className="font-medium text-ink">{fullName}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Identity</span>
+                    <span className="font-bold text-ink">{fullName}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink-muted">Birthday</span>
-                    <span className="font-medium text-ink">{birthday}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Origin</span>
+                    <span className="font-bold text-ink">{birthday}</span>
                   </div>
                 </div>
 
-                {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
+                {error && <p className="mt-4 text-xs font-bold text-red-500 animate-pulse">{error}</p>}
 
                 <button
                   onClick={handleConfirm}
                   disabled={loading}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-cyan py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-dim disabled:opacity-60"
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg active:scale-95 disabled:opacity-60"
                 >
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   Create account
@@ -309,14 +315,14 @@ export function AuthModal({
           </>
         )}
 
-        <p className="mt-4 text-center text-xs text-ink-muted">
-          {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
+        <p className="mt-6 text-center text-xs font-bold text-ink-muted">
+          {mode === "signup" ? "Already a member?" : "New to the nexus?"}{" "}
           <button
             onClick={() => {
               resetAll();
               setMode(mode === "signup" ? "login" : "signup");
             }}
-            className="font-semibold text-cyan hover:underline"
+            className="text-cyan hover:underline decoration-cyan/30 underline-offset-4"
           >
             {mode === "signup" ? "Sign in" : "Sign up"}
           </button>
@@ -324,4 +330,4 @@ export function AuthModal({
       </div>
     </div>
   );
-                }
+}
