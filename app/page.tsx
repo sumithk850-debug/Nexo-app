@@ -15,22 +15,9 @@ import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
-import { Settings, Code2, Sparkles, Zap } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout } from "lucide-react";
 
 const UNLOCKED_TIERS = ["Free"];
-
-const WELCOME_MESSAGE = `Thank you for joining NEXO AI! 🎉
-
-I'm so glad you're here. From now on, your conversations will be saved to your account — sign in from any device and pick up right where you left off.
-
-A few things to try:
-- Switch between all 5 NEXO models from the input bar
-- Attach a file or photo to a message
-- Ask me anything, in Sinhala or English
-
-Welcome aboard — let's build something great together.
-
-— NEXO AI`;
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
@@ -60,7 +47,6 @@ export default function ChatPage() {
     getCurrentUser().then((u) => {
       setUser(u);
       setAuthLoading(false);
-      if (u) checkBirthday(u.id);
     });
     const subscription = onAuthStateChange((u) => {
       setUser(u);
@@ -89,46 +75,6 @@ export default function ChatPage() {
       }
     }
   }, [messages]);
-
-  async function checkBirthday(userId: string) {
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, birthday, last_birthday_wish_year")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (!profile?.birthday) return;
-
-      const today = new Date();
-      const bday = new Date(profile.birthday);
-      const isBirthdayToday =
-        today.getMonth() === bday.getMonth() && today.getDate() === bday.getDate();
-      const alreadyWishedThisYear = profile.last_birthday_wish_year === today.getFullYear();
-
-      if (isBirthdayToday && !alreadyWishedThisYear) {
-        const name = profile.full_name?.split(" ")[0] || "there";
-        const wishMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: `🎉 Happy Birthday, ${name}!
-
-Wishing you a day filled with joy, good company, and everything that makes you smile. Thank you for being part of the NEXO AI family — here's to another wonderful year ahead. 🎂
-
-— NEXO AI`,
-          modelId: "nexio-1.1",
-        };
-        setMessages((prev) => [...prev, wishMsg]);
-
-        await supabase
-          .from("profiles")
-          .update({ last_birthday_wish_year: today.getFullYear() })
-          .eq("id", userId);
-      }
-    } catch {
-      // birthday wish is a nice-to-have, fail silently
-    }
-  }
 
   async function loadChats(sid: string) {
     try {
@@ -208,42 +154,11 @@ Wishing you a day filled with joy, good company, and everything that makes you s
   async function handleAuthSuccess(isNewUser: boolean) {
     const currentUser = await getCurrentUser();
     setUser(currentUser);
-
-    if (isNewUser && currentUser) {
-      const welcomeMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: WELCOME_MESSAGE,
-        modelId: selectedModel,
-      };
-      setMessages((prev) => [...prev, welcomeMsg]);
-
-      await supabase
-        .from("profiles")
-        .update({ welcomed: true })
-        .eq("id", currentUser.id);
-    } else if (currentUser) {
-      checkBirthday(currentUser.id);
-    }
   }
 
   async function handleSignOut() {
     await signOut();
     setUser(null);
-  }
-
-  async function handleClearHistory() {
-    setChats([]);
-    setActiveChatId(null);
-    setMessages([]);
-    try {
-      for (const chat of chats) {
-        await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
-      }
-    } catch {
-      // best-effort cleanup
-    }
-    setSettingsOpen(false);
   }
 
   async function streamResponse(
@@ -351,22 +266,6 @@ Wishing you a day filled with joy, good company, and everything that makes you s
     await streamResponse(chatId, nextMessages, assistantId);
   }
 
-  async function handleRegenerate() {
-    if (isStreaming || messages.length < 2) return;
-
-    const lastUserIndex = [...messages].reverse().findIndex((m) => m.role === "user");
-    if (lastUserIndex === -1) return;
-
-    const cutIndex = messages.length - 1 - lastUserIndex;
-    const conversationSoFar = messages.slice(0, cutIndex + 1);
-    const assistantId = crypto.randomUUID();
-
-    setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
-    setIsStreaming(true);
-
-    await streamResponse(activeChatId, conversationSoFar, assistantId);
-  }
-
   function handleNewChat() {
     setActiveChatId(null);
     setMessages([]);
@@ -409,8 +308,6 @@ Wishing you a day filled with joy, good company, and everything that makes you s
     }
   }
 
-  const activeModel = getPublicModel(selectedModel);
-
   if (authLoading) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-void">
@@ -423,18 +320,6 @@ Wishing you a day filled with joy, good company, and everything that makes you s
   if (!user) {
     return (
       <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
-        <div className="flex flex-col items-center gap-5">
-          <Signal size="lg" />
-          <div>
-            <h1 className="font-display text-3xl font-bold text-ink">
-              NEXO<span className="text-cyan">AI</span>
-            </h1>
-            <p className="mt-2 max-w-sm text-sm text-ink-muted">
-              Sign in or create an account to start chatting. Your conversations and profile are saved to your account.
-            </p>
-          </div>
-        </div>
-
         <AuthModal
           open
           mandatory
@@ -444,6 +329,8 @@ Wishing you a day filled with joy, good company, and everything that makes you s
       </div>
     );
   }
+
+  const firstName = user.fullName?.split(" ")[0] || "there";
 
   return (
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
@@ -457,135 +344,105 @@ Wishing you a day filled with joy, good company, and everything that makes you s
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         user={user}
-        onOpenAuth={() => setAuthModalOpen(true)}
         onSignOut={handleSignOut}
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <main className="flex flex-1 flex-col overflow-hidden relative">
+        {/* Animated Glow Border for Coder Mode */}
+        {isCoderMode && (
+          <div className="absolute inset-0 pointer-events-none z-50 border-[2px] border-cyan/20 rounded-none shadow-[inset_0_0_50px_rgba(0,229,255,0.1)] animate-pulse"></div>
+        )}
+
         <AnnouncementBanner />
 
-        <div className="flex items-center justify-between border-b border-edge px-4 py-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden text-ink-muted hover:text-ink"
-            >
-              <Signal size="sm" />
-            </button>
-            {isCoderMode && (
-              <div className="flex items-center gap-2 rounded-full bg-cyan/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan">
-                <Sparkles className="h-3 w-3" />
-                Nexo Coder Active
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition hover:bg-panel hover:text-ink"
-            aria-label="Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex flex-1 min-h-0">
-          {/* Chat Section */}
-          <div className={`flex flex-col min-w-0 transition-all duration-500 ${isCoderMode ? 'w-1/2' : 'w-full'}`}>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto">
-              {messagesLoading ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3">
-                  <Signal size="md" />
-                  <p className="font-mono text-xs text-ink-muted">Loading conversation…</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <EmptyState modelName={isCoderMode ? "Nexo Coder" : activeModel?.name ?? ""} />
-              ) : (
-                <div className="mx-auto w-full max-w-3xl py-4">
-                  {messages.map((m, i) => (
-                    <MessageBubble
-                      key={m.id}
-                      message={m}
-                      isLast={i === messages.length - 1 && m.role === "assistant"}
-                      onRegenerate={handleRegenerate}
-                    />
-                  ))}
-                  {isStreaming && messages[messages.length - 1]?.content === "" && (
-                    <TypingIndicator />
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="mx-auto w-full max-w-3xl p-4">
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSend={handleSend}
-                onAttach={handleAttach}
-                attachedFile={attachedFile}
-                onRemoveAttach={() => setAttachedFile(null)}
-                isStreaming={isStreaming}
-                selectedModel={isCoderMode ? "craft-v3" : selectedModel}
-                onSelectModel={setSelectedModel}
-                disabled={isStreaming}
-              />
-              {isCoderMode && (
-                <p className="mt-2 text-center font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-                  Free Tier: 5 Coder Queries Daily • <span className="text-cyan">Craft V3 Model</span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Nexo Coder Preview Section */}
-          {isCoderMode && (
-            <div className="w-1/2 border-l border-edge p-4 bg-void/50 animate-fade-up">
-              {lastExtractedCode ? (
-                <NexoCoder 
-                  code={lastExtractedCode.code} 
-                  language={lastExtractedCode.lang} 
-                  fileName={lastExtractedCode.file}
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-edge bg-panel/30 p-8 text-center">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-faint">
-                    <Code2 className="h-6 w-6" />
+        <div className="flex flex-1 overflow-hidden">
+          <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
+            <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
+              <div className="mx-auto max-w-3xl px-4 py-8">
+                {messages.length === 0 ? (
+                  <div className="flex min-h-[60vh] flex-col items-center justify-center text-center animate-fade-up">
+                    <Signal size="lg" className="mb-8" />
+                    <h1 className="font-display text-4xl font-black tracking-tight text-ink md:text-5xl">
+                      {isCoderMode ? "What will you build next," : "How can I help you,"} <span className="text-cyan">{firstName}?</span>
+                    </h1>
+                    <p className="mt-4 max-w-md text-sm font-medium leading-relaxed text-ink-muted">
+                      {isCoderMode 
+                        ? "BrainEx Engine is active. Describe the app or architecture you want to create below."
+                        : "Your personal AI workspace is ready. Start a new conversation or pick up where you left off."}
+                    </p>
+                    
+                    {isCoderMode && (
+                      <div className="mt-10 grid grid-cols-2 gap-3 w-full max-w-lg">
+                        <button onClick={() => setInput("Build a CRM system with Next.js and Supabase")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Briefcase className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">CRM & Sales</span>
+                        </button>
+                        <button onClick={() => setInput("Create a booking app for a medical clinic")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Database className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">Booking App</span>
+                        </button>
+                        <button onClick={() => setInput("Design a SaaS landing page with Tailwind CSS")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Layout className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">SaaS Layout</span>
+                        </button>
+                        <button onClick={() => setInput("Implement a secure authentication flow")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Zap className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">Auth Logic</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-sm font-bold text-ink">Waiting for Code</h3>
-                  <p className="mt-2 max-w-xs text-xs text-ink-muted">
-                    Ask Nexo Coder to write some code, and it will appear here for review and preview.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-8 pb-12">
+                    {messages.map((m) => (
+                      <MessageBubble 
+                        key={m.id} 
+                        message={m} 
+                        onRegenerate={m.role === "assistant" && m === messages[messages.length - 1] ? handleRegenerate : undefined}
+                      />
+                    ))}
+                    {isStreaming && <TypingIndicator modelId={isCoderMode ? "craft-v3" : selectedModel} />}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <ChatInput
+              value={input}
+              onChange={setInput}
+              onSend={handleSend}
+              disabled={isStreaming}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              selectedModel={selectedModel}
+              onSelectModel={setSelectedModel}
+              unlockedTiers={UNLOCKED_TIERS}
+              onAttach={handleAttach}
+              attachedFile={attachedFile}
+              onRemoveAttach={() => setAttachedFile(null)}
+              isStreaming={isStreaming}
+            />
+          </div>
+
+          {/* Nexo Coder Side Panel */}
+          {isCoderMode && lastExtractedCode && (
+            <div className="w-1/2 border-l border-edge bg-void/50 p-4 animate-fade-left">
+              <NexoCoder 
+                code={lastExtractedCode.code}
+                language={lastExtractedCode.lang}
+                fileName={lastExtractedCode.file}
+              />
             </div>
           )}
         </div>
-      </div>
+      </main>
 
       <SettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onClearHistory={handleClearHistory}
-        sessionId={sessionId}
       />
-    </div>
-  );
-}
-
-function EmptyState({ modelName }: { modelName: string }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-panel shadow-sm">
-        <Signal size="md" />
-      </div>
-      <h2 className="font-display text-xl font-bold text-ink">
-        How can <span className="text-cyan">{modelName}</span> help you?
-      </h2>
-      <p className="mt-2 max-w-sm text-sm text-ink-muted">
-        Start a new conversation or pick up where you left off. Nexo is ready to assist you in Sinhala or English.
-      </p>
     </div>
   );
 }
