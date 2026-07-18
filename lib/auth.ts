@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 export interface AuthUser {
   id: string;
   email: string;
+  fullName?: string;
 }
 
 export interface SignUpDetails {
@@ -38,16 +39,24 @@ export async function signOut() {
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
-  return { id: data.user.id, email: data.user.email ?? "" };
+  return { 
+    id: data.user.id, 
+    email: data.user.email ?? "",
+    fullName: data.user.user_metadata?.full_name
+  };
 }
 
 export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
-      callback({ id: session.user.id, email: session.user.email ?? "" });
+      callback({ 
+        id: session.user.id, 
+        email: session.user.email ?? "",
+        fullName: session.user.user_metadata?.full_name
+      });
     } else {
       callback(null);
     }
   });
   return data.subscription;
-  }
+}

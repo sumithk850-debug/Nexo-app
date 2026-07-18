@@ -15,7 +15,7 @@ import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu } from "lucide-react";
 
 const UNLOCKED_TIERS = ["Free"];
 
@@ -330,7 +330,7 @@ export default function ChatPage() {
     );
   }
 
-  const firstName = user.fullName?.split(" ")[0] || "there";
+  const firstName = user?.fullName?.split(" ")[0] || "there";
 
   return (
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
