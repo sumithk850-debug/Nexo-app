@@ -1,82 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Code2, 
-  Play, 
-  Copy, 
-  Check, 
-  FileCode, 
-  Monitor, 
-  Layout, 
-  Database, 
-  Sparkles, 
-  Terminal, 
-  ChevronRight, 
-  Zap,
-  Briefcase,
-  LineChart,
-  Calendar,
-  ListTodo
-} from "lucide-react";
+import { Code2, Play, Copy, Check, FileCode, Monitor, Layout, Database, Sparkles, Terminal, ChevronRight, Zap } from "lucide-react";
 
-// This is the Home screen for Coder mode
-export function NexoCoderHome({ 
-  onAction,
-  userName 
-}: { 
-  onAction: (action: string) => void;
-  userName: string;
-}) {
-  const suggestions = [
-    { label: "Tasks & Workflows", icon: ListTodo, color: "text-blue-400" },
-    { label: "CRM & Sales", icon: LineChart, color: "text-emerald-400" },
-    { label: "Content & Sites", icon: Layout, color: "text-purple-400" },
-    { label: "Finance", icon: Database, color: "text-amber-400" },
-    { label: "Booking", icon: Calendar, color: "text-rose-400" },
-  ];
-
-  return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center animate-fade-up">
-      <div className="relative mb-8">
-        <div className="absolute inset-0 blur-3xl bg-cyan/20 animate-drift"></div>
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-panel border border-edge shadow-2xl ring-1 ring-cyan/30">
-          <Terminal className="h-10 w-10 text-cyan" />
-        </div>
-      </div>
-      
-      <h1 className="font-display text-4xl font-black tracking-tight text-ink md:text-5xl lg:text-6xl">
-        What will you build next, <span className="text-cyan">{userName}?</span>
-      </h1>
-      <p className="mt-6 max-w-lg text-ink-muted font-medium">
-        Describe the app you want to create and BrainEx will architect the entire system for you.
-      </p>
-
-      <div className="mt-12 flex flex-wrap justify-center gap-3">
-        {suggestions.map((s) => (
-          <button
-            key={s.label}
-            onClick={() => onAction(`Create a ${s.label} application with modern UI`)}
-            className="flex items-center gap-2.5 rounded-2xl border border-edge bg-panel/50 px-5 py-3 text-sm font-bold text-ink transition-all hover:bg-panel hover:scale-105 hover:border-cyan/50 shadow-sm"
-          >
-            <s.icon className={`h-4 w-4 ${s.color}`} />
-            {s.label}
-          </button>
-        ))}
-        <button className="flex h-11 w-11 items-center justify-center rounded-2xl border border-edge bg-panel/50 text-ink-muted transition-all hover:bg-panel hover:text-ink">
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      </div>
-
-      <p className="mt-16 text-xs font-black text-ink-faint uppercase tracking-[0.2em] flex items-center gap-2">
-        <Sparkles className="h-3 w-3 text-cyan" /> Want an agent that works on its own?
-      </p>
-    </div>
-  );
-}
-
-// This is the Code display component
-export function NexoCoderDisplay({ 
+export function NexoCoder({ 
   code, 
   language = "typescript", 
   fileName = "component.tsx" 
@@ -96,6 +23,7 @@ export function NexoCoderDisplay({
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-edge bg-void/40 shadow-2xl backdrop-blur-2xl animate-fade-up ring-1 ring-cyan/20">
+      {/* Premium Header */}
       <div className="flex items-center justify-between border-b border-edge bg-panel/50 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan/20 to-indigo-500/20 text-cyan shadow-inner">
@@ -138,6 +66,7 @@ export function NexoCoderDisplay({
         </div>
       </div>
 
+      {/* Code / Preview Area */}
       <div className="relative flex-1 overflow-hidden bg-void/20">
         {activeTab === "code" ? (
           <div className="h-full overflow-auto p-6 font-mono text-sm leading-relaxed custom-scrollbar">
@@ -183,11 +112,12 @@ export function NexoCoderDisplay({
         )}
       </div>
 
+      {/* Footer Info */}
       <div className="border-t border-edge bg-panel/30 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-[10px] font-black text-ink-faint uppercase tracking-[0.15em]">
-              <Sparkles className="h-3 text-cyan" /> Advanced AI Architect
+              <Sparkles className="h-3 w-3 text-cyan" /> Advanced AI Architect
             </div>
             <div className="h-1 w-1 rounded-full bg-edge"></div>
             <div className="text-[10px] font-black text-ink-faint uppercase tracking-[0.15em]">
