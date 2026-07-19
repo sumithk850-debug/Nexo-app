@@ -15,26 +15,30 @@ export function ChatInput({
   onSend,
   disabled,
   onOpenSidebar,
-  selectedModel,
-  onSelectModel,
+  modelId,
+  onModelChange,
   unlockedTiers,
   onAttach,
   attachedFile,
   onRemoveAttach,
   isStreaming,
+  isCoderMode,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   disabled: boolean;
   onOpenSidebar?: () => void;
-  selectedModel: NexoModelId;
-  onSelectModel: (id: NexoModelId) => void;
+  modelId: NexoModelId;
+  onModelChange: (id: NexoModelId) => void;
   unlockedTiers?: string[];
-  onAttach: (file: File) => void;
+  onAttach?: (file: File) => void;
   attachedFile?: File | null;
   onRemoveAttach?: () => void;
   isStreaming?: boolean;
+  isCoderMode?: boolean;
+  placeholder?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -169,7 +173,7 @@ export function ChatInput({
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) onAttach(file);
+    if (file && onAttach) onAttach(file);
     e.target.value = "";
   }
 
@@ -213,7 +217,7 @@ export function ChatInput({
               value={value}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Chat with NEXO AI…"
+              placeholder={placeholder || "Chat with NEXO AI…"}
               className="max-h-40 w-full resize-none bg-transparent px-1 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
             />
           )}
@@ -263,8 +267,8 @@ export function ChatInput({
               </button>
 
               <ModelSelectorChip
-                selected={selectedModel}
-                onSelect={onSelectModel}
+                selected={modelId}
+                onSelect={onModelChange}
                 unlockedTiers={unlockedTiers || ["Free"]}
               />
             </div>
