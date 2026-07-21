@@ -36,6 +36,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCoderMode, setIsCoderMode] = useState(false);
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
+  const [coderLimitNotice, setCoderLimitNotice] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +59,13 @@ export default function ChatPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
+
+  // Auto-hide the "Craft V3 credits finished" banner shortly after it appears
+  useEffect(() => {
+    if (!coderLimitNotice) return;
+    const timer = setTimeout(() => setCoderLimitNotice(false), 6000);
+    return () => clearTimeout(timer);
+  }, [coderLimitNotice]);
 
   // Extract code from messages for Nexo Coder
   useEffect(() => {
@@ -178,22 +186,46 @@ export default function ChatPage() {
   async function streamResponse(
     chatId: string | null,
     conversationSoFar: ChatMessage[],
-    assistantId: string
+    assistantId: string,
+    override?: { modelId: NexoModelId; isCoder: boolean }
   ) {
+    const effectiveCoder = override ? override.isCoder : isCoderMode;
+    const effectiveModel = override
+      ? override.modelId
+      : isCoderMode
+      ? "craft-v3"
+      : selectedModel;
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          modelId: isCoderMode ? "craft-v3" : selectedModel,
+          modelId: effectiveModel,
           sessionId,
-          isCoderMode,
+          isCoderMode: effectiveCoder,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
       if (res.status === 429) {
         const errData = await res.json().catch(() => null);
+
+        // Craft V3 (Nexo Coder) daily limit reached → automatically fall back to
+        // Nexo 1.1, flash the red notice banner, and answer with the free model.
+        if (effectiveCoder) {
+          setIsCoderMode(false);
+          setSelectedModel("nexio-1.1");
+          setCoderLimitNotice(true);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, modelId: "nexio-1.1" } : m))
+          );
+          await streamResponse(chatId, conversationSoFar, assistantId, {
+            modelId: "nexio-1.1",
+            isCoder: false,
+          });
+          return;
+        }
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -226,7 +258,7 @@ export default function ChatPage() {
       }
 
       if (chatId && accumulated) {
-        saveMessage(chatId, "assistant", accumulated, isCoderMode ? "craft-v3" : selectedModel);
+        saveMessage(chatId, "assistant", accumulated, effectiveModel);
       }
     } catch {
       setMessages((prev) =>
@@ -479,6 +511,15 @@ export default function ChatPage() {
           )}
         </div>
       </main>
+
+      {coderLimitNotice && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[120] flex justify-center px-4">
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-red-500/40 bg-red-500/15 px-4 py-2.5 text-sm font-semibold text-red-400 shadow-2xl backdrop-blur-xl animate-fade-up">
+            <span className="h-2 w-2 flex-shrink-0 rounded-full bg-red-500 animate-pulse"></span>
+            <span>NEXO Craft V3 ක්‍රෙඩිට් අද ඉවරයි — Nexo 1.1 එකට මාරු විය</span>
+          </div>
+        </div>
+      )}
 
       <SettingsPanel
         open={settingsOpen}
