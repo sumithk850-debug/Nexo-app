@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PROVIDER_CONFIG } from "@/lib/providers.server";
+import { readUrlsFromText } from "@/lib/urlReader.server";
 import type { NexoModelId } from "@/lib/models";
 
 export const runtime = "nodejs";
@@ -116,10 +117,19 @@ export async function POST(req: NextRequest) {
 
     const endpoint = config.provider === "github" ? GITHUB_ENDPOINT : GROQ_ENDPOINT;
 
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+    const webContext = lastUserMessage
+      ? await readUrlsFromText(lastUserMessage.content)
+      : "";
+
     const memory = sessionId ? await getUserMemory(sessionId) : "";
-    const systemPrompt = memory
+    let systemPrompt = memory
       ? `${config.systemPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
       : config.systemPrompt;
+
+    if (webContext) {
+      systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
+    }
 
     const upstreamRes = await fetch(endpoint, {
       method: "POST",
