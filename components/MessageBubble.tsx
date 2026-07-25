@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Volume2, VolumeX, ImageIcon, FileText } from "lucide-react";
 
 export function MessageBubble({
   message,
@@ -21,6 +21,7 @@ export function MessageBubble({
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [speaking, setSpeaking] = useState(false);
 
   async function handleCopy() {
     try {
@@ -36,11 +37,44 @@ export function MessageBubble({
     setFeedback((prev) => (prev === value ? null : value));
   }
 
+  function handleSpeak() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(message.content.replace(/```[\s\S]*?```/g, "code block omitted"));
+    utterance.lang = /[\u0D80-\u0DFF]/.test(message.content) ? "si-LK" : "en-US";
+    utterance.rate = 0.95;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+
   if (isUser) {
     return (
       <div className="flex justify-end px-4 py-2">
         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
           {message.content}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {message.attachments.map((file) => (
+                <div key={file.id} className="overflow-hidden rounded-xl border border-white/20 bg-black/10">
+                  {file.kind === "image" && file.dataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={file.dataUrl} alt={file.name} className="max-h-64 w-full object-cover" />
+                  ) : null}
+                  <div className="flex items-center gap-2 px-3 py-2 text-xs text-white/80">
+                    {file.kind === "image" ? <ImageIcon className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                    <span className="truncate">{file.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -76,6 +110,17 @@ export function MessageBubble({
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
+            </button>
+
+            <button
+              onClick={handleSpeak}
+              className={`flex items-center gap-1 rounded-md p-1.5 transition hover:bg-panel ${
+                speaking ? "text-cyan" : "text-ink-faint hover:text-ink"
+              }`}
+              aria-label={speaking ? "Stop voice reply" : "Read response aloud"}
+              title={speaking ? "Stop voice" : "Voice reply"}
+            >
+              {speaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
             </button>
 
             {isLast && onRegenerate && (
