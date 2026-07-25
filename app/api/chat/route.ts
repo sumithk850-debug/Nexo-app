@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PROVIDER_CONFIG } from "@/lib/providers.server";
-import { readUrlsFromText } from "@/lib/urlReader.server";
+import { extractUrls, readUrlsForModel } from "@/lib/urlReader.server";
 import type { NexoModelId } from "@/lib/models";
 
 export const runtime = "nodejs";
@@ -10,6 +10,13 @@ interface IncomingMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+type ProviderMessageContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    >;
 
 const GITHUB_ENDPOINT = "https://models.github.ai/inference/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
@@ -118,9 +125,12 @@ export async function POST(req: NextRequest) {
     const endpoint = config.provider === "github" ? GITHUB_ENDPOINT : GROQ_ENDPOINT;
 
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-    const webContext = lastUserMessage
-      ? await readUrlsFromText(lastUserMessage.content)
-      : "";
+    const latestUrls = lastUserMessage ? extractUrls(lastUserMessage.content) : [];
+    const webResult = lastUserMessage
+      ? await readUrlsForModel(lastUserMessage.content)
+      : { context: "", imageUrls: [] };
+    const webContext = webResult.context;
+    const shouldAttachImages = config.provider === "github" && webResult.imageUrls.length > 0;
 
     const memory = sessionId ? await getUserMemory(sessionId) : "";
     let systemPrompt = memory
@@ -128,45 +138,76 @@ export async function POST(req: NextRequest) {
       : config.systemPrompt;
 
     if (webContext) {
-      systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
+      systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If images are attached, visually inspect them and combine what you see with the page text instead of relying on alt text only. Start the final answer with a short acknowledgement that you checked the link, then organize the result under useful subheadings such as "Link", "Page text", "Images", and "Summary" when relevant. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
     }
 
-    const upstreamRes = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        stream: true,
-        temperature: 1.0,
-        top_p: 1.0,
-        max_tokens: 1000,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ],
+
+    const providerMessages: Array<{ role: "system" | "user" | "assistant"; content: ProviderMessageContent }> = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m, index) => {
+        const isLatestLinkedUserMessage =
+          shouldAttachImages &&
+          m.role === "user" &&
+          index === messages.length - 1;
+
+        if (!isLatestLinkedUserMessage) {
+          return { role: m.role, content: m.content };
+        }
+
+        return {
+          role: m.role,
+          content: [
+            { type: "text" as const, text: m.content },
+            ...webResult.imageUrls.map((url) => ({
+              type: "image_url" as const,
+              image_url: { url },
+            })),
+          ],
+        };
       }),
-    });
-
-    if (!upstreamRes.ok || !upstreamRes.body) {
-      const errText = await upstreamRes.text().catch(() => "Unknown error");
-      return new Response(
-        JSON.stringify({ error: "Upstream provider error", detail: errText }),
-        { status: 502 }
-      );
-    }
+    ];
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = upstreamRes.body!.getReader();
-        let buffer = "";
-
+        if (latestUrls.length > 0) {
+          controller.enqueue(
+            encoder.encode(
+              `හරි, මට පුළුවන් — මම ඔබේ link එක පරීක්ෂා කරනවා.\n\n### Link පරීක්ෂාව\n- Open කරනවා: ${latestUrls.slice(0, 2).join(", ")}\n- Page text සහ images කියවනවා...\n\n`
+            )
+          );
+        }
         try {
+          const upstreamRes = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: config.model,
+              stream: true,
+              temperature: 1.0,
+              top_p: 1.0,
+              max_tokens: 1000,
+              messages: providerMessages,
+            }),
+          });
+
+          if (!upstreamRes.ok || !upstreamRes.body) {
+            const errText = await upstreamRes.text().catch(() => "Unknown error");
+            controller.enqueue(
+              encoder.encode(`\nමට link එක පරීක්ෂා කිරීමේදී provider error එකක් ආවා: ${errText}`)
+            );
+            controller.close();
+            return;
+          }
+
+          const reader = upstreamRes.body.getReader();
+          let buffer = "";
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
