@@ -1,24 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import { Code2, Play, Copy, Check, FileCode, Monitor, Layout, Database, Sparkles, Terminal, ChevronRight, Zap } from "lucide-react";
+import { Code2, Copy, Check, FileCode, Monitor, Layout, Database, Sparkles, Terminal, ChevronRight, Zap, Download, FolderTree } from "lucide-react";
+
+interface CoderFile {
+  code: string;
+  lang: string;
+  file: string;
+}
 
 export function NexoCoder({ 
   code, 
   language = "typescript", 
-  fileName = "component.tsx" 
+  fileName = "component.tsx",
+  files,
 }: { 
   code: string; 
   language?: string; 
   fileName?: string;
+  files?: CoderFile[];
 }) {
+  const workspaceFiles = files?.length ? files : [{ code, lang: language, file: fileName }];
   const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
+  const [activeFileIndex, setActiveFileIndex] = useState(Math.max(0, workspaceFiles.length - 1));
   const [copied, setCopied] = useState(false);
+  const activeFile = workspaceFiles[Math.min(activeFileIndex, workspaceFiles.length - 1)];
 
   function handleCopy() {
-    navigator.clipboard.writeText(code);
+    navigator.clipboard.writeText(activeFile.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDownload() {
+    const bundle = workspaceFiles
+      .map((file) => `// ${file.file}\n${file.code}`)
+      .join("\n\n/* ---------- */\n\n");
+    const blob = new Blob([bundle], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = workspaceFiles.length === 1 ? activeFile.file : "nexo-workspace.txt";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -35,7 +59,7 @@ export function NexoCoder({
               <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-[9px] font-bold text-cyan uppercase tracking-widest animate-pulse">Live</span>
             </div>
             <p className="text-[11px] font-bold text-ink-faint flex items-center gap-1.5">
-              <FileCode className="h-3 w-3" /> {fileName}
+              <FileCode className="h-3 w-3" /> {activeFile.file}
             </p>
           </div>
         </div>
@@ -69,13 +93,38 @@ export function NexoCoder({
       {/* Code / Preview Area */}
       <div className="relative flex-1 overflow-hidden bg-void/20">
         {activeTab === "code" ? (
-          <div className="h-full overflow-auto p-6 font-mono text-sm leading-relaxed custom-scrollbar">
+          <div className="flex h-full overflow-hidden">
+            <aside className="hidden w-44 shrink-0 border-r border-edge bg-panel/20 p-3 md:block">
+              <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-ink-faint">
+                <FolderTree className="h-3.5 w-3.5 text-cyan" /> Workspace
+              </div>
+              <div className="space-y-1">
+                {workspaceFiles.map((file, index) => (
+                  <button
+                    key={`${file.file}-${index}`}
+                    onClick={() => setActiveFileIndex(index)}
+                    className={`w-full truncate rounded-xl px-3 py-2 text-left text-[11px] font-bold transition ${
+                      index === activeFileIndex ? "bg-cyan text-void" : "text-ink-muted hover:bg-panel hover:text-ink"
+                    }`}
+                  >
+                    {file.file}
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div className="h-full flex-1 overflow-auto p-6 font-mono text-sm leading-relaxed custom-scrollbar">
             <div className="flex justify-between items-start mb-4">
                <div className="flex gap-1.5">
                   <div className="h-3 w-3 rounded-full bg-red-500/50"></div>
                   <div className="h-3 w-3 rounded-full bg-yellow-500/50"></div>
                   <div className="h-3 w-3 rounded-full bg-green-500/50"></div>
                </div>
+               <button
+                onClick={handleDownload}
+                className="mr-2 flex items-center gap-2 rounded-lg bg-cyan/10 px-3 py-1.5 text-[10px] font-bold text-cyan transition-all hover:bg-cyan hover:text-void border border-cyan/30"
+              >
+                <Download className="h-3 w-3" /> EXPORT
+              </button>
                <button
                 onClick={handleCopy}
                 className="flex items-center gap-2 rounded-lg bg-panel/50 px-3 py-1.5 text-[10px] font-bold text-ink-muted transition-all hover:bg-panel hover:text-cyan border border-edge"
@@ -85,8 +134,9 @@ export function NexoCoder({
               </button>
             </div>
             <pre className="text-ink/90 selection:bg-cyan/30">
-              <code>{code}</code>
+              <code>{activeFile.code}</code>
             </pre>
+            </div>
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center p-8 text-center animate-fade-up">
@@ -121,7 +171,7 @@ export function NexoCoder({
             </div>
             <div className="h-1 w-1 rounded-full bg-edge"></div>
             <div className="text-[10px] font-black text-ink-faint uppercase tracking-[0.15em]">
-              {language}
+              {activeFile.lang}
             </div>
           </div>
           <div className="flex items-center gap-2 text-[10px] font-black text-cyan uppercase tracking-[0.15em]">

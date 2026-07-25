@@ -14,6 +14,7 @@ const MAX_BYTES = 2_500_000; // ~2.5MB cap on downloaded page
 const MAX_CONTENT_CHARS = 7000; // main text budget per page
 const MAX_LINKS = 40;
 const MAX_IMAGES = 20;
+const MAX_VISION_IMAGES = 6;
 
 const URL_REGEX = /https?:\/\/[^\s<>()"'`]+/gi;
 
@@ -170,6 +171,11 @@ interface ExtractedLink {
   href: string;
 }
 
+export interface ExtractedImage {
+  url: string;
+  alt?: string;
+}
+
 function extractLinks(bodyHtml: string, baseUrl: string): ExtractedLink[] {
   const links: ExtractedLink[] = [];
   const seen = new Set<string>();
@@ -194,19 +200,51 @@ function extractLinks(bodyHtml: string, baseUrl: string): ExtractedLink[] {
   return links;
 }
 
-function extractImageAlts(bodyHtml: string): string[] {
-  const alts: string[] = [];
+function attrValue(tag: string, attr: string): string {
+  const re = new RegExp(`${attr}=["']([^"']+)["']`, "i");
+  const match = tag.match(re);
+  return match ? decodeEntities(match[1]).trim() : "";
+}
+
+function firstSrcFromSrcset(srcset: string): string {
+  return srcset.split(",")[0]?.trim().split(/\s+/)[0] ?? "";
+}
+
+function looksLikeImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return /\.(png|jpe?g|webp|gif)(?:$|[?#])/i.test(parsed.pathname + parsed.search);
+  } catch {
+    return false;
+  }
+}
+
+function extractImages(bodyHtml: string, baseUrl: string): ExtractedImage[] {
+  const images: ExtractedImage[] = [];
   const seen = new Set<string>();
-  const re = /<img\b[^>]*\balt=["']([^"']+)["'][^>]*>/gi;
+  const re = /<img\b[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(bodyHtml)) !== null) {
-    const alt = decodeEntities(m[1]).trim();
-    if (!alt || seen.has(alt)) continue;
-    seen.add(alt);
-    alts.push(alt);
-    if (alts.length >= MAX_IMAGES) break;
+    const tag = m[0];
+    const rawSrc =
+      attrValue(tag, "src") ||
+      attrValue(tag, "data-src") ||
+      attrValue(tag, "data-lazy-src") ||
+      firstSrcFromSrcset(attrValue(tag, "srcset"));
+    if (!rawSrc || rawSrc.startsWith("data:") || rawSrc.startsWith("blob:")) continue;
+
+    let imageUrl = "";
+    try {
+      imageUrl = new URL(rawSrc, baseUrl).toString();
+    } catch {
+      continue;
+    }
+    if (!isSafeUrl(imageUrl) || seen.has(imageUrl)) continue;
+    seen.add(imageUrl);
+    images.push({ url: imageUrl, alt: attrValue(tag, "alt") || undefined });
+    if (images.length >= MAX_IMAGES) break;
   }
-  return alts;
+  return images;
 }
 
 // Convert body HTML into readable, structure-preserving text.
@@ -246,7 +284,7 @@ export interface PageRead {
   description?: string;
   content?: string;
   links?: ExtractedLink[];
-  images?: string[];
+  images?: ExtractedImage[];
   error?: string;
 }
 
@@ -290,6 +328,15 @@ async function readSinglePage(url: string): Promise<PageRead> {
       contentType === "";
 
     if (!isTextLike) {
+      if (contentType.startsWith("image/") || looksLikeImageUrl(res.url || url)) {
+        return {
+          url,
+          ok: true,
+          title: url,
+          content: "Direct image URL detected. The image is attached for visual analysis.",
+          images: [{ url: res.url || url }],
+        };
+      }
       return {
         url,
         ok: false,
@@ -322,7 +369,7 @@ async function readSinglePage(url: string): Promise<PageRead> {
 
     const content = htmlToStructuredText(bodyHtml).slice(0, MAX_CONTENT_CHARS);
     const links = extractLinks(bodyHtml, res.url || url);
-    const images = extractImageAlts(bodyHtml);
+    const images = extractImages(bodyHtml, res.url || url);
 
     if (!title && !description && !content) {
       return { url, ok: false, error: "No readable content found on the page." };
@@ -384,7 +431,11 @@ function renderPageBlock(page: PageRead): string {
     parts.push(`\nLinks on the page (${page.links.length}):\n${list}`);
   }
   if (page.images && page.images.length > 0) {
-    parts.push(`\nImages on the page (alt text):\n${page.images.map((a) => `- ${a}`).join("\n")}`);
+    parts.push(
+      `\nImages on the page (visual analysis candidates):\n${page.images
+        .map((image, index) => `- Image ${index + 1}: ${image.url}${image.alt ? ` — alt: ${image.alt}` : ""}`)
+        .join("\n")}`
+    );
   }
   return parts.join("\n");
 }
@@ -392,11 +443,28 @@ function renderPageBlock(page: PageRead): string {
 // Read up to MAX_URLS public links found in `text` and return a single context
 // block ready to inject into the model's system prompt, or "" if there are none.
 export async function readUrlsFromText(text: string): Promise<string> {
+  const result = await readUrlsForModel(text);
+  return result.context;
+}
+
+export interface UrlReadResult {
+  context: string;
+  imageUrls: string[];
+}
+
+// Read links and also return public image URLs that can be attached to a
+// vision-capable chat-completions payload.
+export async function readUrlsForModel(text: string): Promise<UrlReadResult> {
   const urls = extractUrls(text).slice(0, MAX_URLS);
-  if (urls.length === 0) return "";
+  if (urls.length === 0) return { context: "", imageUrls: [] };
 
   const pages = await Promise.all(urls.map((u) => readSinglePage(u)));
   const blocks = pages.map(renderPageBlock);
+  const imageUrls = pages
+    .flatMap((page) => page.images ?? [])
+    .map((image) => image.url)
+    .filter((url, index, all) => all.indexOf(url) === index)
+    .slice(0, MAX_VISION_IMAGES);
 
-  return blocks.join("\n\n----------\n\n");
+  return { context: blocks.join("\n\n----------\n\n"), imageUrls };
 }

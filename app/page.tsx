@@ -11,7 +11,7 @@ import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { NexoCoder } from "@/components/NexoCoder";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatAttachment, ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -31,11 +31,11 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [input, setInput] = useState("");
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFile, setAttachedFile] = useState<ChatAttachment | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCoderMode, setIsCoderMode] = useState(false);
-  const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
+  const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string, files?: Array<{code: string; lang: string; file: string}>} | null>(null);
   const [coderLimitNotice, setCoderLimitNotice] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -74,12 +74,13 @@ export default function ChatPage() {
       const codeBlockRegex = /```(\w+)?(?:\:([\w\.]+))?\n([\s\S]*?)```/g;
       const matches = [...lastAssistantMsg.content.matchAll(codeBlockRegex)];
       if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1];
-        setLastExtractedCode({
-          lang: lastMatch[1] || "typescript",
-          file: lastMatch[2] || "component.tsx",
-          code: lastMatch[3].trim()
-        });
+        const files = matches.map((match, index) => ({
+          lang: match[1] || "typescript",
+          file: match[2] || `file-${index + 1}.${match[1] || "txt"}`,
+          code: match[3].trim(),
+        }));
+        const lastFile = files[files.length - 1];
+        setLastExtractedCode({ ...lastFile, files });
       }
     }
   }, [messages]);
@@ -155,8 +156,42 @@ export default function ChatPage() {
     }
   }
 
-  function handleAttach(file: File) {
-    setAttachedFile(file);
+  async function handleAttach(file: File) {
+    const isImage = file.type.startsWith("image/");
+    const readableTextTypes = [
+      "text/",
+      "application/json",
+      "application/xml",
+      "text/xml",
+      "image/svg+xml",
+    ];
+    const canReadAsText = readableTextTypes.some((type) => file.type.startsWith(type)) ||
+      /\.(txt|md|csv|json|xml|html|css|js|ts|tsx|jsx|svg)$/i.test(file.name);
+
+    const attachment: ChatAttachment = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      kind: isImage ? "image" : "document",
+    };
+
+    if (isImage) {
+      attachment.dataUrl = await readFileAsDataUrl(file);
+    } else if (canReadAsText) {
+      attachment.text = await file.text();
+    }
+
+    setAttachedFile(attachment);
+  }
+
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
   }
 
   async function handleAuthSuccess(isNewUser: boolean) {
@@ -203,7 +238,7 @@ export default function ChatPage() {
           modelId: effectiveModel,
           sessionId,
           isCoderMode: effectiveCoder,
-          messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
+          messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments })),
         }),
       });
 
@@ -296,10 +331,15 @@ export default function ChatPage() {
     const chatId = await ensureChat();
 
     const messageText = attachedFile
-      ? `${text}\n\n[Attached file: ${attachedFile.name}]`
+      ? `${text || "Please analyze this attachment."}\n\n[Attached ${attachedFile.kind}: ${attachedFile.name}]`
       : text;
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: messageText };
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: messageText,
+      attachments: attachedFile ? [attachedFile] : undefined,
+    };
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
@@ -506,6 +546,7 @@ export default function ChatPage() {
                 code={lastExtractedCode.code}
                 language={lastExtractedCode.lang}
                 fileName={lastExtractedCode.file}
+                files={lastExtractedCode.files}
               />
             </div>
           )}

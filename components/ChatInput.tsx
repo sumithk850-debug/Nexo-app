@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
 import type { NexoModelId } from "@/lib/models";
+import type { ChatAttachment } from "@/lib/types";
 
 const WAVE_BAR_COUNT = 24;
 const WAVE_MIN_HEIGHT = 4;
@@ -32,7 +33,7 @@ export function ChatInput({
   onSelectModel: (id: NexoModelId) => void;
   unlockedTiers?: string[];
   onAttach: (file: File) => void;
-  attachedFile?: File | null;
+  attachedFile?: ChatAttachment | null;
   onRemoveAttach?: () => void;
   isStreaming?: boolean;
 }) {
@@ -185,7 +186,7 @@ export function ChatInput({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs font-bold text-ink">{attachedFile.name}</p>
-                <p className="text-[10px] text-ink-faint uppercase">{(attachedFile.size / 1024).toFixed(1)} KB</p>
+                <p className="text-[10px] text-ink-faint uppercase">{attachedFile.kind} · {(attachedFile.size / 1024).toFixed(1)} KB</p>
               </div>
               <button 
                 onClick={onRemoveAttach}
@@ -233,7 +234,7 @@ export function ChatInput({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.pdf,.txt,.md,.csv"
+                accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.json,.xml,.html,.css,.js,.ts,.tsx,.jsx"
                 onChange={handleFileChange}
                 className="hidden"
               />
