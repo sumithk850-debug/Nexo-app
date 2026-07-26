@@ -1,4 +1,4 @@
-// NEXO AI — Server-only web page reader
+/// NEXO AI — Server-only web page reader
 // CRITICAL: This file must only ever be imported from app/api/** route handlers.
 // It fetches PUBLIC web pages referenced in a user's message and extracts their
 // content (title, meta, headings, body text, links, image alt text, lists,
@@ -399,4 +399,62 @@ export async function readUrlsFromText(text: string): Promise<string> {
   const blocks = pages.map(renderPageBlock);
 
   return blocks.join("\n\n----------\n\n");
+}
+
+// --- Screenshot capture (added for vision-capable models) ---
+// Uses ScreenshotOne's free-tier API to render a URL and capture a
+// screenshot as base64, which can then be sent to a vision model so it can
+// "see" the page rather than only read its extracted text.
+
+export interface UrlScreenshot {
+  url: string;
+  base64Image: string; // data URL format: "data:image/jpeg;base64,..."
+}
+
+export async function captureUrlScreenshot(url: string): Promise<UrlScreenshot | null> {
+  if (!isSafeUrl(url)) return null;
+
+  const apiKey = process.env.SCREENSHOTONE_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const screenshotUrl = new URL("https://api.screenshotone.com/take");
+    screenshotUrl.searchParams.set("access_key", apiKey);
+    screenshotUrl.searchParams.set("url", url);
+    screenshotUrl.searchParams.set("format", "jpg");
+    screenshotUrl.searchParams.set("viewport_width", "1280");
+    screenshotUrl.searchParams.set("viewport_height", "900");
+    screenshotUrl.searchParams.set("full_page", "false");
+    screenshotUrl.searchParams.set("block_ads", "true");
+    screenshotUrl.searchParams.set("block_cookie_banners", "true");
+    screenshotUrl.searchParams.set("cache", "true");
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    const res = await fetch(screenshotUrl.toString(), { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) return null;
+
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    return {
+      url,
+      base64Image: `data:image/jpeg;base64,${base64}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Capture screenshots for up to MAX_URLS links found in `text`. Returns an
+// empty array if no URLs are present or the screenshot service is unavailable.
+export async function captureScreenshotsFromText(text: string): Promise<UrlScreenshot[]> {
+  const urls = extractUrls(text).slice(0, MAX_URLS);
+  if (urls.length === 0) return [];
+
+  const results = await Promise.all(urls.map((u) => captureUrlScreenshot(u)));
+  return results.filter((r): r is UrlScreenshot => r !== null);
 }
