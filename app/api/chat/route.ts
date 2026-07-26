@@ -16,9 +16,6 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
-// Model used behind the scenes for vision analysis when the active model
-// (e.g. Craft V3, which runs on a text-only Groq model) can't see images
-// itself. This is the same vision-capable model that powers Nexio / Spadec.
 const VISION_FALLBACK_MODEL = "meta/Llama-4-Maverick-17B-128E-Instruct-FP8";
 const VISION_FALLBACK_ENDPOINT = GITHUB_ENDPOINT;
 
@@ -75,9 +72,6 @@ async function getUserMemory(sessionId: string): Promise<string> {
   }
 }
 
-// Sends captured screenshots to the vision-capable fallback model and returns
-// a plain-text description of what's visually on each page. Used when the
-// user's active model (e.g. Craft V3) can't see images itself.
 async function describeScreenshotsWithVisionModel(
   screenshots: { url: string; base64Image: string }[],
   userQuestion: string
@@ -113,10 +107,15 @@ async function describeScreenshotsWithVisionModel(
       }),
     });
 
-    if (!res.ok) return "";
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error("[vision] Fallback model error:", res.status, errBody.slice(0, 300));
+      return "";
+    }
     const json = await res.json();
     return json.choices?.[0]?.message?.content ?? "";
-  } catch {
+  } catch (err) {
+    console.error("[vision] Exception during vision analysis:", err);
     return "";
   }
 }
@@ -174,22 +173,20 @@ export async function POST(req: NextRequest) {
       ? await readUrlsFromText(lastUserMessage.content)
       : "";
 
-    // If the active model's own provider is Groq (text-only, e.g. Craft V3 /
-    // Galex), it can't see images — so any screenshots get silently analyzed
-    // by the vision-capable fallback model, and the description is woven into
-    // this model's own system prompt instead. The user only ever talks to
-    // the model they picked; the vision hop happens invisibly behind it.
     let visionContext = "";
     if (config.provider === "groq" && lastUserMessage) {
+      console.log("[vision] Checking for URLs to screenshot in:", lastUserMessage.content.slice(0, 200));
       const screenshots = await captureScreenshotsFromText(lastUserMessage.content);
+      console.log("[vision] Screenshots captured:", screenshots.length);
       if (screenshots.length > 0) {
         const description = await describeScreenshotsWithVisionModel(
           screenshots,
           lastUserMessage.content
         );
+        console.log("[vision] Description generated:", description.length > 0);
         if (description) {
           visionContext = screenshots
-            .map((s, i) => `Screenshot of ${s.url}:\n${description}`)
+            .map((s) => `Screenshot of ${s.url}:\n${description}`)
             .join("\n\n");
         }
       }
@@ -290,4 +287,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-        }
+}
