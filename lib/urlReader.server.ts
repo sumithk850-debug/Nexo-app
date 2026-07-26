@@ -1,4 +1,4 @@
-/// NEXO AI — Server-only web page reader
+// NEXO AI — Server-only web page reader
 // CRITICAL: This file must only ever be imported from app/api/** route handlers.
 // It fetches PUBLIC web pages referenced in a user's message and extracts their
 // content (title, meta, headings, body text, links, image alt text, lists,
@@ -30,7 +30,6 @@ export function extractUrls(text: string): string[] {
   const cleaned = matches
     .map((u) => u.replace(/[.,;:!?)\]}'"]+$/, "")) // trim trailing punctuation
     .filter(Boolean);
-  // de-duplicate while preserving order
   const seen = new Set<string>();
   const out: string[] = [];
   for (const u of cleaned) {
@@ -46,20 +45,18 @@ function isPrivateHost(hostname: string): boolean {
   if (BLOCKED_HOSTNAMES.has(host)) return true;
   if (host.endsWith(".local") || host.endsWith(".internal")) return true;
 
-  // IPv4 private / link-local / loopback ranges
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
     const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
     if (a === 10) return true;
     if (a === 127) return true;
     if (a === 0) return true;
-    if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata)
+    if (a === 169 && b === 254) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+    if (a === 100 && b >= 64 && b <= 127) return true;
   }
 
-  // IPv6 loopback / unique-local / link-local
   if (host === "::1") return true;
   if (host.startsWith("fc") || host.startsWith("fd")) return true;
   if (host.startsWith("fe80")) return true;
@@ -121,8 +118,6 @@ function safeFromCodePoint(code: number): string {
   }
 }
 
-// Quote-aware tag matcher: does not terminate a tag on a `>` that appears
-// inside a quoted attribute value (e.g. Wikipedia's data-mw='{"...">"}').
 const TAG_RE = /<!--[\s\S]*?-->|<[!/?]?[a-zA-Z][^>"']*(?:"[^"]*"[^>"']*|'[^']*'[^>"']*)*>/g;
 
 function stripTagsRaw(html: string): string {
@@ -209,28 +204,23 @@ function extractImageAlts(bodyHtml: string): string[] {
   return alts;
 }
 
-// Convert body HTML into readable, structure-preserving text.
 function htmlToStructuredText(bodyHtml: string): string {
   let html = bodyHtml;
 
-  // Drop non-content / noisy regions entirely.
   html = html.replace(
     /<(script|style|noscript|template|svg|canvas|iframe|form|nav|footer|header|aside)\b[^>]*>[\s\S]*?<\/\1>/gi,
     " "
   );
   html = html.replace(/<!--[\s\S]*?-->/g, " ");
 
-  // Tables -> pipe-separated rows.
   html = html.replace(/<\/(td|th)>/gi, " | ");
   html = html.replace(/<\/tr>/gi, "\n");
 
-  // Headings -> markdown.
   html = html.replace(/<h1\b[^>]*>/gi, "\n\n# ");
   html = html.replace(/<h2\b[^>]*>/gi, "\n\n## ");
   html = html.replace(/<h3\b[^>]*>/gi, "\n\n### ");
   html = html.replace(/<h[4-6]\b[^>]*>/gi, "\n\n#### ");
 
-  // List items and block breaks.
   html = html.replace(/<li\b[^>]*>/gi, "\n- ");
   html = html.replace(/<br\s*\/?>/gi, "\n");
   html = html.replace(/<\/(p|div|section|article|ul|ol|li|h[1-6]|blockquote|pre|tr|table)>/gi, "\n");
@@ -270,7 +260,6 @@ async function readSinglePage(url: string): Promise<PageRead> {
       },
     });
 
-    // Guard against redirects to internal hosts.
     if (res.url && !isSafeUrl(res.url)) {
       return { url, ok: false, error: "Redirected to a non-public address." };
     }
@@ -309,7 +298,6 @@ async function readSinglePage(url: string): Promise<PageRead> {
       return { url, ok: true, title: url, content: trimmed };
     }
 
-    // HTML/XML
     const title =
       firstMatch(raw, /<title[^>]*>([\s\S]*?)<\/title>/i) ||
       metaContent(raw, "og:title") ||
@@ -389,8 +377,6 @@ function renderPageBlock(page: PageRead): string {
   return parts.join("\n");
 }
 
-// Read up to MAX_URLS public links found in `text` and return a single context
-// block ready to inject into the model's system prompt, or "" if there are none.
 export async function readUrlsFromText(text: string): Promise<string> {
   const urls = extractUrls(text).slice(0, MAX_URLS);
   if (urls.length === 0) return "";
@@ -402,20 +388,23 @@ export async function readUrlsFromText(text: string): Promise<string> {
 }
 
 // --- Screenshot capture (added for vision-capable models) ---
-// Uses ScreenshotOne's free-tier API to render a URL and capture a
-// screenshot as base64, which can then be sent to a vision model so it can
-// "see" the page rather than only read its extracted text.
 
 export interface UrlScreenshot {
   url: string;
-  base64Image: string; // data URL format: "data:image/jpeg;base64,..."
+  base64Image: string;
 }
 
 export async function captureUrlScreenshot(url: string): Promise<UrlScreenshot | null> {
-  if (!isSafeUrl(url)) return null;
+  if (!isSafeUrl(url)) {
+    console.error("[screenshot] URL failed safety check:", url);
+    return null;
+  }
 
   const apiKey = process.env.SCREENSHOTONE_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error("[screenshot] SCREENSHOTONE_API_KEY is not set in environment");
+    return null;
+  }
 
   try {
     const screenshotUrl = new URL("https://api.screenshotone.com/take");
@@ -435,7 +424,11 @@ export async function captureUrlScreenshot(url: string): Promise<UrlScreenshot |
     const res = await fetch(screenshotUrl.toString(), { signal: controller.signal });
     clearTimeout(timer);
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error("[screenshot] ScreenshotOne API error:", res.status, errBody.slice(0, 300));
+      return null;
+    }
 
     const arrayBuffer = await res.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
@@ -444,13 +437,12 @@ export async function captureUrlScreenshot(url: string): Promise<UrlScreenshot |
       url,
       base64Image: `data:image/jpeg;base64,${base64}`,
     };
-  } catch {
+  } catch (err) {
+    console.error("[screenshot] Exception during capture:", err);
     return null;
   }
 }
 
-// Capture screenshots for up to MAX_URLS links found in `text`. Returns an
-// empty array if no URLs are present or the screenshot service is unavailable.
 export async function captureScreenshotsFromText(text: string): Promise<UrlScreenshot[]> {
   const urls = extractUrls(text).slice(0, MAX_URLS);
   if (urls.length === 0) return [];
