@@ -5,6 +5,10 @@ import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save,
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 
+// TODO: Replace this with your actual GitHub OAuth App's Client ID
+// (from github.com/settings/developers → NEXO AI → Client ID)
+const GITHUB_CLIENT_ID = "Ov23liJrA0MJjDwCADrB";
+
 interface UserSettings {
   memory_content: string;
   screen_share_enabled: boolean;
@@ -82,8 +86,13 @@ export function SettingsPanel({
   }
 
   function handleConnectGithub() {
-    if (!userId) return;
-    window.location.href = `/api/github/login?userId=${userId}`;
+    if (!userId) {
+      alert("Please wait a moment and try again — your account is still loading.");
+      return;
+    }
+    const redirectUri = `${window.location.origin}/api/github/callback`;
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo%20read:user&state=${userId}`;
+    window.location.href = authUrl;
   }
 
   async function handleDisconnectGithub() {
@@ -318,4 +327,4 @@ export function SettingsPanel({
       </div>
     </div>
   );
-      }
+                      }
