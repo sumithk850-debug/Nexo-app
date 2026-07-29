@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check } from "lucide-react";
+import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 
@@ -25,12 +25,14 @@ export function SettingsPanel({
   open,
   onClose,
   sessionId,
+  userId,
   onClearHistory,
   onSettingsChange,
 }: {
   open: boolean;
   onClose: () => void;
   sessionId: string;
+  userId?: string;
   onClearHistory: () => void;
   onSettingsChange?: (settings: UserSettings) => void;
 }) {
@@ -40,10 +42,12 @@ export function SettingsPanel({
   const [memorySaving, setMemorySaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [githubUsername, setGithubUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && sessionId) loadSettings();
-  }, [open, sessionId]);
+    if (open && userId) loadGithubConnection();
+  }, [open, sessionId, userId]);
 
   async function loadSettings() {
     setLoading(true);
@@ -65,6 +69,27 @@ export function SettingsPanel({
       setMemoryDraft(loaded.memory_content);
     }
     setLoading(false);
+  }
+
+  async function loadGithubConnection() {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("github_connections")
+      .select("github_username")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setGithubUsername(data?.github_username ?? null);
+  }
+
+  function handleConnectGithub() {
+    if (!userId) return;
+    window.location.href = `/api/github/login?userId=${userId}`;
+  }
+
+  async function handleDisconnectGithub() {
+    if (!userId) return;
+    await supabase.from("github_connections").delete().eq("user_id", userId);
+    setGithubUsername(null);
   }
 
   async function saveSettings(next: UserSettings) {
@@ -117,8 +142,43 @@ export function SettingsPanel({
           <div className="p-5 text-sm text-ink-muted">Loading…</div>
         ) : (
           <div className="space-y-6 p-5">
-            {/* Long-term Memory */}
+            {/* GitHub Connection */}
             <section>
+              <div className="flex items-center gap-2 text-ink">
+                <Github className="h-4 w-4 text-cyan" />
+                <h3 className="font-display text-sm font-semibold">GitHub</h3>
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">
+                Connect your GitHub account so NEXO Craft V3 can read your repositories and propose code changes for your approval.
+              </p>
+
+              {!userId ? (
+                <p className="mt-2 text-xs text-ink-faint">Sign in to your NEXO account first to connect GitHub.</p>
+              ) : githubUsername ? (
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-edge bg-void px-3 py-2.5">
+                  <span className="text-sm text-ink">
+                    Connected as <span className="font-semibold">@{githubUsername}</span>
+                  </span>
+                  <button
+                    onClick={handleDisconnectGithub}
+                    className="text-xs font-medium text-red-500 hover:underline"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleConnectGithub}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-edge bg-void py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Connect GitHub
+                </button>
+              )}
+            </section>
+
+            {/* Long-term Memory */}
+            <section className="border-t border-edge pt-5">
               <div className="flex items-center gap-2 text-ink">
                 <Brain className="h-4 w-4 text-cyan" />
                 <h3 className="font-display text-sm font-semibold">Long-term Memory</h3>
@@ -258,4 +318,4 @@ export function SettingsPanel({
       </div>
     </div>
   );
-}
+      }
