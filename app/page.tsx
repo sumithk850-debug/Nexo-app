@@ -525,8 +525,9 @@ export default function ChatPage() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         sessionId={sessionId}
+        userId={user?.id}
         onClearHistory={handleClearHistory}
       />
     </div>
   );
-}
+          }
