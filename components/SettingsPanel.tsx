@@ -5,8 +5,6 @@ import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save,
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 
-// TODO: Replace this with your actual GitHub OAuth App's Client ID
-// (from github.com/settings/developers → NEXO AI → Client ID)
 const GITHUB_CLIENT_ID = "Ov23liJrA0MJjDwCADrB";
 
 interface UserSettings {
@@ -47,6 +45,7 @@ export function SettingsPanel({
   const [confirmClear, setConfirmClear] = useState(false);
   const [loading, setLoading] = useState(true);
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
+  const [githubLoading, setGithubLoading] = useState(true);
 
   useEffect(() => {
     if (open && sessionId) loadSettings();
@@ -77,12 +76,16 @@ export function SettingsPanel({
 
   async function loadGithubConnection() {
     if (!userId) return;
-    const { data } = await supabase
-      .from("github_connections")
-      .select("github_username")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setGithubUsername(data?.github_username ?? null);
+    setGithubLoading(true);
+    try {
+      const res = await fetch(`/api/github/status?userId=${userId}`);
+      const data = await res.json();
+      setGithubUsername(data.connected ? data.githubUsername : null);
+    } catch {
+      setGithubUsername(null);
+    } finally {
+      setGithubLoading(false);
+    }
   }
 
   function handleConnectGithub() {
@@ -97,7 +100,7 @@ export function SettingsPanel({
 
   async function handleDisconnectGithub() {
     if (!userId) return;
-    await supabase.from("github_connections").delete().eq("user_id", userId);
+    await fetch(`/api/github/status?userId=${userId}`, { method: "DELETE" });
     setGithubUsername(null);
   }
 
@@ -163,6 +166,8 @@ export function SettingsPanel({
 
               {!userId ? (
                 <p className="mt-2 text-xs text-ink-faint">Sign in to your NEXO account first to connect GitHub.</p>
+              ) : githubLoading ? (
+                <p className="mt-2 text-xs text-ink-faint">Checking connection…</p>
               ) : githubUsername ? (
                 <div className="mt-2 flex items-center justify-between rounded-lg border border-edge bg-void px-3 py-2.5">
                   <span className="text-sm text-ink">
@@ -327,4 +332,4 @@ export function SettingsPanel({
       </div>
     </div>
   );
-                      }
+            }
