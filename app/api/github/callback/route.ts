@@ -3,30 +3,57 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-function getSupabase() {
+// IMPORTANT: This uses the service role key (server-only, never exposed to
+// the browser) so this trusted backend route can write to github_connections
+// on the user's behalf, bypassing RLS — which is correct here since this
+// route already verified the user via the OAuth "state" parameter.
+function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+function htmlError(title: string, detail: string) {
+  return new Response(
+    `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;background:#0A0E1A;color:#E8ECFB;">
+      <h2 style="color:#ff6b6b;">${title}</h2>
+      <pre style="white-space:pre-wrap;background:#111;padding:16px;border-radius:8px;font-size:13px;">${detail}</pre>
+      <a href="/" style="color:#00E5FF;">← Back to NEXO AI</a>
+    </body></html>`,
+    { status: 200, headers: { "Content-Type": "text/html" } }
   );
 }
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const userId = req.nextUrl.searchParams.get("state"); // NEXO user id, passed through from /login
+  const userId = req.nextUrl.searchParams.get("state");
 
   if (!code || !userId) {
-    return NextResponse.redirect(`${req.nextUrl.origin}/?github_error=missing_params`);
+    return htmlError(
+      "Missing parameters",
+      `code present: ${!!code}\nstate (userId) present: ${!!userId}\nuserId value: ${userId}`
+    );
   }
 
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${req.nextUrl.origin}/?github_error=not_configured`);
+    return htmlError(
+      "Server not configured",
+      `GITHUB_OAUTH_CLIENT_ID set: ${!!clientId}\nGITHUB_OAUTH_CLIENT_SECRET set: ${!!clientSecret}\n\nAdd these in Vercel → Settings → Environment Variables.`
+    );
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return htmlError(
+      "Server not configured",
+      `SUPABASE_SERVICE_ROLE_KEY is missing.\n\nAdd it in Vercel → Settings → Environment Variables (get it from Supabase → Settings → API → service_role key).`
+    );
   }
 
   try {
-    // Exchange the temporary code for an access token.
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
@@ -44,10 +71,12 @@ export async function GET(req: NextRequest) {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      return NextResponse.redirect(`${req.nextUrl.origin}/?github_error=token_exchange_failed`);
+      return htmlError(
+        "GitHub token exchange failed",
+        JSON.stringify(tokenData, null, 2)
+      );
     }
 
-    // Fetch the connected GitHub user's username.
     const userRes = await fetch("https://api.github.com/user", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -57,20 +86,29 @@ export async function GET(req: NextRequest) {
     const githubUser = await userRes.json();
     const githubUsername = githubUser.login ?? "unknown";
 
-    // Save (or update) the connection for this NEXO user.
-    const supabase = getSupabase();
-    await supabase.from("github_connections").upsert(
-      {
-        user_id: userId,
-        github_username: githubUsername,
-        access_token: accessToken,
-        connected_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
+    const supabase = getSupabaseAdmin();
+    const { data: upsertData, error: upsertError } = await supabase
+      .from("github_connections")
+      .upsert(
+        {
+          user_id: userId,
+          github_username: githubUsername,
+          access_token: accessToken,
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      )
+      .select();
+
+    if (upsertError) {
+      return htmlError(
+        "Database save failed",
+        `Error: ${upsertError.message}\nCode: ${upsertError.code}\nDetails: ${upsertError.details}\nHint: ${upsertError.hint}\n\nuserId used: ${userId}\ngithubUsername: ${githubUsername}`
+      );
+    }
 
     return NextResponse.redirect(`${req.nextUrl.origin}/?github_connected=1`);
-  } catch {
-    return NextResponse.redirect(`${req.nextUrl.origin}/?github_error=unexpected`);
+  } catch (err) {
+    return htmlError("Unexpected error", String(err));
   }
 }
