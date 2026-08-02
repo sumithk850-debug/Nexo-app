@@ -11,13 +11,13 @@ interface IncomingMessage {
   content: string;
 }
 
-const GITHUB_ENDPOINT = "https://models.github.ai/inference/chat/completions";
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
-const VISION_FALLBACK_MODEL = "meta/Llama-4-Maverick-17B-128E-Instruct-FP8";
-const VISION_FALLBACK_ENDPOINT = GITHUB_ENDPOINT;
+// Vision-capable fallback model, also served via OpenRouter, used to analyze
+// screenshots for models that can't natively see images.
+const VISION_FALLBACK_MODEL = "nvidia/nemotron-nano-12b-2-vl:free";
 
 function getSupabase() {
   return createClient(
@@ -76,7 +76,7 @@ async function describeScreenshotsWithVisionModel(
   screenshots: { url: string; base64Image: string }[],
   userQuestion: string
 ): Promise<string> {
-  const apiKey = process.env.GITHUB_MODELS_TOKEN;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || screenshots.length === 0) return "";
 
   try {
@@ -93,7 +93,7 @@ async function describeScreenshotsWithVisionModel(
       });
     }
 
-    const res = await fetch(VISION_FALLBACK_ENDPOINT, {
+    const res = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -152,38 +152,34 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const apiKey =
-      config.provider === "github"
-        ? process.env.GITHUB_MODELS_TOKEN
-        : process.env.GROQ_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       return new Response(
         JSON.stringify({
-          error: `Missing API key for provider: ${config.provider}. Set it in your environment variables.`,
+          error: "Missing OPENROUTER_API_KEY. Set it in your environment variables.",
         }),
         { status: 500 }
       );
     }
-
-    const endpoint = config.provider === "github" ? GITHUB_ENDPOINT : GROQ_ENDPOINT;
 
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const webContext = lastUserMessage
       ? await readUrlsFromText(lastUserMessage.content)
       : "";
 
+    // All models here are text-only (no native vision), so any shared link
+    // screenshots always get silently routed through the vision fallback
+    // model, and the description is woven into the active model's own
+    // system prompt. The user only ever talks to the model they picked.
     let visionContext = "";
-    if (config.provider === "groq" && lastUserMessage) {
-      console.log("[vision] Checking for URLs to screenshot in:", lastUserMessage.content.slice(0, 200));
+    if (lastUserMessage) {
       const screenshots = await captureScreenshotsFromText(lastUserMessage.content);
-      console.log("[vision] Screenshots captured:", screenshots.length);
       if (screenshots.length > 0) {
         const description = await describeScreenshotsWithVisionModel(
           screenshots,
           lastUserMessage.content
         );
-        console.log("[vision] Description generated:", description.length > 0);
         if (description) {
           visionContext = screenshots
             .map((s) => `Screenshot of ${s.url}:\n${description}`)
@@ -205,11 +201,13 @@ export async function POST(req: NextRequest) {
       systemPrompt += `\n\nThe user shared a link, and a visual screenshot of that page was captured and analyzed for you (since you can't view images directly). Here is a description of what the page visually looks like — use it naturally as if you had looked at the page yourself, without mentioning that another system analyzed it:\n\n===== VISUAL PAGE DESCRIPTION =====\n${visionContext}\n===== END VISUAL DESCRIPTION =====`;
     }
 
-    const upstreamRes = await fetch(endpoint, {
+    const upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+        "X-Title": "NEXO AI",
       },
       body: JSON.stringify({
         model: config.model,
@@ -287,4 +285,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+      }
