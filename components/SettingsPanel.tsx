@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
+import { RepoSelector } from "./RepoSelector";
 
 const GITHUB_CLIENT_ID = "Ov23liJrA0MJjDwCADrB";
 
@@ -169,17 +170,20 @@ export function SettingsPanel({
               ) : githubLoading ? (
                 <p className="mt-2 text-xs text-ink-faint">Checking connection…</p>
               ) : githubUsername ? (
-                <div className="mt-2 flex items-center justify-between rounded-lg border border-edge bg-void px-3 py-2.5">
-                  <span className="text-sm text-ink">
-                    Connected as <span className="font-semibold">@{githubUsername}</span>
-                  </span>
-                  <button
-                    onClick={handleDisconnectGithub}
-                    className="text-xs font-medium text-red-500 hover:underline"
-                  >
-                    Disconnect
-                  </button>
-                </div>
+                <>
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-edge bg-void px-3 py-2.5">
+                    <span className="text-sm text-ink">
+                      Connected as <span className="font-semibold">@{githubUsername}</span>
+                    </span>
+                    <button
+                      onClick={handleDisconnectGithub}
+                      className="text-xs font-medium text-red-500 hover:underline"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                  {userId && <RepoSelector userId={userId} />}
+                </>
               ) : (
                 <button
                   onClick={handleConnectGithub}
@@ -332,4 +336,4 @@ export function SettingsPanel({
       </div>
     </div>
   );
-            }
+}
