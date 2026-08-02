@@ -10,6 +10,9 @@ import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { NexoCoder } from "@/components/NexoCoder";
+import { CraftStatusCardList } from "@/components/CraftStatusCard";
+import { ApprovalCard } from "@/components/ApprovalCard";
+import { parseCraftResponse, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
@@ -18,6 +21,13 @@ import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu } from "lucide-react";
 
 const UNLOCKED_TIERS = ["Free"];
+
+interface PendingApproval {
+  messageId: string;
+  actions: FileAction[];
+  commitMessage: string;
+  status: "pending" | "approving" | "approved" | "rejected" | "error";
+}
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
@@ -37,7 +47,9 @@ export default function ChatPage() {
   const [isCoderMode, setIsCoderMode] = useState(false);
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [coderLimitNotice, setCoderLimitNotice] = useState(false);
-  
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +60,7 @@ export default function ChatPage() {
     getCurrentUser().then((u) => {
       setUser(u);
       setAuthLoading(false);
+      if (u) loadSelectedRepo(u.id);
     });
     const subscription = onAuthStateChange((u) => {
       setUser(u);
@@ -67,7 +80,9 @@ export default function ChatPage() {
     return () => clearTimeout(timer);
   }, [coderLimitNotice]);
 
-  // Extract code from messages for Nexo Coder
+  // Extract code from messages for Nexo Coder side panel, and — when in Coder
+  // mode — parse the latest assistant message for file actions so we can show
+  // live status cards and, if it proposes real changes, an approval card.
   useEffect(() => {
     const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
     if (lastAssistantMsg) {
@@ -81,8 +96,25 @@ export default function ChatPage() {
           code: lastMatch[3].trim()
         });
       }
+
+      if (isCoderMode && lastAssistantMsg.content && !isStreaming) {
+        const parsed = parseCraftResponse(lastAssistantMsg.content);
+        if (parsed.hasProposal) {
+          setPendingApproval((prev) => {
+            // Don't recreate the card if we already have one for this message
+            // (e.g. avoid resetting an in-progress approve/reject state).
+            if (prev?.messageId === lastAssistantMsg.id) return prev;
+            return {
+              messageId: lastAssistantMsg.id,
+              actions: parsed.fileActions,
+              commitMessage: parsed.commitMessage || "",
+              status: "pending",
+            };
+          });
+        }
+      }
     }
-  }, [messages]);
+  }, [messages, isCoderMode, isStreaming]);
 
   async function loadChats(sid: string) {
     try {
@@ -94,9 +126,20 @@ export default function ChatPage() {
     }
   }
 
+  async function loadSelectedRepo(userId: string) {
+    try {
+      const res = await fetch(`/api/github/repos?userId=${userId}`);
+      const data = await res.json();
+      setSelectedRepo(data.selectedRepo ?? null);
+    } catch {
+      setSelectedRepo(null);
+    }
+  }
+
   async function loadMessages(chatId: string) {
     setMessagesLoading(true);
     setMessages([]);
+    setPendingApproval(null);
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`);
       const data = await res.json();
@@ -162,6 +205,7 @@ export default function ChatPage() {
   async function handleAuthSuccess(isNewUser: boolean) {
     const currentUser = await getCurrentUser();
     setUser(currentUser);
+    if (currentUser) loadSelectedRepo(currentUser.id);
   }
 
   async function handleSignOut() {
@@ -173,6 +217,7 @@ export default function ChatPage() {
     setChats([]);
     setActiveChatId(null);
     setMessages([]);
+    setPendingApproval(null);
     try {
       for (const chat of chats) {
         await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
@@ -181,6 +226,45 @@ export default function ChatPage() {
       // best-effort cleanup
     }
     setSettingsOpen(false);
+  }
+
+  async function handleApproveChanges() {
+    if (!pendingApproval || !user) return;
+
+    setPendingApproval({ ...pendingApproval, status: "approving" });
+
+    const filesToCommit = pendingApproval.actions
+      .filter((a) => a.type !== "reading")
+      .map((a) => ({
+        filePath: a.filePath,
+        content: a.newContent ?? "",
+        type: a.type as "editing" | "creating" | "deleting",
+      }));
+
+    try {
+      const res = await fetch("/api/github/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          files: filesToCommit,
+          commitMessage: pendingApproval.commitMessage || "Update via NEXO Craft V3",
+        }),
+      });
+      const data = await res.json();
+
+      setPendingApproval({
+        ...pendingApproval,
+        status: data.success ? "approved" : "error",
+      });
+    } catch {
+      setPendingApproval({ ...pendingApproval, status: "error" });
+    }
+  }
+
+  function handleRejectChanges() {
+    if (!pendingApproval) return;
+    setPendingApproval({ ...pendingApproval, status: "rejected" });
   }
 
   async function streamResponse(
@@ -283,6 +367,7 @@ export default function ChatPage() {
     const conversationSoFar = messages.slice(0, cutIndex + 1);
     const assistantId = crypto.randomUUID();
 
+    setPendingApproval(null);
     setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setIsStreaming(true);
 
@@ -303,6 +388,7 @@ export default function ChatPage() {
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
+    setPendingApproval(null);
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setInput("");
     setAttachedFile(null);
@@ -333,6 +419,7 @@ export default function ChatPage() {
     setMessages([]);
     setInput("");
     setAttachedFile(null);
+    setPendingApproval(null);
   }
 
   async function handleSelectChat(chatId: string) {
@@ -393,6 +480,11 @@ export default function ChatPage() {
   }
 
   const firstName = user?.fullName?.split(" ")[0] || "there";
+  const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant");
+  const liveFileActions =
+    isCoderMode && lastAssistantMessage
+      ? parseCraftResponse(lastAssistantMessage.content).fileActions
+      : [];
 
   return (
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
@@ -446,6 +538,12 @@ export default function ChatPage() {
                         ? "BrainEx Engine is active. Describe the app or architecture you want to create below."
                         : "Your personal AI workspace is ready. Start a new conversation or pick up where you left off."}
                     </p>
+
+                    {isCoderMode && !selectedRepo && (
+                      <p className="mt-4 max-w-md text-xs text-amber-400">
+                        No repository selected — connect GitHub and pick a repo in Settings to enable code commits.
+                      </p>
+                    )}
                     
                     {isCoderMode && (
                       <div className="mt-10 grid grid-cols-2 gap-3 w-full max-w-lg">
@@ -469,14 +567,34 @@ export default function ChatPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-8 pb-12">
-                    {messages.map((m) => (
-                      <MessageBubble 
-                        key={m.id} 
-                        message={m} 
-                        onRegenerate={m.role === "assistant" && m === messages[messages.length - 1] ? handleRegenerate : undefined}
-                      />
-                    ))}
+                  <div className="space-y-2 pb-12">
+                    {messages.map((m, i) => {
+                      const isLastAssistant = m.role === "assistant" && m === messages[messages.length - 1];
+                      return (
+                        <div key={m.id}>
+                          <MessageBubble
+                            message={m}
+                            onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                          />
+                          {isCoderMode && isLastAssistant && !isStreaming && liveFileActions.length > 0 && (
+                            <CraftStatusCardList actions={liveFileActions} />
+                          )}
+                          {isCoderMode &&
+                            pendingApproval &&
+                            pendingApproval.messageId === m.id &&
+                            !isStreaming && (
+                              <ApprovalCard
+                                actions={pendingApproval.actions}
+                                commitMessage={pendingApproval.commitMessage}
+                                repoFullName={selectedRepo}
+                                status={pendingApproval.status}
+                                onApprove={handleApproveChanges}
+                                onReject={handleRejectChanges}
+                              />
+                            )}
+                        </div>
+                      );
+                    })}
                     {isStreaming && <TypingIndicator modelId={isCoderMode ? "craft-v3" : selectedModel} />}
                   </div>
                 )}
@@ -530,4 +648,4 @@ export default function ChatPage() {
       />
     </div>
   );
-          }
+      }
