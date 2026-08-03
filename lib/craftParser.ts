@@ -53,12 +53,25 @@ function countLines(content: string): number {
   return content.split("\n").length;
 }
 
+// A code block with an explicit file path always represents real proposed
+// content (a create or an edit). A "reading" marker for that same path is
+// Craft V3 narrating that it looked at the file before proposing the change —
+// it must never downgrade or overwrite an already-detected create/edit action.
+// Markers are only allowed to refine a code-block action among the mutating
+// types (creating/editing/deleting); "reading" can only ever apply to a path
+// that has no code block of its own.
+function canMarkerOverride(currentType: FileActionType, incomingType: FileActionType): boolean {
+  if (incomingType === "reading") return false;
+  return true;
+}
+
 export function parseCraftResponse(text: string): ParsedCraftResponse {
   const fileActions: FileAction[] = [];
   const seenPaths = new Set<string>();
 
   // 1. Pull code blocks with explicit file paths — these represent
-  // create/edit proposals with full new content.
+  // create/edit proposals with full new content. A path seen here is a real
+  // mutating action and takes precedence over anything markers claim later.
   let match: RegExpExecArray | null;
   const codeBlockRegex = new RegExp(CODE_BLOCK_WITH_PATH);
   while ((match = codeBlockRegex.exec(text)) !== null) {
@@ -77,6 +90,10 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
   }
 
   // 2. Pull explicit action markers and merge/refine type info.
+  // Markers for a path that already has a code block (a real create/edit)
+  // may only refine it to another mutating type (e.g. "creating" instead of
+  // the "editing" default) — a "reading" marker is informational narration
+  // and must not overwrite a real proposed change.
   const markerRegex = new RegExp(ACTION_MARKER);
   while ((match = markerRegex.exec(text)) !== null) {
     const [, actionWord, rawPath] = match;
@@ -85,7 +102,11 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
 
     const existing = fileActions.find((f) => f.filePath === filePath);
     if (existing) {
-      existing.type = type;
+      if (canMarkerOverride(existing.type, type)) {
+        existing.type = type;
+      }
+      // else: ignore a "reading" marker for a path that already has a real
+      // code-block action — the create/edit stands.
     } else {
       fileActions.push({
         type,
