@@ -15,6 +15,14 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
+const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
+  "nexio-1.1": 2048,
+  "spadec-3.5": 2048,
+  "galex-4.0": 4096,
+  "brainex-10.8": 4096,
+  "craft-v3": 8192,
+};
+
 // Vision-capable fallback model, also served via OpenRouter, used to analyze
 // screenshots for models that can't natively see images.
 const VISION_FALLBACK_MODEL = "nvidia/nemotron-nano-12b-2-vl:free";
@@ -214,7 +222,7 @@ export async function POST(req: NextRequest) {
         stream: true,
         temperature: 1.0,
         top_p: 1.0,
-        max_tokens: 1000,
+        max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 4096,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
