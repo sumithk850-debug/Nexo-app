@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PROVIDER_CONFIG } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
+import { buildGithubContext } from "@/lib/githubContext.server";
 import type { NexoModelId } from "@/lib/models";
 
 export const runtime = "nodejs";
@@ -134,6 +135,9 @@ export async function POST(req: NextRequest) {
     const modelId = body.modelId as NexoModelId;
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
+    // The user's actual auth/user id, distinct from sessionId, used to look up
+    // their GitHub connection. Sent by the client alongside sessionId.
+    const userId = body.userId as string | undefined;
     const isCoderMode = body.isCoderMode as boolean | undefined;
 
     if (sessionId) {
@@ -196,6 +200,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // GitHub context: only fetched for the coder model, since only Craft V3's
+    // system prompt claims repo access and the tree/file fetch costs extra
+    // GitHub API calls we don't want to pay on every free-tier chat message.
+    let githubContextBlock = "";
+    if (modelId === "craft-v3" && userId && lastUserMessage) {
+      const githubContext = await buildGithubContext(userId, lastUserMessage.content);
+      githubContextBlock = githubContext.contextBlock;
+    }
+
     const memory = sessionId ? await getUserMemory(sessionId) : "";
     let systemPrompt = memory
       ? `${config.systemPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
@@ -207,6 +220,10 @@ export async function POST(req: NextRequest) {
 
     if (visionContext) {
       systemPrompt += `\n\nThe user shared a link, and a visual screenshot of that page was captured and analyzed for you (since you can't view images directly). Here is a description of what the page visually looks like — use it naturally as if you had looked at the page yourself, without mentioning that another system analyzed it:\n\n===== VISUAL PAGE DESCRIPTION =====\n${visionContext}\n===== END VISUAL DESCRIPTION =====`;
+    }
+
+    if (githubContextBlock) {
+      systemPrompt += githubContextBlock;
     }
 
     const upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
@@ -293,4 +310,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-      }
+}
