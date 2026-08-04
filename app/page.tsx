@@ -286,6 +286,10 @@ export default function ChatPage() {
         body: JSON.stringify({
           modelId: effectiveModel,
           sessionId,
+          // The user's real auth id, used server-side to look up their GitHub
+          // connection (selected repo + access token) for Craft V3 requests.
+          // Without this, /api/chat has no way to know which repo is active.
+          userId: user?.id,
           isCoderMode: effectiveCoder,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
         }),
@@ -648,4 +652,4 @@ export default function ChatPage() {
       />
     </div>
   );
-      }
+  }
