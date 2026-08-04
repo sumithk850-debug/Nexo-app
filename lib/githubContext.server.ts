@@ -183,8 +183,8 @@ export async function buildGithubContext(
   }
 
   const treeSummary =
-    treePaths.length > 300
-      ? `${treePaths.slice(0, 300).join("\n")}\n... [${treePaths.length - 300} more files not shown]`
+    treePaths.length > 100
+      ? `${treePaths.slice(0, 100).join("\n")}\n... [${treePaths.length - 100} more files not shown]`
       : treePaths.join("\n");
 
   const contextBlock = `
