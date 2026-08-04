@@ -271,7 +271,8 @@ export default function ChatPage() {
     chatId: string | null,
     conversationSoFar: ChatMessage[],
     assistantId: string,
-    override?: { modelId: NexoModelId; isCoder: boolean }
+    override?: { modelId: NexoModelId; isCoder: boolean },
+    uploadedImages?: { base64Image: string }[]
   ) {
     const effectiveCoder = override ? override.isCoder : isCoderMode;
     const effectiveModel = override
@@ -291,6 +292,7 @@ export default function ChatPage() {
           // Without this, /api/chat has no way to know which repo is active.
           userId: user?.id,
           isCoderMode: effectiveCoder,
+          uploadedImages,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
@@ -310,7 +312,7 @@ export default function ChatPage() {
           await streamResponse(chatId, conversationSoFar, assistantId, {
             modelId: "nexio-1.1",
             isCoder: false,
-          });
+          }, uploadedImages);
           return;
         }
 
@@ -378,11 +380,31 @@ export default function ChatPage() {
     await streamResponse(activeChatId, conversationSoFar, assistantId);
   }
 
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && !attachedFile) || isStreaming) return;
 
     const chatId = await ensureChat();
+
+    // If the attached file is an image, convert it to base64 for the backend
+    let uploadedImages: { base64Image: string }[] | undefined;
+    if (attachedFile && attachedFile.type.startsWith("image/")) {
+      try {
+        const base64 = await fileToBase64(attachedFile);
+        uploadedImages = [{ base64Image: base64 }];
+      } catch (err) {
+        console.error("Failed to convert image to base64:", err);
+      }
+    }
 
     const messageText = attachedFile
       ? `${text}\n\n[Attached file: ${attachedFile.name}]`
@@ -415,7 +437,7 @@ export default function ChatPage() {
       );
     }
 
-    await streamResponse(chatId, nextMessages, assistantId);
+    await streamResponse(chatId, nextMessages, assistantId, undefined, uploadedImages);
   }
 
   function handleNewChat() {

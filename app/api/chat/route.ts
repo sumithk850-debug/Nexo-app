@@ -81,6 +81,54 @@ async function getUserMemory(sessionId: string): Promise<string> {
   }
 }
 
+async function describeUploadedImagesWithVisionModel(
+  images: { base64Image: string }[],
+  userQuestion: string
+): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || images.length === 0) return "";
+
+  try {
+    const content: any[] = [
+      {
+        type: "text",
+        text: `Describe what is visually shown in the following uploaded image(s) in detail — content, objects, people, text, colors, and anything notable. The user asked: "${userQuestion}". Focus your description on what's relevant to their question.`,
+      },
+    ];
+    for (const img of images) {
+      content.push({
+        type: "image_url",
+        image_url: { url: img.base64Image },
+      });
+    }
+
+    const res = await fetch(OPENROUTER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: VISION_FALLBACK_MODEL,
+        temperature: 0.7,
+        max_tokens: 700,
+        messages: [{ role: "user", content }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error("[vision] Uploaded image description error:", res.status, errBody.slice(0, 300));
+      return "";
+    }
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content ?? "";
+  } catch (err) {
+    console.error("[vision] Exception during uploaded image description:", err);
+    return "";
+  }
+}
+
 async function describeScreenshotsWithVisionModel(
   screenshots: { url: string; base64Image: string }[],
   userQuestion: string
@@ -181,10 +229,25 @@ export async function POST(req: NextRequest) {
       : "";
 
     // All models here are text-only (no native vision), so any shared link
-    // screenshots always get silently routed through the vision fallback
-    // model, and the description is woven into the active model's own
-    // system prompt. The user only ever talks to the model they picked.
+    // screenshots and uploaded images always get silently routed through the
+    // vision fallback model, and the description is woven into the active
+    // model's own system prompt. The user only ever talks to the model they picked.
     let visionContext = "";
+    let uploadedImageDescription = "";
+
+    // Handle uploaded images (base64 data sent from client)
+    const uploadedImages = body.uploadedImages as { base64Image: string }[] | undefined;
+    if (uploadedImages && uploadedImages.length > 0 && lastUserMessage) {
+      const description = await describeUploadedImagesWithVisionModel(
+        uploadedImages,
+        lastUserMessage.content
+      );
+      if (description) {
+        uploadedImageDescription = description;
+      }
+    }
+
+    // Handle web link screenshots
     if (lastUserMessage) {
       const screenshots = await captureScreenshotsFromText(lastUserMessage.content);
       if (screenshots.length > 0) {
@@ -220,6 +283,10 @@ export async function POST(req: NextRequest) {
 
     if (visionContext) {
       systemPrompt += `\n\nThe user shared a link, and a visual screenshot of that page was captured and analyzed for you (since you can't view images directly). Here is a description of what the page visually looks like — use it naturally as if you had looked at the page yourself, without mentioning that another system analyzed it:\n\n===== VISUAL PAGE DESCRIPTION =====\n${visionContext}\n===== END VISUAL DESCRIPTION =====`;
+    }
+
+    if (uploadedImageDescription) {
+      systemPrompt += `\n\nThe user uploaded an image, and it was analyzed for you (since you can't view images directly). Here is a detailed description of what the image contains — use it naturally as if you had looked at the image yourself, without mentioning that another system analyzed it:\n\n===== UPLOADED IMAGE DESCRIPTION =====\n${uploadedImageDescription}\n===== END IMAGE DESCRIPTION =====`;
     }
 
     if (githubContextBlock) {
