@@ -301,7 +301,7 @@ export default function ChatPage() {
         const errData = await res.json().catch(() => null);
 
         // Craft V3 (Nexo Coder) daily limit reached → automatically fall back to
-        // Nexo 1.1, flash the red notice banner, and answer with the free model.
+        // Nexio 1.1, flash the red notice banner, and answer with the free model.
         if (effectiveCoder) {
           setIsCoderMode(false);
           setSelectedModel("nexio-1.1");
@@ -324,6 +324,24 @@ export default function ChatPage() {
                   content:
                     errData?.message ??
                     "You've reached today's message limit. Come back tomorrow, or upgrade for unlimited access.",
+                }
+              : m
+          )
+        );
+        setIsStreaming(false);
+        return;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content:
+                    errData?.message ??
+                    "Something went wrong reaching NEXO. Please try again.",
                 }
               : m
           )
@@ -674,4 +692,4 @@ export default function ChatPage() {
       />
     </div>
   );
-  }
+            }
