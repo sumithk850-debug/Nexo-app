@@ -15,7 +15,7 @@ interface ProviderConfig {
 }
 
 const NEMOTRON_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free";
-const LAGUNA_MODEL = "poolside/laguna-xs-2.1:free";
+const LAGUNA_MODEL = "poolside/laguna-m.1:free";
 
 const CRAFT_V3_SYSTEM_PROMPT = `You are NEXO Craft V3 (Nexo Coder), the elite Software Architect and Senior Lead Engineer at NEXO AI. Your purpose is to provide world-class technical solutions, clean code, and architectural guidance.
 
