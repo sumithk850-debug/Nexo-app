@@ -297,53 +297,47 @@ export default function ChatPage() {
         }),
       });
 
-      if (res.status === 429) {
+      if (!res.ok) {
         const errData = await res.json().catch(() => null);
 
-        // Craft V3 (Nexo Coder) daily limit reached → automatically fall back to
-        // Nexio 1.1, flash the red notice banner, and answer with the free model.
-        if (effectiveCoder) {
-          setIsCoderMode(false);
-          setSelectedModel("nexio-1.1");
-          setCoderLimitNotice(true);
+        if (res.status === 429) {
+          // Craft V3 (Nexo Coder) daily limit reached → automatically fall back to
+          // Nexio 1.1, flash the red notice banner, and answer with the free model.
+          if (effectiveCoder) {
+            setIsCoderMode(false);
+            setSelectedModel("nexio-1.1");
+            setCoderLimitNotice(true);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, modelId: "nexio-1.1" } : m))
+            );
+            await streamResponse(chatId, conversationSoFar, assistantId, {
+              modelId: "nexio-1.1",
+              isCoder: false,
+            }, uploadedImages);
+            return;
+          }
+
           setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, modelId: "nexio-1.1" } : m))
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content:
+                      errData?.message ??
+                      "You've reached today's message limit. Come back tomorrow, or upgrade for unlimited access.",
+                  }
+                : m
+            )
           );
-          await streamResponse(chatId, conversationSoFar, assistantId, {
-            modelId: "nexio-1.1",
-            isCoder: false,
-          }, uploadedImages);
+          setIsStreaming(false);
           return;
         }
 
+        // Upstream provider error (502, 500, etc.) — show friendly message
+        const friendlyMsg = errData?.message ?? "Something went wrong reaching NEXO. Please try again.";
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content:
-                    errData?.message ??
-                    "You've reached today's message limit. Come back tomorrow, or upgrade for unlimited access.",
-                }
-              : m
-          )
-        );
-        setIsStreaming(false);
-        return;
-      }
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content:
-                    errData?.message ??
-                    "Something went wrong reaching NEXO. Please try again.",
-                }
-              : m
+            m.id === assistantId ? { ...m, content: friendlyMsg } : m
           )
         );
         setIsStreaming(false);

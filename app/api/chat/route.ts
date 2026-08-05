@@ -315,9 +315,25 @@ export async function POST(req: NextRequest) {
     });
 
     if (!upstreamRes.ok || !upstreamRes.body) {
-      const errText = await upstreamRes.text().catch(() => "Unknown error");
+      const status = upstreamRes.status;
+      const errBody = await upstreamRes.text().catch(() => "");
+      let errMsg = "Something went wrong reaching NEXO. Please try again.";
+
+      if (status === 429) {
+        // Provider-side rate limit (not our daily limit, but OpenRouter/provider)
+        errMsg = "The AI provider is temporarily busy. Please wait a moment and try again.";
+      } else if (status === 502 || status === 503) {
+        errMsg = "The AI provider is temporarily unavailable. Please try again in a moment.";
+      } else if (status === 500) {
+        errMsg = "An internal error occurred on the AI provider side. Please try again.";
+      } else if (status >= 400 && status < 500) {
+        errMsg = "There was an issue with your request. Please try again.";
+      }
+
+      console.error("[chat] Upstream provider error:", status, errBody.slice(0, 500));
+
       return new Response(
-        JSON.stringify({ error: "Upstream provider error", detail: errText }),
+        JSON.stringify({ error: "upstream_error", message: errMsg }),
         { status: 502 }
       );
     }
