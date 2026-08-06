@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
     // system prompt claims repo access and the tree/file fetch costs extra
     // GitHub API calls we don't want to pay on every free-tier chat message.
     let githubContextBlock = "";
-    if (modelId === "craft-v3" && userId && lastUserMessage) {
+    if (userId && lastUserMessage) {
       const githubContext = await buildGithubContext(userId, lastUserMessage.content);
       githubContextBlock = githubContext.contextBlock;
     }
