@@ -71,6 +71,7 @@ export function SettingsPanel({
         response_length: data.response_length ?? "balanced",
         language_preference: data.language_preference ?? "auto",
         default_model: data.default_model ?? "nexio-1.1",
+        custom_persona: data.custom_persona ?? "",
       };
       setSettings(loaded);
       setMemoryDraft(loaded.memory_content);

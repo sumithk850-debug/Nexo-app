@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Signal } from "./Signal";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Plug, Edit2, Check, Code2, Palette, Zap } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -14,6 +13,19 @@ const NEXO_THEMES: { id: Theme; color: string; name: string }[] = [
   { id: "emerald", color: "#10B981", name: "Emerald Matrix" },
   { id: "amethyst", color: "#D946EF", name: "Royal Amethyst" },
   { id: "slate", color: "#38BDF8", name: "Midnight Slate" },
+];
+
+export const PERSONAS = [
+  { id: "general", name: "General AI", icon: Sparkles },
+  { id: "react", name: "React Expert ⚛️", icon: Atom },
+  { id: "copywriter", name: "Copywriter ✍️", icon: PenTool },
+  { id: "analyst", name: "Data Analyst 📊", icon: BarChart2 },
+];
+
+const TEMPLATES = [
+  { id: "review", name: "Code Review", prompt: "Please review the following code and suggest improvements:\n\n```\n\n```" },
+  { id: "explain", name: "Explain Code", prompt: "Can you explain how this code works in simple terms?\n\n```\n\n```" },
+  { id: "refactor", name: "Refactor", prompt: "Please refactor this code for better performance and readability:\n\n```\n\n```" },
 ];
 
 export function ChatSidebar({
@@ -30,6 +42,10 @@ export function ChatSidebar({
   onSignOut,
   isCoderMode,
   onToggleCoderMode,
+  onGlobalSearch,
+  activePersona,
+  onSelectPersona,
+  onInsertTemplate,
 }: {
   chats: DbChat[];
   activeChatId: string | null;
@@ -44,24 +60,23 @@ export function ChatSidebar({
   onSignOut: () => void;
   isCoderMode: boolean;
   onToggleCoderMode: () => void;
+  onGlobalSearch: () => void;
+  activePersona: string;
+  onSelectPersona: (id: string) => void;
+  onInsertTemplate: (prompt: string) => void;
 }) {
   const [currentTheme, setCurrentTheme] = useState<Theme>("dark");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [themesOpen, setThemesOpen] = useState(false);
+  const [personasOpen, setPersonasOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   useEffect(() => {
     const stored = getStoredTheme();
     setCurrentTheme(stored);
     applyTheme(stored);
   }, []);
-
-  function handleThemeToggle() {
-    const next = toggleTheme();
-    setCurrentTheme(next);
-  }
 
   function handleThemeChange(theme: Theme) {
     setCurrentTheme(theme);
@@ -80,9 +95,7 @@ export function ChatSidebar({
     }
   }
 
-  const filteredChats = searchQuery.trim()
-    ? chats.filter((c) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    : chats;
+  const activePersonaObj = PERSONAS.find(p => p.id === activePersona) || PERSONAS[0];
 
   return (
     <>
@@ -92,23 +105,24 @@ export function ChatSidebar({
           onClick={onClose}
         />
       )}
-
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-edge bg-panel-raised transition-transform md:static md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between border-b border-edge px-5 py-4">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-edge px-4">
           <Link href="/" className="flex items-center gap-2">
-            <Signal size="sm" />
-            <span className="font-display text-base font-bold text-ink">
-              NEXO<span className="text-cyan">AI</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan text-panel font-bold shadow-md">
+              Nx
+            </div>
+            <span className="font-display text-lg font-bold tracking-tight text-ink">
+              Nexo
             </span>
           </Link>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleThemeToggle}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:bg-panel hover:text-ink transition-colors"
+              onClick={() => handleThemeChange(currentTheme === "light" ? "dark" : "light")}
+              className="text-ink-muted hover:text-ink transition-colors"
               aria-label="Toggle theme"
             >
               {currentTheme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
@@ -152,47 +166,57 @@ export function ChatSidebar({
           </button>
 
           <button
-            onClick={() => setSearchOpen((v) => !v)}
+            onClick={onGlobalSearch}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
           >
             <Search className="h-4 w-4 text-ink-muted" />
-            Search chats
+            Global Search
           </button>
 
-          {searchOpen && (
-            <div className="px-1 pb-1">
-              <input
-                autoFocus
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search…"
-                className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-cyan/50"
-              />
-            </div>
-          )}
-
-          <div className="pt-2">
+          <div className="pt-2 border-t border-edge space-y-1 mt-2">
             <button
-              onClick={() => setThemesOpen((v) => !v)}
+              onClick={() => setPersonasOpen((v) => !v)}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+            >
+              <div className="flex items-center gap-2.5">
+                <activePersonaObj.icon className="h-4 w-4 text-cyan" />
+                <span>Persona: {activePersonaObj.name.split(' ')[0]}</span>
+              </div>
+            </button>
+            {personasOpen && (
+              <div className="mt-1 flex flex-col gap-1 px-3 pb-2">
+                {PERSONAS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { onSelectPersona(p.id); setPersonasOpen(false); }}
+                    className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition ${
+                      activePersona === p.id ? "bg-cyan/10 text-cyan" : "text-ink-muted hover:bg-edge"
+                    }`}
+                  >
+                    <p.icon className="h-3.5 w-3.5" />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setTemplatesOpen((v) => !v)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
             >
-              <Palette className="h-4 w-4 text-ink-muted" />
-              Nexo Themes
+              <Bookmark className="h-4 w-4 text-ink-muted" />
+              Prompt Library
             </button>
-            
-            {themesOpen && (
-              <div className="mt-2 flex flex-wrap gap-2 px-3 pb-2">
-                {NEXO_THEMES.map((t) => (
+            {templatesOpen && (
+              <div className="mt-1 flex flex-col gap-1 px-3 pb-2">
+                {TEMPLATES.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => handleThemeChange(t.id)}
-                    title={t.name}
-                    className={`h-6 w-6 rounded-full border-2 transition ${
-                      currentTheme === t.id ? "border-cyan scale-110 shadow-sm" : "border-edge hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: t.color }}
-                  />
+                    onClick={() => { onInsertTemplate(t.prompt); setTemplatesOpen(false); }}
+                    className="text-left rounded-lg px-2 py-1.5 text-xs text-ink-muted transition hover:bg-edge hover:text-ink"
+                  >
+                    {t.name}
+                  </button>
                 ))}
               </div>
             )}
@@ -201,16 +225,15 @@ export function ChatSidebar({
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
           <p className="mb-2 px-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-            Chats
+            Recent Chats
           </p>
-
-          {filteredChats.length === 0 ? (
+          {chats.length === 0 ? (
             <p className="px-1 text-xs text-ink-faint">
-              {searchQuery ? "No matching chats." : "No conversations yet."}
+              No conversations yet.
             </p>
           ) : (
             <div className="flex flex-col gap-1">
-              {filteredChats.map((chat) => (
+              {chats.map((chat) => (
                 <div
                   key={chat.id}
                   className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
@@ -299,18 +322,6 @@ export function ChatSidebar({
               Sign up / Sign in
             </button>
           )}
-
-          <Link
-            href="/pricing"
-            className="block rounded-lg border border-edge bg-panel p-4 transition hover:border-cyan/40"
-          >
-            <p className="font-display text-sm font-semibold text-ink">
-              Unlock all models
-            </p>
-            <p className="mt-1 text-xs text-ink-muted">
-              Plans start at $1.67/month
-            </p>
-          </Link>
         </div>
       </aside>
     </>

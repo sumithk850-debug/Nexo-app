@@ -9,6 +9,7 @@ import { Signal } from "@/components/Signal";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { CraftStatusCardList } from "@/components/CraftStatusCard";
 import { ApprovalCard } from "@/components/ApprovalCard";
@@ -35,6 +36,8 @@ export default function ChatPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [activePersona, setActivePersona] = useState("general");
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
   const [chats, setChats] = useState<DbChat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -294,6 +297,7 @@ export default function ChatPage() {
           isCoderMode: effectiveCoder,
           uploadedImages,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
+          persona: activePersona,
         }),
       });
 
@@ -507,7 +511,16 @@ export default function ChatPage() {
   if (!user) {
     return (
       <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
-        <AuthModal
+        <SearchModal
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        sessionId={sessionId}
+        onSelectChat={(id) => {
+          setActiveChatId(id);
+          loadMessages(id);
+        }}
+      />
+      <AuthModal
           open
           mandatory
           onClose={() => {}}
@@ -540,6 +553,10 @@ export default function ChatPage() {
         onSignOut={handleSignOut}
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
+        onGlobalSearch={() => setSearchModalOpen(true)}
+        activePersona={activePersona}
+        onSelectPersona={setActivePersona}
+        onInsertTemplate={(prompt) => setInput((prev) => (prev ? prev + "\n\n" + prompt : prompt))}
       />
 
       <main className="flex flex-1 flex-col overflow-hidden relative">

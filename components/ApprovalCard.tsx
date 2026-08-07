@@ -95,7 +95,7 @@ export function ApprovalCard({
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
               Commit message
             </p>
-            <p className="font-mono text-xs text-ink">"{commitMessage}"</p>
+            <p className="font-mono text-xs text-ink">&quot;{commitMessage}&quot;</p>
           </div>
         )}
 

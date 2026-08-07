@@ -185,6 +185,7 @@ export async function POST(req: NextRequest) {
     // their GitHub connection. Sent by the client alongside sessionId.
     const userId = body.userId as string | undefined;
     const isCoderMode = body.isCoderMode as boolean | undefined;
+    const activePersona = body.persona as string | undefined;
 
     if (sessionId) {
       const { allowed, remaining, limit } = await checkAndIncrementRateLimit(sessionId, !!isCoderMode);
@@ -274,9 +275,19 @@ export async function POST(req: NextRequest) {
     const memory = userMem.memory;
     const customPersona = userMem.persona;
     const basePrompt = customPersona || config.systemPrompt;
+    
+    let activePersonaPrompt = "";
+    if (activePersona === "react") {
+      activePersonaPrompt = "You are a React Expert. You provide advanced, optimized React and Next.js code using modern hooks and patterns.";
+    } else if (activePersona === "copywriter") {
+      activePersonaPrompt = "You are a professional Copywriter. You write compelling, persuasive, and clear copy for marketing, emails, and web pages.";
+    } else if (activePersona === "analyst") {
+      activePersonaPrompt = "You are a Data Analyst. You explain data, statistics, and trends clearly, and provide structured insights.";
+    }
+
     let systemPrompt = memory
-      ? `${basePrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
-      : basePrompt;
+      ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
+      : `${basePrompt}\n\n${activePersonaPrompt}`;
 
     if (webContext) {
       systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
