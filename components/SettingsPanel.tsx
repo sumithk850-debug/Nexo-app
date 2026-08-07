@@ -9,6 +9,7 @@ import { RepoSelector } from "./RepoSelector";
 const GITHUB_CLIENT_ID = "Ov23liJrA0MJjDwCADrB";
 
 interface UserSettings {
+  custom_persona: string;
   memory_content: string;
   screen_share_enabled: boolean;
   response_length: "short" | "balanced" | "detailed";
@@ -17,6 +18,7 @@ interface UserSettings {
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
+  custom_persona: "",
   memory_content: "",
   screen_share_enabled: false,
   response_length: "balanced",
@@ -41,6 +43,7 @@ export function SettingsPanel({
 }) {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [memoryDraft, setMemoryDraft] = useState("");
+  const [personaDraft, setPersonaDraft] = useState("");
   const [saved, setSaved] = useState(false);
   const [memorySaving, setMemorySaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -116,6 +119,13 @@ export function SettingsPanel({
     setTimeout(() => setSaved(false), 1500);
   }
 
+  
+  async function handleSavePersona() {
+    setMemorySaving(true);
+    await saveSettings({ ...settings, custom_persona: personaDraft });
+    setMemorySaving(false);
+  }
+
   async function handleSaveMemory() {
     setMemorySaving(true);
     await saveSettings({ ...settings, memory_content: memoryDraft });
@@ -134,6 +144,9 @@ export function SettingsPanel({
   if (!open) return null;
 
   const memoryDirty = memoryDraft !== settings.memory_content;
+
+  const personaDirty = personaDraft !== settings.custom_persona;
+
 
   return (
     <div

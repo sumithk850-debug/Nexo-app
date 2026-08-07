@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Sandpack } from "@codesandbox/sandpack-react";
 import { Code2, Play, Copy, Check, FileCode, Monitor, Layout, Database, Sparkles, Terminal, ChevronRight, Zap } from "lucide-react";
 
 export function NexoCoder({ 

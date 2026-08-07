@@ -67,18 +67,16 @@ async function checkAndIncrementRateLimit(sessionId: string, isCoder: boolean): 
   return { allowed: true, remaining: limit - currentCount - 1, limit };
 }
 
-async function getUserMemory(sessionId: string): Promise<string> {
+async function getUserMemory(sessionId: string): Promise<any> {
   try {
     const supabase = getSupabase();
     const { data } = await supabase
       .from("user_settings")
-      .select("memory_content")
+      .select("memory_content, custom_persona")
       .eq("session_id", sessionId)
       .maybeSingle();
-    return data?.memory_content?.trim() ?? "";
-  } catch {
-    return "";
-  }
+    return { memory: data?.memory_content?.trim() ?? "", persona: data?.custom_persona?.trim() ?? "" } as any;
+  } catch { return { memory: "", persona: "" } as any; }
 }
 
 async function describeUploadedImagesWithVisionModel(
@@ -272,10 +270,13 @@ export async function POST(req: NextRequest) {
       githubContextBlock = githubContext.contextBlock;
     }
 
-    const memory = sessionId ? await getUserMemory(sessionId) : "";
+    const userMem = sessionId ? await getUserMemory(sessionId) : { memory: "", persona: "" };
+    const memory = userMem.memory;
+    const customPersona = userMem.persona;
+    const basePrompt = customPersona || config.systemPrompt;
     let systemPrompt = memory
-      ? `${config.systemPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
-      : config.systemPrompt;
+      ? `${basePrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
+      : basePrompt;
 
     if (webContext) {
       systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
