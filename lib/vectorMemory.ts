@@ -1,20 +1,27 @@
-import { supabase } from "./supabase";
+import { db } from "./firebase.server";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function addMemory(userId: string, content: string, embedding: number[]) {
-  const { data, error } = await supabase
-    .from('memory_embeddings')
-    .insert([{ user_id: userId, content, embedding }]);
-  if (error) throw error;
-  return data;
+  const docRef = await db.collection("memory_embeddings").add({
+    userId,
+    content,
+    embedding: FieldValue.vector(embedding),
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { id: docRef.id };
 }
 
 export async function searchMemories(userId: string, queryEmbedding: number[], threshold = 0.7, limit = 5) {
-  const { data, error } = await supabase.rpc('match_memories', {
-    query_embedding: queryEmbedding,
-    match_threshold: threshold,
-    match_count: limit,
-    p_user_id: userId
-  });
-  if (error) throw error;
-  return data;
+  const snapshot = await db.collection("memory_embeddings")
+    .where("userId", "==", userId)
+    .findNearest("embedding", FieldValue.vector(queryEmbedding), {
+      limit,
+      distanceMeasure: "COSINE"
+    })
+    .get();
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    content: doc.data().content
+  }));
 }
