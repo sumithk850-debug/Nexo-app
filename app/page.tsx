@@ -7,6 +7,7 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Signal } from "@/components/Signal";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { AnnouncementModal } from "@/components/AnnouncementModal";
 import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SearchModal } from "@/components/SearchModal";
@@ -577,6 +578,7 @@ export default function ChatPage() {
         </div>
 
         <AnnouncementBanner />
+        <AnnouncementModal />
 
         <div className="flex flex-1 overflow-hidden">
           <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
