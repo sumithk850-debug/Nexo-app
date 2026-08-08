@@ -238,12 +238,19 @@ export default function ChatPage() {
     setPendingApproval({ ...pendingApproval, status: "approving" });
 
     const filesToCommit = pendingApproval.actions
-      .filter((a) => a.type !== "reading")
+      .filter((a) => a.type !== "reading" && !!a.newContent?.trim())
       .map((a) => ({
         filePath: a.filePath,
         content: a.newContent ?? "",
         type: a.type as "editing" | "creating" | "deleting",
       }));
+
+    // Nothing left after dropping empty-content actions — abort before calling
+    // the commit API so we never push a blank file to the repository.
+    if (filesToCommit.length === 0) {
+      setPendingApproval({ ...pendingApproval, status: "rejected" });
+      return;
+    }
 
     try {
       const res = await fetch("/api/github/commit", {

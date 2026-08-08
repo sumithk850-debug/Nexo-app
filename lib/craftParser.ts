@@ -72,20 +72,25 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
   // 1. Pull code blocks with explicit file paths — these represent
   // create/edit proposals with full new content. A path seen here is a real
   // mutating action and takes precedence over anything markers claim later.
+  // Empty (or whitespace-only) code blocks are a known model failure mode —
+  // they must be ignored entirely so no blank approval card is rendered and
+  // no empty file is ever committed.
   let match: RegExpExecArray | null;
   const codeBlockRegex = new RegExp(CODE_BLOCK_WITH_PATH);
   while ((match = codeBlockRegex.exec(text)) !== null) {
     const [, lang, path, content] = match;
     const trimmedPath = path.trim();
+    const trimmedContent = content.trim();
     if (seenPaths.has(trimmedPath)) continue;
+    if (!trimmedContent) continue; // empty block → not a real proposal, skip
     seenPaths.add(trimmedPath);
 
     fileActions.push({
       type: "editing", // default assumption; refined below if a marker says otherwise
       filePath: trimmedPath,
       language: lang || detectLanguageFromPath(trimmedPath),
-      newContent: content.trim(),
-      linesChanged: countLines(content.trim()),
+      newContent: trimmedContent,
+      linesChanged: countLines(trimmedContent),
     });
   }
 

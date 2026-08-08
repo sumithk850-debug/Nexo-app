@@ -41,7 +41,11 @@ export function ApprovalCard({
   status: "pending" | "approving" | "approved" | "rejected" | "error";
 }) {
   const [diffOpen, setDiffOpen] = useState(false);
-  const proposalActions = actions.filter((a) => a.type !== "reading");
+  // Skip reading-only actions and any action with empty content — empty blocks
+  // are a model failure mode and must never produce a visible approval card.
+  const proposalActions = actions.filter(
+    (a) => a.type !== "reading" && !!a.newContent?.trim()
+  );
 
   if (proposalActions.length === 0) return null;
 
