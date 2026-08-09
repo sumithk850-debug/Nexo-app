@@ -41,11 +41,15 @@ export function ApprovalCard({
   status: "pending" | "approving" | "approved" | "rejected" | "error";
 }) {
   const [diffOpen, setDiffOpen] = useState(false);
-  // Skip reading-only actions and any action with empty content — empty blocks
-  // are a model failure mode and must never produce a visible approval card.
-  const proposalActions = actions.filter(
-    (a) => a.type !== "reading" && !!a.newContent?.trim()
-  );
+  // Skip reading-only actions. Drop only truly empty content: a plain content
+  // action with empty newContent, or a diff action with an empty diff. A diff
+  // action has its payload in diffRaw/diffHunk (not newContent), so it must
+  // pass this filter to render the card with Approve / Reject buttons.
+  const proposalActions = actions.filter((a) => {
+    if (a.type === "reading") return false;
+    if (a.diffRaw) return true; // diff-based edit — always has a real change
+    return !!a.newContent?.trim();
+  });
 
   if (proposalActions.length === 0) return null;
 
