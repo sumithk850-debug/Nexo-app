@@ -14,7 +14,7 @@ import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { CraftStatusCardList } from "@/components/CraftStatusCard";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { parseCraftResponse, type FileAction } from "@/lib/craftParser";
+import { parseCraftResponse, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
@@ -91,9 +91,21 @@ export default function ChatPage() {
     const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
     if (lastAssistantMsg) {
       const codeBlockRegex = /```(\w+)?(?:\:([\w\.]+))?\n([\s\S]*?)```/g;
-      const matches = [...lastAssistantMsg.content.matchAll(codeBlockRegex)];
-      if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1];
+      const diffBlockRegex = /```diff\:([^\n`]+)\n([\s\S]*?)```/g;
+      const diffMatches = [...lastAssistantMsg.content.matchAll(diffBlockRegex)];
+      const codeMatches = [...lastAssistantMsg.content.matchAll(codeBlockRegex)];
+      if (diffMatches.length > 0) {
+        // Diff-based edit proposals take precedence in the preview panel so
+        // the side panel shows exactly what is being changed, not a stale
+        // full-file snapshot.
+        const lastDiff = diffMatches[diffMatches.length - 1];
+        setLastExtractedCode({
+          lang: "diff",
+          file: lastDiff[1] || "changes",
+          code: lastDiff[2].trim()
+        });
+      } else if (codeMatches.length > 0) {
+        const lastMatch = codeMatches[codeMatches.length - 1];
         setLastExtractedCode({
           lang: lastMatch[1] || "typescript",
           file: lastMatch[2] || "component.tsx",
@@ -237,13 +249,53 @@ export default function ChatPage() {
 
     setPendingApproval({ ...pendingApproval, status: "approving" });
 
-    const filesToCommit = pendingApproval.actions
-      .filter((a) => a.type !== "reading" && !!a.newContent?.trim())
-      .map((a) => ({
-        filePath: a.filePath,
-        content: a.newContent ?? "",
-        type: a.type as "editing" | "creating" | "deleting",
-      }));
+    // Resolve each approved action to its final file content:
+    // - diffs: apply against the last known content of the file (fetched live
+    //   from the repo, so we always patch the current version, not the stale
+    //   prompt snapshot). Fallback → commit the diff's own content only.
+    // - new files: use the full content block.
+    const filesToCommit: { filePath: string; content: string; type: "editing" | "creating" | "deleting" }[] = [];
+    const mutateActions = pendingApproval.actions.filter((a) => a.type !== "reading");
+
+    for (const action of mutateActions) {
+      if (action.diffHunk) {
+        let original = "";
+        if (user) {
+          try {
+            const res = await fetch(
+              `/api/github/file?userId=${user.id}&path=${encodeURIComponent(action.filePath)}`,
+              { headers: { "Cache-Control": "no-store" } }
+            );
+            if (res.ok) {
+              const json = await res.json();
+              original = json.content ?? "";
+            }
+          } catch {
+            // fall back to empty original below
+          }
+        }
+        let content = original;
+        try {
+          content = original
+            ? applyDiff(original, action.diffHunk)
+            : action.diffHunk.add.join("\n");
+        } catch {
+          // Anchor line not found in the live file — the model's diff is
+          // stale. Safety first: do not commit a broken file; mark error.
+          setPendingApproval({ ...pendingApproval, status: "error" });
+          return;
+        }
+        if (!content.trim()) continue; // empty result → skip this file
+        filesToCommit.push({ filePath: action.filePath, content, type: original ? "editing" : "creating" });
+      } else {
+        if (!action.newContent?.trim()) continue;
+        filesToCommit.push({
+          filePath: action.filePath,
+          content: action.newContent ?? "",
+          type: action.type as "editing" | "creating" | "deleting",
+        });
+      }
+    }
 
     // Nothing left after dropping empty-content actions — abort before calling
     // the commit API so we never push a blank file to the repository.

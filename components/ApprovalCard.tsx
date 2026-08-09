@@ -112,13 +112,30 @@ export function ApprovalCard({
         </button>
 
         {diffOpen && (
-          <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border border-edge bg-void p-3">
+          <div className="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-edge bg-void p-3">
             {proposalActions.map((action, i) => (
               <div key={i}>
                 <p className="mb-1 font-mono text-[10px] text-cyan">{action.filePath}</p>
-                <pre className="overflow-x-auto rounded bg-panel p-2 text-[11px] text-ink">
-                  <code>{action.newContent ?? "(no preview available)"}</code>
-                </pre>
+                {action.diffRaw ? (
+                  <pre className="overflow-x-auto rounded bg-panel p-2 text-[11px] leading-relaxed">
+                    {action.diffRaw.split("\n").map((line, j) => {
+                      const cls = line.startsWith("-")
+                        ? "text-red-400"
+                        : line.startsWith("+")
+                          ? "text-green-400"
+                          : "text-ink-faint";
+                      return (
+                        <div key={j} className={cls}>
+                          {line || " "}
+                        </div>
+                      );
+                    })}
+                  </pre>
+                ) : (
+                  <pre className="overflow-x-auto rounded bg-panel p-2 text-[11px] text-ink">
+                    <code>{action.newContent ?? "(no preview available)"}</code>
+                  </pre>
+                )}
               </div>
             ))}
           </div>
