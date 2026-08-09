@@ -6,16 +6,22 @@ import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
+import { parseCraftSegments } from "@/lib/craftParser";
+import { CraftStatusCard } from "./CraftStatusCard";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export function MessageBubble({
   message,
   onRegenerate,
   isLast,
+  coderMode = false,
+  repoFullName,
 }: {
   message: ChatMessage;
   onRegenerate?: () => void;
   isLast?: boolean;
+  coderMode?: boolean;
+  repoFullName?: string | null;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
@@ -57,11 +63,33 @@ export function MessageBubble({
             {model.name}
           </p>
         )}
-        <div className="prose-nexo text-sm text-ink">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content}
-          </ReactMarkdown>
-        </div>
+        {/* In coder mode file operations never print their contents into the
+            chat — each read/create/edit/delete collapses into a status card
+            rendered inline, in the exact order the model performed it. */}
+        {coderMode ? (
+          <div className="space-y-2">
+            {parseCraftSegments(message.content).map((seg, i) =>
+              seg.kind === "text" ? (
+                <div key={i} className="prose-nexo text-sm text-ink">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
+                </div>
+              ) : (
+                <CraftStatusCard
+                  key={i}
+                  action={seg.action}
+                  streaming={seg.streaming}
+                  repoFullName={repoFullName}
+                />
+              )
+            )}
+          </div>
+        ) : (
+          <div className="prose-nexo text-sm text-ink">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
 
         {message.content && (
           <div className="mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">

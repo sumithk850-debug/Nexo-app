@@ -240,3 +240,108 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
 
   return { fileActions, hasProposal, commitMessage };
 }
+
+// ---------------------------------------------------------------------------
+// Streaming-friendly segmentation
+// ---------------------------------------------------------------------------
+// The chat UI must NEVER dump whole file bodies into the message stream. While
+// Craft V3 streams, we split its output into ordered segments: plain prose is
+// rendered as markdown, while every file operation (read / create / edit /
+// delete) collapses into a compact status card showing only the file path and,
+// for edits, the changed lines. Blocks that are still mid-stream (no closing
+// fence yet) are matched too, so the card appears the moment the operation
+// starts instead of after the whole file has been printed.
+
+export type CraftSegment =
+  | { kind: "text"; text: string }
+  | { kind: "action"; action: FileAction; streaming: boolean };
+
+const SEGMENT_SCANNER =
+  /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)/gi;
+
+function isClosed(text: string, endIndex: number): boolean {
+  // A block is complete when the scanner consumed a closing fence.
+  return text.slice(Math.max(0, endIndex - 3), endIndex) === "```";
+}
+
+export function parseCraftSegments(text: string): CraftSegment[] {
+  const segments: CraftSegment[] = [];
+  const seenMarkers = new Set<string>();
+  const scanner = new RegExp(SEGMENT_SCANNER);
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const pushText = (raw: string) => {
+    if (raw.trim()) segments.push({ kind: "text", text: raw });
+  };
+
+  while ((match = scanner.exec(text)) !== null) {
+    pushText(text.slice(lastIndex, match.index));
+    lastIndex = scanner.lastIndex;
+    const closed = isClosed(text, scanner.lastIndex);
+
+    if (match[1] !== undefined) {
+      // ```diff:path — an edit: show only the changed lines.
+      const filePath = match[1].trim();
+      const rawDiff = match[2] ?? "";
+      const hunk = parseDiffBlock(rawDiff);
+      segments.push({
+        kind: "action",
+        streaming: !closed,
+        action: {
+          type: "editing",
+          filePath,
+          language: detectLanguageFromPath(filePath),
+          diffHunk: hunk ?? undefined,
+          diffRaw: rawDiff.trim(),
+          isDiff: true,
+          linesChanged: hunk ? hunk.add.length + hunk.remove.length : 0,
+        },
+      });
+      seenMarkers.add(`editing:${filePath}`);
+    } else if (match[4] !== undefined) {
+      // ```language:path — a new file: never print its body, only a card.
+      const filePath = match[4].trim();
+      const content = (match[5] ?? "").trim();
+      segments.push({
+        kind: "action",
+        streaming: !closed,
+        action: {
+          type: "creating",
+          filePath,
+          language: match[3] || detectLanguageFromPath(filePath),
+          newContent: content,
+          linesChanged: content ? countLines(content) : 0,
+        },
+      });
+      seenMarkers.add(`creating:${filePath}`);
+    } else if (match[6] !== undefined) {
+      const type = match[6].toLowerCase() as FileActionType;
+      const filePath = (match[7] ?? "").trim();
+      if (!filePath) continue;
+      const key = `${type}:${filePath}`;
+      if (seenMarkers.has(key)) continue;
+      seenMarkers.add(key);
+      segments.push({
+        kind: "action",
+        // A bare marker at the very end of the stream is an operation still
+        // in flight — keep it pulsing until more output arrives after it.
+        streaming: scanner.lastIndex >= text.trimEnd().length,
+        action: {
+          type,
+          filePath,
+          language: detectLanguageFromPath(filePath),
+        },
+      });
+    }
+  }
+
+  pushText(text.slice(lastIndex));
+  return segments;
+}
+
+// Removes every file block and action marker from a response, leaving only the
+// prose. Used wherever the raw text is shown outside the segmented renderer.
+export function stripFileBlocks(text: string): string {
+  return text.replace(new RegExp(SEGMENT_SCANNER), "").replace(/\n{3,}/g, "\n\n").trim();
+}

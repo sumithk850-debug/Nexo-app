@@ -16,12 +16,15 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
+// Output budgets. These are deliberately generous: replies were getting cut
+// off mid-sentence (and mid-diff, which corrupts a proposed edit), so every
+// model now gets a much larger completion window.
 const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
-  "nexio-1.1": 2048,
-  "spadec-3.5": 2048,
-  "galex-4.0": 4096,
-  "brainex-10.8": 4096,
-  "craft-v3": 8192,
+  "nexio-1.1": 8192,
+  "spadec-3.5": 8192,
+  "galex-4.0": 16384,
+  "brainex-10.8": 16384,
+  "craft-v3": 32768,
 };
 
 // Vision-capable fallback model, also served via OpenRouter, used to analyze
@@ -318,7 +321,7 @@ export async function POST(req: NextRequest) {
         stream: true,
         temperature: 1.0,
         top_p: 1.0,
-        max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 4096,
+        max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),

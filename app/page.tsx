@@ -12,7 +12,6 @@ import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
-import { CraftStatusCardList } from "@/components/CraftStatusCard";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { parseCraftResponse, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
@@ -591,11 +590,6 @@ export default function ChatPage() {
   }
 
   const firstName = user?.fullName?.split(" ")[0] || "there";
-  const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant");
-  const liveFileActions =
-    isCoderMode && lastAssistantMessage
-      ? parseCraftResponse(lastAssistantMessage.content).fileActions
-      : [];
 
   return (
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
@@ -691,10 +685,9 @@ export default function ChatPage() {
                           <MessageBubble
                             message={m}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                            coderMode={isCoderMode}
+                            repoFullName={selectedRepo}
                           />
-                          {isCoderMode && isLastAssistant && !isStreaming && liveFileActions.length > 0 && (
-                            <CraftStatusCardList actions={liveFileActions} />
-                          )}
                           {isCoderMode &&
                             pendingApproval &&
                             pendingApproval.messageId === m.id &&
