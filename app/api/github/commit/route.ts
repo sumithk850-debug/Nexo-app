@@ -65,6 +65,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (file.type === "deleting") {
+        if (!sha) {
+          results.push({ filePath: file.filePath, success: false, error: "File not found or cannot be accessed" });
+          continue;
+        }
         const delRes = await fetch(contentsUrl, {
           method: "DELETE",
           headers: {
@@ -77,7 +81,12 @@ export async function POST(req: NextRequest) {
             sha,
           }),
         });
-        results.push({ filePath: file.filePath, success: delRes.ok });
+        if (!delRes.ok) {
+          const errBody = await delRes.text().catch(() => "");
+          results.push({ filePath: file.filePath, success: false, error: errBody.slice(0, 200) });
+        } else {
+          results.push({ filePath: file.filePath, success: true });
+        }
         continue;
       }
 

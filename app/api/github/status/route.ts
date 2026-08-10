@@ -19,14 +19,27 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("github_connections")
-    .select("github_username")
+    .select("github_username, access_token")
     .eq("user_id", userId)
     .maybeSingle();
+
+  let canWrite = false;
+  if (data?.access_token) {
+    const scopesRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${data.access_token}`,
+        Accept: "application/vnd.github+json",
+      },
+    });
+    const scopes = scopesRes.headers.get("x-oauth-scopes") ?? "";
+    canWrite = scopes.split(",").map((scope) => scope.trim()).some((scope) => scope === "repo" || scope === "public_repo");
+  }
 
   return new Response(
     JSON.stringify({
       connected: !!data,
       githubUsername: data?.github_username ?? null,
+      canWrite,
     }),
     { status: 200 }
   );

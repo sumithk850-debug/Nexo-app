@@ -83,8 +83,8 @@ export default function ChatPage() {
     return () => clearTimeout(timer);
   }, [coderLimitNotice]);
 
-  // Extract code from messages for Nexo Coder side panel, and — when in Coder
-  // mode — parse the latest assistant message for file actions so we can show
+  // Extract code from messages for the side panel and parse repository actions
+  // from every model so live task and approval cards work consistently.
   // live status cards and, if it proposes real changes, an approval card.
   useEffect(() => {
     const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
@@ -112,7 +112,7 @@ export default function ChatPage() {
         });
       }
 
-      if (isCoderMode && lastAssistantMsg.content && !isStreaming) {
+      if (lastAssistantMsg.content && !isStreaming) {
         const parsed = parseCraftResponse(lastAssistantMsg.content);
         if (parsed.hasProposal) {
           setPendingApproval((prev) => {
@@ -129,7 +129,7 @@ export default function ChatPage() {
         }
       }
     }
-  }, [messages, isCoderMode, isStreaming]);
+  }, [messages, isStreaming]);
 
   async function loadChats(sid: string) {
     try {
@@ -287,7 +287,7 @@ export default function ChatPage() {
         if (!content.trim()) continue; // empty result → skip this file
         filesToCommit.push({ filePath: action.filePath, content, type: original ? "editing" : "creating" });
       } else {
-        if (!action.newContent?.trim()) continue;
+        if (action.type !== "deleting" && !action.newContent?.trim()) continue;
         filesToCommit.push({
           filePath: action.filePath,
           content: action.newContent ?? "",
@@ -685,11 +685,10 @@ export default function ChatPage() {
                           <MessageBubble
                             message={m}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
-                            coderMode={isCoderMode}
+                            coderMode={Boolean(selectedRepo)}
                             repoFullName={selectedRepo}
                           />
-                          {isCoderMode &&
-                            pendingApproval &&
+                          {pendingApproval &&
                             pendingApproval.messageId === m.id &&
                             !isStreaming && (
                               <ApprovalCard

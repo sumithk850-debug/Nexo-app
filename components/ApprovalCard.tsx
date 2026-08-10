@@ -47,6 +47,7 @@ export function ApprovalCard({
   // pass this filter to render the card with Approve / Reject buttons.
   const proposalActions = actions.filter((a) => {
     if (a.type === "reading") return false;
+    if (a.type === "deleting") return true;
     if (a.diffRaw) return true; // diff-based edit — always has a real change
     return !!a.newContent?.trim();
   });

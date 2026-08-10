@@ -16,6 +16,17 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
+const REPOSITORY_ACTION_PROTOCOL = `
+REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
+- When the user asks to read, create, edit, or delete repository files, perform the task through NEXO's repository workflow; do not paste implementation code as the answer.
+- Announce each operation on its own line with exactly one marker: [READING FILE] path, [CREATING FILE] path, [EDITING FILE] path, or [DELETING FILE] path.
+- For an existing-file edit, follow its marker with one \`\`\`diff:path/to/file.ext block containing only removed (-) and added (+) lines.
+- For a new file, follow its marker with one \`\`\`language:path/to/file.ext block containing the complete new file.
+- For deletion, emit only the deletion marker. Never include deleted file contents.
+- Mutating actions pause for explicit user approval. Never claim a change was committed before approval.
+- Keep prose brief. File bodies and diffs are rendered as live task cards and must not be repeated in normal prose.
+`;
+
 // Output budgets. These are deliberately generous: replies were getting cut
 // off mid-sentence (and mid-diff, which corrupts a proposed edit), so every
 // model now gets a much larger completion window.
@@ -305,7 +316,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (githubContextBlock) {
-      systemPrompt += githubContextBlock;
+      systemPrompt += `${githubContextBlock}\n${REPOSITORY_ACTION_PROTOCOL}`;
     }
 
     const upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
