@@ -13,7 +13,8 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { parseCraftResponse, applyDiff, type FileAction } from "@/lib/craftParser";
+import { LiveStatusBar } from "@/components/LiveStatusBar";
+import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
@@ -52,6 +53,29 @@ export default function ChatPage() {
   const [coderLimitNotice, setCoderLimitNotice] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
+
+  // Live operation pill shown ABOVE the chat input while Craft V3 works on a
+  // file (reading/editing/creating/deleting). Derived from the most recent
+  // action marker in the last assistant message; auto-hides when the stream
+  // ends (matches Manus-style sandbox status box).
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
+  const liveOperation: FileAction | null = (() => {
+    if (!lastAssistantMsg?.content) return null;
+    const segments = parseCraftSegments(lastAssistantMsg.content);
+    const actions = segments
+      .filter((s): s is Extract<typeof s, { kind: "action" }> => s.kind === "action")
+      .map((s) => s.action);
+    if (actions.length === 0) return null;
+    // While streaming, show the currently-running operation (latest marker).
+    // After the stream ends, the approval card / completed pills take over.
+    if (isStreaming) return actions[actions.length - 1];
+    // Approval pending: keep showing the mutating operation until resolved.
+    if (pendingApproval?.messageId === lastAssistantMsg.id && pendingApproval.status === "pending") {
+      const mutating = actions.filter((a) => a.type !== "reading");
+      return mutating.length > 0 ? mutating[mutating.length - 1] : actions[actions.length - 1];
+    }
+    return null;
+  })();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -726,6 +750,11 @@ export default function ChatPage() {
               </div>
             </div>
 
+            <LiveStatusBar
+              action={liveOperation}
+              streaming={isStreaming}
+              repoFullName={selectedRepo}
+            />
             <ChatInput
               value={input}
               onChange={setInput}
