@@ -257,6 +257,17 @@ export default function ChatPage() {
     const mutateActions = pendingApproval.actions.filter((a) => a.type !== "reading");
 
     for (const action of mutateActions) {
+      // A bare marker (no diff, no content) is a real proposal: a deletion
+      // removes the file from GitHub, and a bare create marker commits an
+      // empty placeholder so the user can see the file appeared.
+      if (!action.diffHunk && !action.newContent) {
+        if (action.type === "deleting") {
+          filesToCommit.push({ filePath: action.filePath, content: "", type: "deleting" });
+        } else if (action.type === "creating") {
+          filesToCommit.push({ filePath: action.filePath, content: "", type: "creating" });
+        }
+        continue;
+      }
       if (action.diffHunk) {
         let original = "";
         if (user) {
@@ -284,8 +295,13 @@ export default function ChatPage() {
           setPendingApproval({ ...pendingApproval, status: "error" });
           return;
         }
-        if (!content.trim()) continue; // empty result → skip this file
-        filesToCommit.push({ filePath: action.filePath, content, type: original ? "editing" : "creating" });
+        if (!content.trim()) {
+          // Diff applied to an empty/unchanged result → treat as a new
+          // (empty) file creation rather than silently dropping it.
+          filesToCommit.push({ filePath: action.filePath, content: "", type: "creating" });
+        } else {
+          filesToCommit.push({ filePath: action.filePath, content, type: original ? "editing" : "creating" });
+        }
       } else {
         if (action.type !== "deleting" && !action.newContent?.trim()) continue;
         filesToCommit.push({
@@ -687,6 +703,7 @@ export default function ChatPage() {
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
                             coderMode={Boolean(selectedRepo)}
                             repoFullName={selectedRepo}
+                            isStreaming={isStreaming}
                           />
                           {pendingApproval &&
                             pendingApproval.messageId === m.id &&

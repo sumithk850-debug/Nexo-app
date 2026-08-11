@@ -41,15 +41,18 @@ export function ApprovalCard({
   status: "pending" | "approving" | "approved" | "rejected" | "error";
 }) {
   const [diffOpen, setDiffOpen] = useState(false);
-  // Skip reading-only actions. Drop only truly empty content: a plain content
-  // action with empty newContent, or a diff action with an empty diff. A diff
-  // action has its payload in diffRaw/diffHunk (not newContent), so it must
-  // pass this filter to render the card with Approve / Reject buttons.
+  // Reading-only actions never need approval. Every mutating action renders
+  // the card with Approve / Reject buttons:
+  // - diff-based edit → payload in diffRaw/diffHunk (not newContent)
+  // - new file → payload in newContent
+  // - bare delete/create marker → no content block at all; the commit API
+  //   deletes by path + sha or creates an empty placeholder, so it counts.
   const proposalActions = actions.filter((a) => {
     if (a.type === "reading") return false;
-    if (a.type === "deleting") return true;
-    if (a.diffRaw) return true; // diff-based edit — always has a real change
-    return !!a.newContent?.trim();
+    if (a.diffRaw) return true;
+    if (a.newContent?.trim()) return true;
+    if (a.type === "deleting" || a.type === "creating") return true;
+    return false;
   });
 
   if (proposalActions.length === 0) return null;
@@ -93,6 +96,11 @@ export function ApprovalCard({
                       ({action.linesChanged} lines)
                     </span>
                   )}
+                  {action.type === "deleting" && (
+                    <span className="flex-shrink-0 rounded-full border border-red-500/40 px-2 py-0.5 text-[10px] text-red-400">
+                      will be removed from GitHub
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -108,13 +116,15 @@ export function ApprovalCard({
           </div>
         )}
 
-        <button
-          onClick={() => setDiffOpen((v) => !v)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge py-2 text-xs font-medium text-ink-muted transition hover:border-cyan/40 hover:text-ink"
-        >
-          {diffOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {diffOpen ? "Hide code" : "View code"}
-        </button>
+        {!proposalActions.every((a) => a.type === "deleting") && (
+          <button
+            onClick={() => setDiffOpen((v) => !v)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge py-2 text-xs font-medium text-ink-muted transition hover:border-cyan/40 hover:text-ink"
+          >
+            {diffOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {diffOpen ? "Hide code" : "View code"}
+          </button>
+        )}
 
         {diffOpen && (
           <div className="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-edge bg-void p-3">

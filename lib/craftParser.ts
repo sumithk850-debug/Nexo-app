@@ -218,9 +218,11 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
       // else: ignore a "reading" marker for a path that already has a real
       // code-block action — the create/edit stands.
     } else {
-      // A marker without a code block or diff — informational only (e.g. a
-      // "reading" narration). Keep it so the live status cards can show it,
-      // but it never counts as a mutating proposal.
+      // A marker without a code block or diff. A "reading" marker is only
+      // informational narration, but a bare "deleting" or "creating" marker
+      // IS a mutating proposal — deletions intentionally carry no content
+      // (the commit API deletes by path + sha), so they must trigger the
+      // approval card too.
       fileActions.push({
         type,
         filePath,
@@ -230,8 +232,12 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
   }
 
   // A response "has a proposal" (needs approval) only when at least one
-  // action actually changes repository state — reading alone doesn't.
-  const hasProposal = fileActions.some((f) => f.type !== "reading");
+  // action actually changes repository state — reading alone doesn't. Bare
+  // deleting/creating markers also count because the commit flow can act on
+  // them without any content block.
+  const hasProposal = fileActions.some(
+    (f) => f.type === "editing" || f.type === "creating" || f.type === "deleting"
+  );
 
   // Try to detect an auto-generated commit message if the model included one,
   // e.g. a line starting with "Commit message:" or wrapped in quotes near the end.

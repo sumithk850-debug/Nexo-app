@@ -66,7 +66,14 @@ export async function POST(req: NextRequest) {
 
       if (file.type === "deleting") {
         if (!sha) {
-          results.push({ filePath: file.filePath, success: false, error: "File not found or cannot be accessed" });
+          // No sha found → the file doesn't exist in the repo; there is
+          // nothing to delete. Report a clear error so the UI never shows
+          // a silent no-op.
+          results.push({
+            filePath: file.filePath,
+            success: false,
+            error: `File does not exist in the repository: ${file.filePath}`,
+          });
           continue;
         }
         const delRes = await fetch(contentsUrl, {

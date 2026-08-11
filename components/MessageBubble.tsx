@@ -16,12 +16,14 @@ export function MessageBubble({
   isLast,
   coderMode = false,
   repoFullName,
+  isStreaming = false,
 }: {
   message: ChatMessage;
   onRegenerate?: () => void;
   isLast?: boolean;
   coderMode?: boolean;
   repoFullName?: string | null;
+  isStreaming?: boolean;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
@@ -77,7 +79,12 @@ export function MessageBubble({
                 <CraftStatusCard
                   key={i}
                   action={seg.action}
-                  streaming={seg.streaming}
+                  // While the whole response is still streaming, a "Reading…"
+                  // pill pulses (the read may still be in flight). Once the
+                  // stream ends, every card collapses to its completed state
+                  // — this fixes the old bug where the reading pill spun
+                  // forever even after the response finished.
+                  streaming={isStreaming && seg.streaming}
                   repoFullName={repoFullName}
                 />
               )
