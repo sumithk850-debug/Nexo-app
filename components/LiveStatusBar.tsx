@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, Pencil, Sparkles, Trash2, Loader2, Check } from "lucide-react";
+import { useState } from "react";
+import { Search, Pencil, Sparkles, Trash2, Loader2, Check, ChevronDown, Github } from "lucide-react";
 import type { FileAction, FileActionType } from "@/lib/craftParser";
 
 // A Manus-style compact status bar rendered ABOVE the chat input while Craft
@@ -61,23 +62,30 @@ function pickPreview(action: FileAction): string | null {
 }
 
 export function LiveStatusBar({
-  action,
+  actions,
   streaming,
   repoFullName,
 }: {
-  action: FileAction | null;
+  actions: FileAction[];
   streaming: boolean;
   repoFullName?: string | null;
 }) {
-  if (!action) return null;
+  const [open, setOpen] = useState(false);
+  if (actions.length === 0) return null;
 
+  const action = actions[actions.length - 1];
   const style = STYLE_MAP[action.type];
   const Icon = style.icon;
-  const preview = pickPreview(action);
 
   return (
     <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
-      <div className="flex items-center gap-2 px-3 py-1.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-void/30"
+        aria-expanded={open}
+        aria-label={open ? "Hide task activity" : "Show task activity"}
+      >
         {/* Icon chip */}
         <div
           className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${style.chipBg}`}
@@ -113,16 +121,38 @@ export function LiveStatusBar({
           </span>
         )}
 
-        {repoFullName && (
-          <span className="flex-shrink-0 text-[10px] text-ink-faint">{repoFullName}</span>
-        )}
-      </div>
+        <span className="ml-auto flex-shrink-0 text-[10px] text-ink-faint">
+          {actions.length} {actions.length === 1 ? "task" : "tasks"}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
 
-      {/* Optional content preview (first ~20 lines) */}
-      {preview && (
-        <pre className="mx-3 mb-2 max-h-56 overflow-auto rounded-lg border border-edge bg-void/70 p-2 font-mono text-[10.5px] leading-relaxed text-ink-muted">
-          {preview}
-        </pre>
+      {open && (
+        <div className="max-h-72 space-y-2 overflow-y-auto border-t border-edge px-3 py-2">
+          {repoFullName && (
+            <div className="flex items-center gap-1.5 text-[10px] text-ink-faint">
+              <Github className="h-3 w-3" />
+              <span className="truncate font-mono">{repoFullName}</span>
+            </div>
+          )}
+          {actions.map((item, index) => {
+            const itemStyle = STYLE_MAP[item.type];
+            const ItemIcon = itemStyle.icon;
+            const isActive = streaming && index === actions.length - 1;
+            const preview = pickPreview(item);
+            return (
+              <div key={`${item.type}-${item.filePath}-${index}`} className="rounded-lg border border-edge bg-void/50 p-2">
+                <div className="flex min-w-0 items-center gap-2 text-xs">
+                  {isActive ? <Loader2 className={`h-3.5 w-3.5 animate-spin ${itemStyle.accent}`} /> : <Check className="h-3.5 w-3.5 text-green-400" />}
+                  <ItemIcon className={`h-3.5 w-3.5 ${itemStyle.accent}`} />
+                  <span className={`font-semibold ${itemStyle.accent}`}>{isActive ? itemStyle.activeLabel : itemStyle.label}</span>
+                  <span className="min-w-0 truncate font-mono text-ink" title={item.filePath}>{item.filePath}</span>
+                </div>
+                {preview && <pre className="mt-2 max-h-48 overflow-auto rounded border border-edge bg-void p-2 font-mono text-[10px] leading-relaxed text-ink-muted">{preview}</pre>}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

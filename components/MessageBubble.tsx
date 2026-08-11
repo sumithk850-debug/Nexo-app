@@ -7,7 +7,6 @@ import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
-import { CraftStatusCard } from "./CraftStatusCard";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export function MessageBubble({
@@ -15,15 +14,12 @@ export function MessageBubble({
   onRegenerate,
   isLast,
   coderMode = false,
-  repoFullName,
-  isStreaming = false,
 }: {
   message: ChatMessage;
   onRegenerate?: () => void;
   isLast?: boolean;
   coderMode?: boolean;
   repoFullName?: string | null;
-  isStreaming?: boolean;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
@@ -65,29 +61,17 @@ export function MessageBubble({
             {model.name}
           </p>
         )}
-        {/* In coder mode file operations never print their contents into the
-            chat — each read/create/edit/delete collapses into a status card
-            rendered inline, in the exact order the model performed it. */}
+        {/* Repository operation markers and file bodies belong exclusively in
+            the activity panel above the composer. Only normal prose/report
+            segments remain in the transcript. */}
         {coderMode ? (
           <div className="space-y-2">
             {parseCraftSegments(message.content).map((seg, i) =>
-              seg.kind === "text" ? (
+              seg.kind === "text" && seg.text.trim() ? (
                 <div key={i} className="prose-nexo text-sm text-ink">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
                 </div>
-              ) : (
-                <CraftStatusCard
-                  key={i}
-                  action={seg.action}
-                  // While the whole response is still streaming, a "Reading…"
-                  // pill pulses (the read may still be in flight). Once the
-                  // stream ends, every card collapses to its completed state
-                  // — this fixes the old bug where the reading pill spun
-                  // forever even after the response finished.
-                  streaming={isStreaming && seg.streaming}
-                  repoFullName={repoFullName}
-                />
-              )
+              ) : null
             )}
           </div>
         ) : (

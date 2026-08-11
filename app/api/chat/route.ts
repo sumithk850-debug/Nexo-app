@@ -19,12 +19,14 @@ const CODER_DAILY_LIMIT = 5;
 const REPOSITORY_ACTION_PROTOCOL = `
 REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 - When the user asks to read, create, edit, or delete repository files, perform the task through NEXO's repository workflow; do not paste implementation code as the answer.
+- Start every repository task with one short sentence in the user's language that clearly says you are starting the requested work. Do not claim it is finished in this opening sentence.
 - Announce each operation on its own line with exactly one marker: [READING FILE] path, [CREATING FILE] path, [EDITING FILE] path, or [DELETING FILE] path.
 - For an existing-file edit, follow its marker with one \`\`\`diff:path/to/file.ext block containing only removed (-) and added (+) lines.
 - For a new file, follow its marker with one \`\`\`language:path/to/file.ext block containing the complete new file.
 - For deletion, emit only the deletion marker. Never include deleted file contents.
 - Mutating actions pause for explicit user approval. Never claim a change was committed before approval.
 - Keep prose brief. File bodies and diffs are rendered as live task cards and must not be repeated in normal prose.
+- End every repository task with a concise report in the user's language under a "Task report" heading. Summarize what was read, created, edited, or proposed for deletion and the result. For proposed mutations, explicitly say they are waiting for approval rather than committed. Never repeat code, diffs, or full file contents in this report.
 `;
 
 // Output budgets. These are deliberately generous: replies were getting cut
