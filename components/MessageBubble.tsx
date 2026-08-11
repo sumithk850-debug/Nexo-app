@@ -7,6 +7,7 @@ import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
+import { CraftStatusCard } from "./CraftStatusCard";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export function MessageBubble({
@@ -14,6 +15,7 @@ export function MessageBubble({
   onRegenerate,
   isLast,
   coderMode = false,
+  repoFullName,
 }: {
   message: ChatMessage;
   onRegenerate?: () => void;
@@ -67,11 +69,20 @@ export function MessageBubble({
         {coderMode ? (
           <div className="space-y-2">
             {parseCraftSegments(message.content).map((seg, i) =>
-              seg.kind === "text" && seg.text.trim() ? (
-                <div key={i} className="prose-nexo text-sm text-ink">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
-                </div>
-              ) : null
+              seg.kind === "text" ? (
+                seg.text.trim() ? (
+                  <div key={i} className="prose-nexo text-sm text-ink">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
+                  </div>
+                ) : null
+              ) : (
+                <CraftStatusCard
+                  key={i}
+                  action={seg.action}
+                  streaming={seg.streaming}
+                  repoFullName={repoFullName}
+                />
+              )
             )}
           </div>
         ) : (

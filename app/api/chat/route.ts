@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
               ],
             }
       ),
-    );
+    });
 
     if (!upstreamRes.ok || !upstreamRes.body) {
       const status = upstreamRes.status;
@@ -396,9 +396,11 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
+    const upstreamReader = upstreamRes.body!.getReader();
+
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = upstreamRes.body!.getReader();
+        const reader = upstreamReader;
         let buffer = "";
 
         try {
@@ -434,6 +436,15 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (err) {
           controller.error(err);
+        }
+      },
+      async cancel() {
+        // The browser aborted the request (user navigated away or pressed
+        // stop) — release the upstream connection instead of leaking it.
+        try {
+          await upstreamReader.cancel();
+        } catch {
+          // already closed
         }
       },
     });

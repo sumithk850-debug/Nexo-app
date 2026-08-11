@@ -10,39 +10,27 @@ function getSupabaseAdmin() {
   );
 }
 
-function debugPage(title: string, rows: Record<string, string>) {
-  const rowsHtml = Object.entries(rows)
-    .map(
-      ([k, v]) =>
-        `<tr><td style="padding:8px;color:#00E5FF;font-weight:bold;vertical-align:top;">${k}</td><td style="padding:8px;white-space:pre-wrap;word-break:break-all;">${v}</td></tr>`
-    )
-    .join("");
-  return new Response(
-    `<!DOCTYPE html><html><body style="font-family:monospace;padding:20px;background:#0A0E1A;color:#E8ECFB;">
-      <h2 style="color:#00E5FF;">${title}</h2>
-      <table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>
-      <br/><a href="/" style="color:#00E5FF;">← Back to NEXO AI</a>
-    </body></html>`,
-    { status: 200, headers: { "Content-Type": "text/html" } }
-  );
+// Never leak environment values or provider payloads to the browser: the OAuth
+// callback only reports a short, safe reason and sends the user back to the app.
+function backToApp(req: NextRequest, params: Record<string, string>) {
+  const url = new URL("/", req.nextUrl.origin);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return NextResponse.redirect(url.toString());
 }
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const userId = req.nextUrl.searchParams.get("state");
 
-  const envCheck = {
-    "code received": String(!!code),
-    "state (userId) received": String(userId),
-    "GITHUB_OAUTH_CLIENT_ID set": String(!!process.env.GITHUB_OAUTH_CLIENT_ID),
-    "GITHUB_OAUTH_CLIENT_SECRET set": String(!!process.env.GITHUB_OAUTH_CLIENT_SECRET),
-    "SUPABASE_SERVICE_ROLE_KEY set": String(!!process.env.SUPABASE_SERVICE_ROLE_KEY),
-    "SUPABASE_SERVICE_ROLE_KEY prefix": (process.env.SUPABASE_SERVICE_ROLE_KEY || "MISSING").slice(0, 20) + "...",
-    "NEXT_PUBLIC_SUPABASE_URL": process.env.NEXT_PUBLIC_SUPABASE_URL || "MISSING",
-  };
-
   if (!code || !userId) {
-    return debugPage("Missing code or userId", envCheck);
+    return backToApp(req, { github: "error", reason: "missing_code" });
+  }
+
+  if (!process.env.GITHUB_OAUTH_CLIENT_ID || !process.env.GITHUB_OAUTH_CLIENT_SECRET) {
+    console.error("[github-callback] OAuth app credentials are not configured");
+    return backToApp(req, { github: "error", reason: "not_configured" });
   }
 
   try {
@@ -59,10 +47,8 @@ export async function GET(req: NextRequest) {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      return debugPage("Token exchange failed", {
-        ...envCheck,
-        "GitHub token response": JSON.stringify(tokenData),
-      });
+      console.error("[github-callback] Token exchange failed:", tokenData?.error);
+      return backToApp(req, { github: "error", reason: "token_exchange_failed" });
     }
 
     const userRes = await fetch("https://api.github.com/user", {
@@ -72,7 +58,7 @@ export async function GET(req: NextRequest) {
     const githubUsername = githubUser.login ?? "unknown";
 
     const supabase = getSupabaseAdmin();
-    const { data: upsertData, error: upsertError } = await supabase
+    const { error: upsertError } = await supabase
       .from("github_connections")
       .upsert(
         {
@@ -82,17 +68,16 @@ export async function GET(req: NextRequest) {
           connected_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
-      )
-      .select();
+      );
 
-    return debugPage("Callback completed — final state", {
-      ...envCheck,
-      "GitHub username": githubUsername,
-      "Access token received": String(!!accessToken),
-      "Supabase upsert error": upsertError ? JSON.stringify(upsertError) : "none",
-      "Supabase upsert data": JSON.stringify(upsertData),
-    });
+    if (upsertError) {
+      console.error("[github-callback] Failed to store connection:", upsertError.message);
+      return backToApp(req, { github: "error", reason: "save_failed" });
+    }
+
+    return backToApp(req, { github: "connected", user: githubUsername });
   } catch (err) {
-    return debugPage("Exception thrown", { ...envCheck, "Error": String(err) });
+    console.error("[github-callback] Unexpected error:", err);
+    return backToApp(req, { github: "error", reason: "unexpected" });
   }
 }

@@ -118,8 +118,20 @@ export function applyDiff(original: string, hunk: DiffHunk): string {
     return origLines.concat(hunk.add).join("\n");
   }
 
+  // Prefer an exact match of the FULL removal span so we never delete lines
+  // that merely start with the same anchor line somewhere else in the file.
+  let anchorIdx = -1;
+  for (let i = 0; i + hunk.remove.length <= origLines.length; i++) {
+    if (hunk.remove.every((line, k) => origLines[i + k] === line)) {
+      anchorIdx = i;
+      break;
+    }
+  }
   const anchor = hunk.remove[0];
-  const anchorIdx = origLines.findIndex((line) => line === anchor);
+  if (anchorIdx === -1) {
+    // Fall back to the single anchor line (model may have mis-copied context).
+    anchorIdx = origLines.findIndex((line) => line === anchor);
+  }
   if (anchorIdx === -1) {
     throw new Error(`Diff anchor line not found in original file: "${anchor.slice(0, 80)}"`);
   }
@@ -139,9 +151,8 @@ export function applyDiff(original: string, hunk: DiffHunk): string {
 // Markers are only allowed to refine a code-block action among the mutating
 // types (creating/editing/deleting); "reading" can only ever apply to a path
 // that has no code block of its own.
-function canMarkerOverride(currentType: FileActionType, incomingType: FileActionType): boolean {
-  if (incomingType === "reading") return false;
-  return true;
+function canMarkerOverride(incomingType: FileActionType): boolean {
+  return incomingType !== "reading";
 }
 
 export function parseCraftResponse(text: string): ParsedCraftResponse {
@@ -212,7 +223,7 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
 
     const existing = fileActions.find((f) => f.filePath === filePath);
     if (existing) {
-      if (canMarkerOverride(existing.type, type)) {
+      if (canMarkerOverride(type)) {
         existing.type = type;
       }
       // else: ignore a "reading" marker for a path that already has a real

@@ -80,6 +80,8 @@ export default function ChatPage() {
     const subscription = onAuthStateChange((u) => {
       setUser(u);
       setAuthLoading(false);
+      if (u) loadSelectedRepo(u.id);
+      else setSelectedRepo(null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -101,7 +103,7 @@ export default function ChatPage() {
   useEffect(() => {
     const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
     if (lastAssistantMsg) {
-      const codeBlockRegex = /```(\w+)?(?:\:([\w\.]+))?\n([\s\S]*?)```/g;
+      const codeBlockRegex = /```(\w+)?(?:\:([^\n`]+))?\n([\s\S]*?)```/g;
       const diffBlockRegex = /```diff\:([^\n`]+)\n([\s\S]*?)```/g;
       const diffMatches = [...lastAssistantMsg.content.matchAll(diffBlockRegex)];
       const codeMatches = [...lastAssistantMsg.content.matchAll(codeBlockRegex)];
@@ -229,7 +231,7 @@ export default function ChatPage() {
     setAttachedFile(file);
   }
 
-  async function handleAuthSuccess(isNewUser: boolean) {
+  async function handleAuthSuccess() {
     const currentUser = await getCurrentUser();
     setUser(currentUser);
     if (currentUser) loadSelectedRepo(currentUser.id);
@@ -343,6 +345,9 @@ export default function ChatPage() {
       });
       const data = await res.json();
 
+      if (!data.success) {
+        console.error("[approve] Commit failed:", data.error ?? data.message);
+      }
       setPendingApproval({
         ...pendingApproval,
         status: data.success ? "approved" : "error",
@@ -712,8 +717,9 @@ export default function ChatPage() {
                         <div key={m.id}>
                           <MessageBubble
                             message={m}
+                            isLast={isLastAssistant}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
-                            coderMode={Boolean(selectedRepo)}
+                            coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
                             repoFullName={selectedRepo}
                           />
                           {pendingApproval &&
@@ -780,9 +786,20 @@ export default function ChatPage() {
         </div>
       )}
 
+      <AuthModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
+
       <SettingsPanel
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => {
+          setSettingsOpen(false);
+          // A repo picked in Settings must take effect immediately; previously
+          // the chat kept the stale selection until a full page reload.
+          if (user) loadSelectedRepo(user.id);
+        }}
         sessionId={sessionId}
         userId={user?.id}
         onClearHistory={handleClearHistory}

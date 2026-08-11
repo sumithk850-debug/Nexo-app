@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `https://api.github.com/repos/${connection.selected_repo}/contents/${encodeURIComponent(path)}`,
+      `https://api.github.com/repos/${connection.selected_repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`,
       {
         headers: {
           Authorization: `Bearer ${connection.access_token}`,

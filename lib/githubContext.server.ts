@@ -124,7 +124,12 @@ function extractReferencedPaths(userText: string, treePaths: string[]): string[]
   for (const path of treePaths) {
     const fileName = path.split("/").pop();
     if (!fileName) continue;
-    if (userText.includes(path) || userText.includes(fileName)) {
+    // A bare, very common file name (route.ts, page.tsx, index.ts...) exists in
+    // many folders, so matching on it alone pulls in the wrong file. Those only
+    // count when the user typed enough of the path to disambiguate.
+    const isAmbiguous = treePaths.filter((p) => p.endsWith(`/${fileName}`) || p === fileName).length > 1;
+    const matches = userText.includes(path) || (!isAmbiguous && userText.includes(fileName));
+    if (matches) {
       found.push(path);
       if (found.length >= MAX_FILES_PER_REQUEST) break;
     }
