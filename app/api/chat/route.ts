@@ -227,12 +227,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = config.provider === "gemini"
+      ? process.env.GEMINI_API_KEY
+      : process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
+      const keyName = config.provider === "gemini" ? "GEMINI_API_KEY" : "OPENROUTER_API_KEY";
       return new Response(
         JSON.stringify({
-          error: "Missing OPENROUTER_API_KEY. Set it in your environment variables.",
+          error: `Missing ${keyName}. Set it in your environment variables.`,
         }),
         { status: 500 }
       );
@@ -321,26 +324,50 @@ export async function POST(req: NextRequest) {
       systemPrompt += `${githubContextBlock}\n${REPOSITORY_ACTION_PROTOCOL}`;
     }
 
-    const upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
+    const isGemini = config.provider === "gemini";
+    const upstreamUrl = isGemini
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:streamGenerateContent?alt=sse`
+      : OPENROUTER_ENDPOINT;
+    const upstreamRes = await fetch(upstreamUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://nexo-app-delta.vercel.app",
-        "X-Title": "NEXO AI",
-      },
-      body: JSON.stringify({
-        model: config.model,
-        stream: true,
-        temperature: 1.0,
-        top_p: 1.0,
-        max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ],
-      }),
-    });
+      headers: isGemini
+        ? {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          }
+        : {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+            "X-Title": "NEXO AI",
+          },
+      body: JSON.stringify(
+        isGemini
+          ? {
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: messages.map((m) => ({
+                role: m.role === "assistant" ? "model" : "user",
+                parts: [{ text: m.content }],
+              })),
+              generationConfig: {
+                temperature: 1.0,
+                topP: 1.0,
+                maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+              },
+            }
+          : {
+              model: config.model,
+              stream: true,
+              temperature: 1.0,
+              top_p: 1.0,
+              max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+              messages: [
+                { role: "system", content: systemPrompt },
+                ...messages.map((m) => ({ role: m.role, content: m.content })),
+              ],
+            }
+      ),
+    );
 
     if (!upstreamRes.ok || !upstreamRes.body) {
       const status = upstreamRes.status;
@@ -348,7 +375,7 @@ export async function POST(req: NextRequest) {
       let errMsg = "Something went wrong reaching NEXO. Please try again.";
 
       if (status === 429) {
-        // Provider-side rate limit (not our daily limit, but OpenRouter/provider)
+        // Provider-side rate limit (not our daily limit).
         errMsg = "The AI provider is temporarily busy. Please wait a moment and try again.";
       } else if (status === 502 || status === 503) {
         errMsg = "The AI provider is temporarily unavailable. Please try again in a moment.";
@@ -393,7 +420,9 @@ export async function POST(req: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                const delta = json.choices?.[0]?.delta?.content;
+                const delta = isGemini
+                  ? json.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("")
+                  : json.choices?.[0]?.delta?.content;
                 if (delta) {
                   controller.enqueue(encoder.encode(delta));
                 }
