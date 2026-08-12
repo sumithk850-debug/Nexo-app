@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Pencil, Sparkles, Trash2, Loader2, Check, ChevronDown, Github } from "lucide-react";
+import { Search, Pencil, Sparkles, Trash2, Loader2, Check, ChevronDown, Github, Gauge, Zap } from "lucide-react";
+import { TypingSpeedBadge } from "./TypingSpeedIndicator";
 import type { FileAction, FileActionType, SearchingAction } from "@/lib/craftParser";
 
 // A Manus-style compact status bar rendered ABOVE the chat input while Craft
@@ -94,14 +95,15 @@ export function LiveStatusBar({
   streaming,
   repoFullName,
   searching,
+  charsPerSecond,
 }: {
   actions: FileAction[];
   streaming: boolean;
   repoFullName?: string | null;
   searching?: SearchingAction | null;
+  charsPerSecond?: number;
 }) {
   const [open, setOpen] = useState(false);
-  if (actions.length === 0 && !searching) return null;
 
   // A live (or just-finished) web search is the most recent activity and
   // should take the lead in the status bar when present.
@@ -164,6 +166,12 @@ export function LiveStatusBar({
         <span className="ml-auto flex-shrink-0 text-[10px] text-ink-faint">
           {actions.length} {actions.length === 1 ? "task" : "tasks"}
         </span>
+
+        {/* Typing Speed Indicator */}
+        {streaming && charsPerSecond !== undefined && charsPerSecond > 0 && (
+          <TypingSpeedBadge charsPerSecond={charsPerSecond} streaming={streaming} />
+        )}
+
         <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 

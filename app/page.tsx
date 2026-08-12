@@ -15,6 +15,8 @@ import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
+import { SessionResumeCard } from "@/components/SessionResumeCard";
+import { TypingSpeedPill } from "@/components/TypingSpeedIndicator";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
@@ -56,6 +58,30 @@ export default function ChatPage() {
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
+
+  // Typing speed tracking (chars/sec during streaming)
+  const typingSpeedRef = useRef<number>(0);
+  const typingSpeedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevContentLengthRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isStreaming) {
+      prevContentLengthRef.current = 0;
+      typingSpeedTimerRef.current = setInterval(() => {
+        const lastMsg = messages[messages.length - 1];
+        const currentLen = lastMsg?.role === "assistant" ? lastMsg.content.length : 0;
+        const delta = currentLen - prevContentLengthRef.current;
+        typingSpeedRef.current = delta;
+        prevContentLengthRef.current = currentLen;
+      }, 1000);
+    } else {
+      if (typingSpeedTimerRef.current) clearInterval(typingSpeedTimerRef.current);
+      typingSpeedRef.current = 0;
+    }
+    return () => {
+      if (typingSpeedTimerRef.current) clearInterval(typingSpeedTimerRef.current);
+    };
+  }, [isStreaming, messages]);
 
   // Task activity belongs to the current assistant turn only. This prevents a
   // completed read marker from becoming "Reading" again when a later turn starts.
@@ -633,6 +659,39 @@ export default function ChatPage() {
     setPendingApproval(null);
   }
 
+  async function handleSuggestionSelect(suggestion: string) {
+    if (isStreaming || !suggestion.trim()) return;
+    // Send the suggestion directly — same logic as handleSend but with the
+    // suggestion text as the message content (no need to rely on input state).
+    const chatId = await ensureChat();
+    const text = suggestion.trim();
+
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text };
+    const assistantId = crypto.randomUUID();
+
+    const nextMessages = [...messages, userMsg];
+    setPendingApproval(null);
+    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setInput("");
+    setAttachedFile(null);
+    setIsStreaming(true);
+
+    if (chatId) saveMessage(chatId, "user", text);
+
+    if (chatId && messages.length === 0) {
+      const words = text.split(/\s+/).filter(Boolean);
+      const title = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
+      fetch("/api/chats", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: chatId, title }),
+      }).catch(() => {});
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
+    }
+
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined);
+  }
+
   async function handleSelectChat(chatId: string) {
     if (activeChatId === chatId) return;
     setActiveChatId(chatId);
@@ -752,6 +811,14 @@ export default function ChatPage() {
         <AnnouncementModal />
         {/* Usage panel renders inside its own portal-like fixed overlay */}
 
+        {/* Session Resume Card — shows when user has recent chats and no active chat */}
+        {!activeChatId && chats.length > 0 && (
+          <SessionResumeCard
+            recentChats={chats}
+            onSelectChat={handleSelectChat}
+          />
+        )}
+
         <div className="flex flex-1 overflow-hidden">
           <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
@@ -810,6 +877,7 @@ export default function ChatPage() {
                             coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
                             repoFullName={selectedRepo}
                             sessionId={sessionId}
+                            onSuggestionSelect={isLastAssistant && !isStreaming ? handleSuggestionSelect : undefined}
                           />
                           {pendingApproval &&
                             pendingApproval.messageId === m.id &&
@@ -838,7 +906,14 @@ export default function ChatPage() {
               streaming={isStreaming}
               repoFullName={selectedRepo}
               searching={activitySearching?.action ?? null}
+              charsPerSecond={typingSpeedRef.current}
             />
+
+            {/* Typing Speed Pill — shown during streaming when no actions/searching */}
+            {isStreaming && activityActions.length === 0 && !activitySearching && typingSpeedRef.current > 0 && (
+              <TypingSpeedPill charsPerSecond={typingSpeedRef.current} />
+            )}
+
             <ChatInput
               value={input}
               onChange={setInput}

@@ -31,6 +31,7 @@ import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2 } from "lucide-react";
+import { SmartReplySuggestions } from "./SmartReplySuggestions";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -106,6 +107,7 @@ export function MessageBubble({
   repoFullName,
   isStreaming = false,
   sessionId,
+  onSuggestionSelect,
 }: {
   message: ChatMessage;
   onEdit?: (messageId: string, newContent: string) => void;
@@ -115,6 +117,7 @@ export function MessageBubble({
   repoFullName?: string | null;
   isStreaming?: boolean;
   sessionId?: string;
+  onSuggestionSelect?: (suggestion: string) => void;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
@@ -355,6 +358,15 @@ export function MessageBubble({
               <ThumbsDown className="h-3.5 w-3.5" />
             </button>
           </div>
+        )}
+
+        {/* Smart Reply Suggestions — only on the last non-streaming assistant message */}
+        {isLast && message.role === "assistant" && message.content && !isStreaming && onSuggestionSelect && (
+          <SmartReplySuggestions
+            lastMessageContent={message.content}
+            onSelect={onSuggestionSelect}
+            disabled={isStreaming}
+          />
         )}
       </div>
     </div>

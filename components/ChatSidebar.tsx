@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -71,6 +71,101 @@ export function ChatSidebar({
   const [themesOpen, setThemesOpen] = useState(false);
   const [personasOpen, setPersonasOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  // Chat Folder Organization state
+  const [folderView, setFolderView] = useState(true);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [customFoldersOpen, setCustomFoldersOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
+  // Load folder assignments from localStorage
+  const [chatFolders, setChatFolders] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(localStorage.getItem("nexo_chat_folders") || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  function saveFolderAssignment(chatId: string, folder: string) {
+    setChatFolders((prev) => {
+      const updated = { ...prev, [chatId]: folder };
+      localStorage.setItem("nexo_chat_folders", JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  function removeFolderAssignment(chatId: string) {
+    setChatFolders((prev) => {
+      const { [chatId]: _, ...rest } = prev;
+      localStorage.setItem("nexo_chat_folders", JSON.stringify(rest));
+      return rest;
+    });
+  }
+
+  function toggleFolderCollapse(folderName: string) {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderName)) {
+        next.delete(folderName);
+      } else {
+        next.add(folderName);
+      }
+      return next;
+    });
+  }
+
+  function createCustomFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setNewFolderName("");
+    // Create a folder marker — chats can be assigned to it
+    const existing = Object.values(chatFolders);
+    if (existing.includes(name)) return;
+  }
+
+  // Categorize chats into auto folders
+  function getAutoFolder(chat: DbChat): string {
+    const now = new Date();
+    const chatDate = new Date(chat.updated_at || chat.created_at);
+    const diffMs = now.getTime() - chatDate.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 1) return "Today";
+    if (diffDays < 2) return "Yesterday";
+    if (diffDays < 7) return "This Week";
+    return "Older";
+  }
+
+  // Group chats by folder
+  function getGroupedChats(): Record<string, DbChat[]> {
+    if (!folderView) return { "": chats };
+
+    const groups: Record<string, DbChat[]> = {};
+    const autoFolders = ["Today", "Yesterday", "This Week", "Older"];
+    const customFolders = [...new Set(Object.values(chatFolders).filter((f) => !autoFolders.includes(f)))];
+
+    // Custom folders first
+    for (const folder of customFolders) {
+      const folderChats = chats.filter((c) => chatFolders[c.id] === folder);
+      if (folderChats.length > 0) groups[folder] = folderChats;
+    }
+
+    // Auto folders
+    for (const folder of autoFolders) {
+      const folderChats = chats.filter((c) => {
+        // Only include if not in a custom folder
+        if (chatFolders[c.id] && !autoFolders.includes(chatFolders[c.id])) return false;
+        return getAutoFolder(c) === folder;
+      });
+      if (folderChats.length > 0) groups[folder] = folderChats;
+    }
+
+    return groups;
+  }
+
+  const groupedChats = getGroupedChats();
 
   useEffect(() => {
     const stored = getStoredTheme();
@@ -224,74 +319,210 @@ export function ChatSidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
-          <p className="mb-2 px-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-            Recent Chats
-          </p>
           {chats.length === 0 ? (
             <p className="px-1 text-xs text-ink-faint">
               No conversations yet.
             </p>
           ) : (
-            <div className="flex flex-col gap-1">
-              {chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
-                    activeChatId === chat.id
-                      ? "bg-panel shadow-sm border border-edge"
-                      : "hover:bg-panel/60"
-                  }`}
+            <div className="space-y-4">
+              {/* Folder header with toggle */}
+              <div className="flex items-center justify-between px-1">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+                  {folderView ? "Chats by Folder" : "Recent Chats"}
+                </p>
+                <button
+                  onClick={() => setFolderView(!folderView)}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-ink-faint transition hover:bg-panel hover:text-ink"
+                  title={folderView ? "Switch to flat view" : "Switch to folder view"}
                 >
-                  {editingChatId === chat.id ? (
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                        onBlur={saveRename}
-                        className="w-full bg-transparent text-sm text-ink focus:outline-none"
-                      />
-                      <button onClick={saveRename} className="text-cyan">
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
+                  {folderView ? <ChevronDown className="h-3 w-3" /> : <Folder className="h-3 w-3" />}
+                  {folderView ? "Flat" : "Folders"}
+                </button>
+              </div>
+
+              {folderView ? (
+                /* Folder-grouped view */
+                Object.entries(groupedChats).map(([folderName, folderChats]) => {
+                  const isCollapsed = collapsedFolders.has(folderName);
+                  const autoFolders = ["Today", "Yesterday", "This Week", "Older"];
+                  const isAuto = autoFolders.includes(folderName);
+
+                  return (
+                    <div key={folderName} className="space-y-1">
+                      {/* Folder header */}
                       <button
-                        onClick={() => onSelectChat(chat.id)}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        onClick={() => toggleFolderCollapse(folderName)}
+                        className="flex w-full items-center gap-1.5 px-1 py-1 text-left text-[10px] font-medium text-ink-muted transition hover:text-ink"
                       >
-                        <MessageSquare className={`h-3.5 w-3.5 flex-shrink-0 ${activeChatId === chat.id ? 'text-cyan' : 'text-ink-faint'}`} />
-                        <span
-                          className={`truncate text-sm ${
-                            activeChatId === chat.id ? "text-cyan" : "text-ink"
-                          }`}
-                        >
-                          {chat.title}
-                        </span>
+                        {isCollapsed ? (
+                          <ChevronRight className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                        {isAuto ? (
+                          <FolderOpen className="h-3 w-3 text-cyan/60" />
+                        ) : (
+                          <Folder className="h-3 w-3 text-amber-400/60" />
+                        )}
+                        <span className="uppercase tracking-wider">{folderName}</span>
+                        <span className="text-ink-faint">({folderChats.length})</span>
                       </button>
-                      <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                        <button
-                          onClick={() => startEditing(chat)}
-                          className="text-ink-faint hover:text-ink"
-                          aria-label="Rename chat"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteChat(chat.id)}
-                          className="text-ink-faint hover:text-red-500"
-                          aria-label="Delete chat"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </>
-                  )}
+
+                      {/* Folder chats */}
+                      {!isCollapsed && (
+                        <div className="flex flex-col gap-0.5 pl-2">
+                          {folderChats.map((chat) => (
+                            <div
+                              key={chat.id}
+                              className={`group flex items-center gap-2 rounded-lg px-3 py-2 transition ${
+                                activeChatId === chat.id
+                                  ? "bg-panel shadow-sm border border-edge"
+                                  : "hover:bg-panel/60"
+                              }`}
+                            >
+                              {editingChatId === chat.id ? (
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                                    onBlur={saveRename}
+                                    className="w-full bg-transparent text-sm text-ink focus:outline-none"
+                                  />
+                                  <button onClick={saveRename} className="text-cyan">
+                                    <Check className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => onSelectChat(chat.id)}
+                                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                  >
+                                    <MessageSquare className={`h-3.5 w-3.5 flex-shrink-0 ${activeChatId === chat.id ? 'text-cyan' : 'text-ink-faint'}`} />
+                                    <span
+                                      className={`truncate text-sm ${
+                                        activeChatId === chat.id ? "text-cyan" : "text-ink"
+                                      }`}
+                                    >
+                                      {chat.title}
+                                    </span>
+                                  </button>
+                                  <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                                    <button
+                                      onClick={() => startEditing(chat)}
+                                      className="text-ink-faint hover:text-ink"
+                                      aria-label="Rename chat"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    {/* Move to folder button */}
+                                    <div className="relative">
+                                      <select
+                                        value={chatFolders[chat.id] || ""}
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            saveFolderAssignment(chat.id, e.target.value);
+                                          } else {
+                                            removeFolderAssignment(chat.id);
+                                          }
+                                        }}
+                                        className="hidden group-hover:block rounded border border-edge bg-panel px-1 py-0.5 text-[10px] text-ink-faint focus:outline-none"
+                                        title="Move to folder"
+                                      >
+                                        <option value="">Auto</option>
+                                        <option value="Today">Today</option>
+                                        <option value="Yesterday">Yesterday</option>
+                                        <option value="This Week">This Week</option>
+                                        <option value="Older">Older</option>
+                                        {[...new Set(Object.values(chatFolders).filter((f) => !autoFolders.includes(f)))].map((f) => (
+                                          <option key={f} value={f}>{f}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <button
+                                      onClick={() => onDeleteChat(chat.id)}
+                                      className="text-ink-faint hover:text-red-500"
+                                      aria-label="Delete chat"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                /* Flat view (original) */
+                <div className="flex flex-col gap-1">
+                  {chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
+                        activeChatId === chat.id
+                          ? "bg-panel shadow-sm border border-edge"
+                          : "hover:bg-panel/60"
+                      }`}
+                    >
+                      {editingChatId === chat.id ? (
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                            onBlur={saveRename}
+                            className="w-full bg-transparent text-sm text-ink focus:outline-none"
+                          />
+                          <button onClick={saveRename} className="text-cyan">
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => onSelectChat(chat.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <MessageSquare className={`h-3.5 w-3.5 flex-shrink-0 ${activeChatId === chat.id ? 'text-cyan' : 'text-ink-faint'}`} />
+                            <span
+                              className={`truncate text-sm ${
+                                activeChatId === chat.id ? "text-cyan" : "text-ink"
+                              }`}
+                            >
+                              {chat.title}
+                            </span>
+                          </button>
+                          <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                            <button
+                              onClick={() => startEditing(chat)}
+                              className="text-ink-faint hover:text-ink"
+                              aria-label="Rename chat"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteChat(chat.id)}
+                              className="text-ink-faint hover:text-red-500"
+                              aria-label="Delete chat"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
