@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn } from "lucide-react";
+import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn, Globe, Code2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 import { RepoSelector } from "./RepoSelector";
@@ -12,6 +12,8 @@ interface UserSettings {
   custom_persona: string;
   memory_content: string;
   screen_share_enabled: boolean;
+  search_grounding_enabled: boolean;
+  code_review_enabled: boolean;
   response_length: "short" | "balanced" | "detailed";
   language_preference: "auto" | "sinhala" | "english";
   default_model: string;
@@ -21,6 +23,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   custom_persona: "",
   memory_content: "",
   screen_share_enabled: false,
+  search_grounding_enabled: true,
+  code_review_enabled: false,
   response_length: "balanced",
   language_preference: "auto",
   default_model: "nexio-1.1",
@@ -68,6 +72,8 @@ export function SettingsPanel({
       const loaded = {
         memory_content: data.memory_content ?? "",
         screen_share_enabled: data.screen_share_enabled ?? false,
+        search_grounding_enabled: data.search_grounding_enabled ?? true,
+        code_review_enabled: data.code_review_enabled ?? false,
         response_length: data.response_length ?? "balanced",
         language_preference: data.language_preference ?? "auto",
         default_model: data.default_model ?? "nexio-1.1",
@@ -232,6 +238,54 @@ export function SettingsPanel({
               >
                 <Save className="h-4 w-4" />
                 {memorySaving ? "Saving…" : memoryDirty ? "Save memory" : "Saved"}
+              </button>
+            </section>
+
+            {/* Web Search Grounding */}
+            <section className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
+                <div>
+                  <h3 className="font-display text-sm font-semibold text-ink">Web Search Grounding</h3>
+                  <p className="text-xs text-ink-muted">Allow NEXO to search the web for fresh, up-to-date information when answering your questions.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => saveSettings({ ...settings, search_grounding_enabled: !settings.search_grounding_enabled })}
+                className={`relative h-6 w-11 flex-shrink-0 rounded-full transition ${
+                  settings.search_grounding_enabled ? "bg-cyan" : "bg-edge"
+                }`}
+                aria-label="Toggle web search grounding"
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                    settings.search_grounding_enabled ? "left-5" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </section>
+
+            {/* Code Review Mode */}
+            <section className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <Code2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
+                <div>
+                  <h3 className="font-display text-sm font-semibold text-ink">Code Review Mode</h3>
+                  <p className="text-xs text-ink-muted">When enabled, Craft V3 will provide deep code analysis — reviewing quality, bugs, and suggesting improvements for any code you share.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => saveSettings({ ...settings, code_review_enabled: !settings.code_review_enabled })}
+                className={`relative h-6 w-11 flex-shrink-0 rounded-full transition ${
+                  settings.code_review_enabled ? "bg-cyan" : "bg-edge"
+                }`}
+                aria-label="Toggle code review mode"
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                    settings.code_review_enabled ? "left-5" : "left-0.5"
+                  }`}
+                />
               </button>
             </section>
 

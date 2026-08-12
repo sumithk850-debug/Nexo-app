@@ -809,6 +809,7 @@ export default function ChatPage() {
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
                             coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
                             repoFullName={selectedRepo}
+                            sessionId={sessionId}
                           />
                           {pendingApproval &&
                             pendingApproval.messageId === m.id &&

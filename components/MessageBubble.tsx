@@ -105,6 +105,7 @@ export function MessageBubble({
   coderMode = false,
   repoFullName,
   isStreaming = false,
+  sessionId,
 }: {
   message: ChatMessage;
   onEdit?: (messageId: string, newContent: string) => void;
@@ -113,6 +114,7 @@ export function MessageBubble({
   coderMode?: boolean;
   repoFullName?: string | null;
   isStreaming?: boolean;
+  sessionId?: string;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
@@ -131,8 +133,23 @@ export function MessageBubble({
     }
   }
 
-  function handleFeedback(value: "up" | "down") {
+  async function handleFeedback(value: "up" | "down") {
     setFeedback((prev) => (prev === value ? null : value));
+    if (!sessionId) return;
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: message.id,
+          sessionId,
+          modelId: message.modelId || "unknown",
+          rating: value,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save feedback:", err);
+    }
   }
 
   function startEdit() {

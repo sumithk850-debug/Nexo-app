@@ -88,11 +88,16 @@ async function getUserMemory(sessionId: string): Promise<any> {
     const supabase = getSupabase();
     const { data } = await supabase
       .from("user_settings")
-      .select("memory_content, custom_persona")
+      .select("memory_content, custom_persona, search_grounding_enabled, code_review_enabled")
       .eq("session_id", sessionId)
       .maybeSingle();
-    return { memory: data?.memory_content?.trim() ?? "", persona: data?.custom_persona?.trim() ?? "" } as any;
-  } catch { return { memory: "", persona: "" } as any; }
+    return {
+      memory: data?.memory_content?.trim() ?? "",
+      persona: data?.custom_persona?.trim() ?? "",
+      searchGrounding: data?.search_grounding_enabled ?? true,
+      codeReview: data?.code_review_enabled ?? false,
+    } as any;
+  } catch { return { memory: "", persona: "", searchGrounding: true, codeReview: false } as any; }
 }
 
 async function describeUploadedImagesWithVisionModel(
@@ -290,9 +295,11 @@ export async function POST(req: NextRequest) {
       githubContextBlock = githubContext.contextBlock;
     }
 
-    const userMem = sessionId ? await getUserMemory(sessionId) : { memory: "", persona: "" };
+    const userMem = sessionId ? await getUserMemory(sessionId) : { memory: "", persona: "", searchGrounding: true, codeReview: false };
     const memory = userMem.memory;
     const customPersona = userMem.persona;
+    const searchGroundingEnabled = userMem.searchGrounding ?? true;
+    const codeReviewEnabled = userMem.codeReview ?? false;
     const basePrompt = customPersona || config.systemPrompt;
     
     let activePersonaPrompt = "";
@@ -307,6 +314,11 @@ export async function POST(req: NextRequest) {
     let systemPrompt = memory
       ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
       : `${basePrompt}\n\n${activePersonaPrompt}`;
+
+    // Code Review Mode: deep code analysis instructions for Craft V3
+    if (codeReviewEnabled && modelId === "craft-v3") {
+      systemPrompt += `\n\nCODE REVIEW MODE IS ACTIVE. For any code the user shares or asks about, provide a thorough code review including:\n- Code quality assessment (cleanliness, readability, maintainability)\n- Bug detection and potential issues\n- Performance optimization suggestions\n- Security vulnerability analysis\n- Best practices and improvement recommendations\n- Architecture and design pattern suggestions\nStructure your review with clear sections and use code examples where helpful.`;
+    }
 
     if (webContext) {
       systemPrompt += `\n\nThe user's latest message contains one or more web links. The live contents of those pages were fetched and are provided below. Use this content as the primary source of truth when answering questions about the link(s) — summarize, quote, or analyze it as needed, and cite the page title or URL when helpful. If a page could not be read, tell the user briefly and answer from your own knowledge. Reply in the user's language.\n\n===== FETCHED WEB CONTENT =====\n${webContext}\n===== END WEB CONTENT =====`;
@@ -357,8 +369,8 @@ export async function POST(req: NextRequest) {
               // Built-in Google Search grounding: the model automatically
               // searches the web when the answer needs fresh/external info
               // (e.g. "check my GitHub account", recent news) and grounds its
-              // reply in the results.
-              tools: [{ google_search: {} }],
+              // reply in the results. Only enabled when user has it turned on.
+              ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
             }
           : {
               model: config.model,
