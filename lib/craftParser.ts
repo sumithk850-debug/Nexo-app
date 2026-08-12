@@ -24,6 +24,23 @@ export interface ParsedCraftResponse {
   fileActions: FileAction[];
   hasProposal: boolean;
   commitMessage?: string;
+  summary?: TaskSummary;
+}
+
+// The compact task-completion report Craft V3 must emit at the end of a task
+// (```task-summary fenced block). Parsed into a structured report card.
+export interface TaskSummary {
+  status: "completed" | "partial" | "blocked";
+  filesRead: string[];
+  filesChanged: { path: string; created: boolean; additions?: number; deletions?: number }[];
+  filesDeleted: string[];
+  details?: string;
+}
+
+export interface ParsedTaskSummaryLine {
+  summary: TaskSummary;
+  start: number;
+  end: number; // index right after the closing fence
 }
 
 // Matches fenced code blocks tagged like:
@@ -47,6 +64,16 @@ const CODE_BLOCK_WITH_PATH_NONDIFF = /```(?:(?!diff)[A-Za-z0-9#_+-]+):([^\n`]+)\
 // which is how Craft V3's system prompt instructs it to propose EDITS —
 // only the changed lines, never the full file.
 const DIFF_BLOCK_WITH_PATH = /```diff:([^\n`]+)\n([\s\S]*?)```/g;
+
+// Matches the task-completion report block:
+//   ```task-summary
+//   status: completed
+//   files read: ...
+//   files changed: ...
+//   files deleted: ...
+//   details: ...
+//   ```
+const TASK_SUMMARY_BLOCK = /```task-summary\n([\s\S]*?)```/g;
 
 export interface DiffHunk {
   remove: string[]; // lines to remove (leading "- " stripped)
@@ -229,11 +256,11 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
       // else: ignore a "reading" marker for a path that already has a real
       // code-block action — the create/edit stands.
     } else {
-      // A marker without a code block or diff. A "reading" marker is only
-      // informational narration, but a bare "deleting" or "creating" marker
-      // IS a mutating proposal — deletions intentionally carry no content
-      // (the commit API deletes by path + sha), so they must trigger the
-      // approval card too.
+  // A marker without a code block or diff. A "reading" marker is only
+  // informational narration, but a bare "deleting" or "creating" marker
+  // IS a mutating proposal — deletions intentionally carry no content
+  // (the commit API deletes by path + sha), so they must trigger the
+  // approval card too.
       fileActions.push({
         type,
         filePath,
@@ -241,6 +268,9 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
       });
     }
   }
+
+  // Task-completion report blocks never count as proposals and are never
+  // treated as file content — they are parsed separately above.
 
   // A response "has a proposal" (needs approval) only when at least one
   // action actually changes repository state — reading alone doesn't. Bare
@@ -255,7 +285,136 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
   const commitMatch = text.match(/commit message:?\s*["']?([^\n"']+)["']?/i);
   const commitMessage = commitMatch ? commitMatch[1].trim() : undefined;
 
-  return { fileActions, hasProposal, commitMessage };
+  // Pull the optional task-completion report from the end of the message.
+  const summary = parseTaskSummaryBlock(text);
+
+  return { fileActions, hasProposal, commitMessage, summary: summary ?? undefined };
+}
+
+// Parses a ```task-summary fenced block (if present) into a structured report.
+// Returns null when no such block exists — a missing summary is fine.
+export function parseTaskSummaryBlock(text: string): TaskSummary | null {
+  const regex = new RegExp(TASK_SUMMARY_BLOCK);
+  const match = regex.exec(text);
+  if (!match) return null;
+  return parseTaskSummaryLines(match[1]);
+}
+
+// Parses the KEY : VALUE lines inside a task-summary block. Forgiving:
+// malformed or missing lines simply default to safe values so the card
+// still renders something useful.
+export function parseTaskSummaryLines(raw: string): TaskSummary {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const filesRead: string[] = [];
+  const filesChanged: TaskSummary["filesChanged"] = [];
+  const filesDeleted: string[] = [];
+  let status: TaskSummary["status"] = "completed";
+  const detailsParts: string[] = [];
+
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const key = line.slice(0, colonIdx).trim().toLowerCase();
+    const value = line.slice(colonIdx + 1).trim();
+
+    if (key === "status") {
+      if (value === "partial") status = "partial";
+      else if (value === "blocked") status = "blocked";
+      else status = "completed";
+    } else if (key === "files read") {
+      for (const part of value.split(",")) {
+        const p = part.trim();
+        if (p) filesRead.push(p);
+      }
+    } else if (key === "files changed") {
+      // Entries are separated by commas, but counts live inside
+      // parentheses — e.g. "~src/a.ts (+2 -1), +src/c.ts (created)". Split
+      // carefully so "(+2 -1)" never breaks an entry in two.
+      const parts: string[] = [];
+      let depth = 0;
+      let buf = "";
+      for (const ch of value) {
+        if (ch === "(") depth++;
+        else if (ch === ")") depth = Math.max(0, depth - 1);
+        if (ch === "," && depth === 0) {
+          parts.push(buf);
+          buf = "";
+        } else buf += ch;
+      }
+      parts.push(buf);
+      for (const part of parts) {
+        const p = part.trim();
+        if (!p) continue;
+        const entry: (typeof filesChanged)[number] = { path: p, created: false };
+        // Strip the leading "+" create marker and any "(created)" suffix.
+        const cleaned = p.replace(/^[+~-]/, "").replace(/\s*\(created\)\s*/i, "");
+        entry.path = cleaned.trim();
+        if (p.startsWith("+")) entry.created = true;
+        // ~path (+2 -1) style: extract +/- counts, then remove the counts
+        // group from the path.
+        const counts = cleaned.match(/\(([-+]?\d+)\s+([-+]?\d+)\)/);
+        if (counts) {
+          const a = parseInt(counts[1], 10);
+          const b = parseInt(counts[2], 10);
+          if (!Number.isNaN(a)) entry.additions = a;
+          if (!Number.isNaN(b)) entry.deletions = b;
+          entry.path = cleaned.replace(/\s*\([^)]*\)\s*$/, "").trim();
+        } else if (!cleaned.trim()) {
+          continue;
+        }
+        if (entry.path) filesChanged.push(entry);
+      }
+    } else if (key === "files deleted") {
+      for (const part of value.split(",")) {
+        const p = part.trim().replace(/^-/, "").trim();
+        if (p) filesDeleted.push(p);
+      }
+    } else if (key === "details") {
+      detailsParts.push(value);
+    }
+  }
+
+  return {
+    status,
+    filesRead,
+    filesChanged,
+    filesDeleted,
+    details: detailsParts.join(" ").trim() || undefined,
+  };
+}
+
+// Spans of ```task-summary fenced blocks in the text (start/end indices).
+// Used to keep summary blocks out of prose and status cards. Unclosed
+// blocks (still mid-stream, no closing fence yet) are included too — they
+// extend to the end of the text so streaming output renders a live card.
+export function taskSummarySpans(text: string): Array<[number, number]> {
+  const regex = new RegExp(TASK_SUMMARY_BLOCK);
+  const spans: Array<[number, number]> = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) spans.push([match.index, match.index + match[0].length]);
+  // Catch an unclosed summary block: ```task-summary appears but no closing
+  // fence exists after it.
+  const openIdx = text.lastIndexOf("```task-summary");
+  if (openIdx !== -1) {
+    const closedAny = spans.some(([s, e]) => openIdx >= s && openIdx < e);
+    if (!closedAny) spans.push([openIdx, text.length]);
+  }
+  return spans;
+}
+
+// Removes every task-summary block from a response, leaving only the rest.
+export function stripTaskSummaryBlocks(text: string): string {
+  const spans = taskSummarySpans(text);
+  if (spans.length === 0) return text;
+  let result = "";
+  let cursor = 0;
+  for (const [start, end] of spans) {
+    result += text.slice(cursor, start);
+    cursor = end;
+  }
+  result += text.slice(cursor);
+  return result.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -271,13 +430,18 @@ export function parseCraftResponse(text: string): ParsedCraftResponse {
 
 export type CraftSegment =
   | { kind: "text"; text: string }
-  | { kind: "action"; action: FileAction; streaming: boolean };
+  | { kind: "action"; action: FileAction; streaming: boolean }
+  | { kind: "summary"; summary: TaskSummary; streaming: boolean };
 
 const SEGMENT_SCANNER =
   /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)/gi;
 
 function isClosed(text: string, endIndex: number): boolean {
   // A block is complete when the scanner consumed a closing fence.
+  return text.slice(Math.max(0, endIndex - 3), endIndex) === "```";
+}
+
+function closedBlock(text: string, endIndex: number): boolean {
   return text.slice(Math.max(0, endIndex - 3), endIndex) === "```";
 }
 
@@ -288,11 +452,47 @@ export function parseCraftSegments(text: string): CraftSegment[] {
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
+  // The ```task-summary block belongs to neither prose nor status cards —
+  // it becomes a dedicated "summary" segment rendered as a report card.
+  const summarySpans = taskSummarySpans(text);
+
   const pushText = (raw: string) => {
     if (raw.trim()) segments.push({ kind: "text", text: raw });
   };
 
+  // A helper: skip any text that falls inside a task-summary block.
+  const summaryEndAt = (pos: number): number => {
+    for (const [, end] of summarySpans) if (pos < end) return end;
+    return pos;
+  };
+
   while ((match = scanner.exec(text)) !== null) {
+    // The generic code-block arm of the scanner also matches a
+    // ```task-summary block (treating "task-summary" as a file path). A
+    // summary block must never become a status card — skip the match and
+    // let the summary-spans handling below emit the report segment.
+    const pathHint = match[4];
+    if (pathHint !== undefined && pathHint.trim() === "task-summary") {
+      lastIndex = scanner.lastIndex;
+      continue;
+    }
+    // If the scanner landed inside a summary block, jump past the whole block.
+    const currentMatch = match;
+    if (summarySpans.some(([s, e]) => currentMatch.index >= s && currentMatch.index < e)) {
+      const blockEnd = summaryEndAt(currentMatch.index);
+      if (lastIndex < blockEnd) {
+        const start = summarySpans.find(([s, e]) => currentMatch.index >= s && currentMatch.index < e)![0];
+        const blockText = text.slice(Math.max(lastIndex, start), blockEnd);
+        const parsed = parseTaskSummaryLines(
+          blockText.replace(/^```task-summary\n|```$/g, "").trim()
+        );
+        if (!segments.some((seg) => seg.kind === "summary")) {
+          segments.push({ kind: "summary", streaming: !closedBlock(text, blockEnd), summary: parsed });
+        }
+      }
+      lastIndex = blockEnd;
+      continue;
+    }
     pushText(text.slice(lastIndex, match.index));
     lastIndex = scanner.lastIndex;
     const closed = isClosed(text, scanner.lastIndex);
@@ -354,11 +554,22 @@ export function parseCraftSegments(text: string): CraftSegment[] {
   }
 
   pushText(text.slice(lastIndex));
+
+  // Any remaining task-summary block that came AFTER the last scanner match.
+  for (const [start, end] of summarySpans) {
+    if (start < lastIndex) continue;
+    if (segments.some((seg) => seg.kind === "summary")) break;
+    const blockText = text.slice(start, end).replace(/^```task-summary\n|```$/g, "").trim();
+    segments.push({ kind: "summary", streaming: !closedBlock(text, end), summary: parseTaskSummaryLines(blockText) });
+  }
+
   return segments;
 }
 
 // Removes every file block and action marker from a response, leaving only the
 // prose. Used wherever the raw text is shown outside the segmented renderer.
 export function stripFileBlocks(text: string): string {
-  return text.replace(new RegExp(SEGMENT_SCANNER), "").replace(/\n{3,}/g, "\n\n").trim();
+  return stripTaskSummaryBlocks(
+    text.replace(new RegExp(SEGMENT_SCANNER), "").replace(/\n{3,}/g, "\n\n").trim()
+  );
 }

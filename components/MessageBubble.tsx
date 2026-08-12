@@ -8,6 +8,7 @@ import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
 import { CraftStatusCard } from "./CraftStatusCard";
+import { SummaryCard } from "./SummaryCard";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export function MessageBubble({
@@ -75,6 +76,12 @@ export function MessageBubble({
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
                   </div>
                 ) : null
+              ) : seg.kind === "summary" ? (
+                <SummaryCard
+                  key={i}
+                  summary={seg.summary}
+                  streaming={seg.streaming}
+                />
               ) : (
                 <CraftStatusCard
                   key={i}
