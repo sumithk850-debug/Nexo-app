@@ -14,13 +14,14 @@ import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
+import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3 } from "lucide-react";
 
 const UNLOCKED_TIERS = ["Free"];
 
@@ -54,6 +55,7 @@ export default function ChatPage() {
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
+  const [usagePanelOpen, setUsagePanelOpen] = useState(false);
 
   // Task activity belongs to the current assistant turn only. This prevents a
   // completed read marker from becoming "Reading" again when a later turn starts.
@@ -727,8 +729,8 @@ export default function ChatPage() {
           <div className="absolute inset-0 pointer-events-none z-50 border-[2px] border-cyan/20 rounded-none shadow-[inset_0_0_50px_rgba(0,229,255,0.1)] animate-pulse"></div>
         )}
 
-        {/* Top bar with gear icon (top-right) */}
-        <div className="flex items-center justify-end px-4 py-2 border-b border-edge/50">
+        {/* Top bar with usage + settings icons (top-right) */}
+        <div className="flex items-center justify-end px-4 py-2 border-b border-edge/50 gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-ink"
@@ -736,10 +738,19 @@ export default function ChatPage() {
           >
             <Settings className="h-4 w-4" />
           </button>
+          <button
+            onClick={() => setUsagePanelOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-ink"
+            aria-label="Open usage dashboard"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
         </div>
+
 
         <AnnouncementBanner />
         <AnnouncementModal />
+        {/* Usage panel renders inside its own portal-like fixed overlay */}
 
         <div className="flex flex-1 overflow-hidden">
           <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
