@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, X, Rocket } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const APP_VERSION = "3.1.0";
+const APP_VERSION = "3.2.0";
 const DISMISS_KEY_PREFIX = "nexo_dismissed_announcement_";
 
 interface Announcement {
