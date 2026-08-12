@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import "@/styles/prism-nexo.css";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],

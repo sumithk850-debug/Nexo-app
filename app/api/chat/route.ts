@@ -354,6 +354,11 @@ export async function POST(req: NextRequest) {
                 topP: 1.0,
                 maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
               },
+              // Built-in Google Search grounding: the model automatically
+              // searches the web when the answer needs fresh/external info
+              // (e.g. "check my GitHub account", recent news) and grounds its
+              // reply in the results.
+              tools: [{ google_search: {} }],
             }
           : {
               model: config.model,

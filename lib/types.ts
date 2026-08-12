@@ -5,4 +5,6 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   modelId?: NexoModelId;
+  /** True when this message was loaded from / saved to the database. */
+  persisted?: boolean;
 }

@@ -9,25 +9,117 @@ import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SummaryCard } from "./SummaryCard";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import Prism from "prismjs";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-markdown";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-diff";
+import "prismjs/components/prism-java";
+import "prismjs/components/prism-c";
+import "prismjs/components/prism-cpp";
+import "prismjs/components/prism-go";
+import "prismjs/components/prism-rust";
+import "prismjs/components/prism-sql";
+import "prismjs/components/prism-xml-doc";
+import "prismjs/components/prism-toml";
+import "prismjs/components/prism-ini";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X } from "lucide-react";
+
+/**
+ * Code block with prism.js syntax highlighting and a per-block copy button.
+ */
+function CodeBlock({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const code = String(children ?? "").replace(/\n$/, "");
+  const [copied, setCopied] = useState(false);
+  const lang = (className ?? "")
+    .replace("language-", "")
+    .trim()
+    .toLowerCase();
+  const grammar = lang && Prism.languages[lang] ? Prism.languages[lang] : Prism.languages.plaintext;
+  const highlighted = Prism.highlight(code, grammar, lang || "plaintext");
+
+  return (
+    <div className="group/code my-2 overflow-hidden rounded-lg border border-edge bg-void/70">
+      <div className="flex items-center justify-between bg-panel px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+          {lang || "code"}
+        </span>
+        <button
+          key={copied ? "copied" : "copy"}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(code);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            } catch {
+              // clipboard access may be blocked — fail silently
+            }
+          }}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-faint transition hover:bg-void hover:text-ink"
+          aria-label="Copy code"
+          title="Copy"
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-cyan" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="m-0 overflow-x-auto p-3 text-[13px] leading-relaxed">
+        <code dangerouslySetInnerHTML={{ __html: highlighted }} className="!bg-transparent !p-0 text-ink" />
+      </pre>
+    </div>
+  );
+}
+
+const markdownComponents = {
+  pre(props: { children?: React.ReactNode; className?: string }) {
+    const child = props.children;
+    const codeNode = child as React.ReactElement<{ className?: string; children?: React.ReactNode }> | undefined;
+    return (
+      <CodeBlock className={codeNode?.props?.className}>{codeNode?.props?.children}</CodeBlock>
+    );
+  },
+};
 
 export function MessageBubble({
   message,
+  onEdit,
   onRegenerate,
   isLast,
   coderMode = false,
   repoFullName,
+  isStreaming = false,
 }: {
   message: ChatMessage;
+  onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: () => void;
   isLast?: boolean;
   coderMode?: boolean;
   repoFullName?: string | null;
+  isStreaming?: boolean;
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(message.content);
 
   async function handleCopy() {
     try {
@@ -43,11 +135,80 @@ export function MessageBubble({
     setFeedback((prev) => (prev === value ? null : value));
   }
 
+  function startEdit() {
+    setDraft(message.content);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft(message.content);
+  }
+
+  function submitEdit() {
+    const value = draft.trim();
+    if (!value || value === message.content) {
+      setEditing(false);
+      return;
+    }
+    setEditing(false);
+    setDraft(value);
+    onEdit?.(message.id, value);
+  }
+
   if (isUser) {
+    if (editing) {
+      return (
+        <div className="flex justify-end px-4 py-2">
+          <div className="flex w-full max-w-[85%] flex-col gap-2 md:max-w-[70%]">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+              rows={Math.min(8, Math.max(2, Math.ceil(draft.length / 60)))}
+              className="w-full rounded-2xl bg-panel px-4 py-3 text-sm text-ink outline-none ring-1 ring-edge focus:ring-2 focus:ring-cyan/50"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submitEdit();
+                }
+                if (e.key === "Escape") cancelEdit();
+              }}
+            />
+            <div className="flex items-center justify-end gap-1.5 pr-1">
+              <button
+                onClick={cancelEdit}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-muted transition hover:bg-panel hover:text-ink"
+                aria-label="Cancel edit"
+              >
+                <X className="h-3.5 w-3.5" /> Cancel
+              </button>
+              <button
+                onClick={submitEdit}
+                className="flex items-center gap-1 rounded-md bg-cyan px-2 py-1 text-xs text-void transition hover:bg-cyan-dim"
+                aria-label="Send edit"
+              >
+                <CheckCheck className="h-3.5 w-3.5" /> Resend
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
-      <div className="flex justify-end px-4 py-2">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
-          {message.content}
+      <div className="group flex justify-end px-4 py-2">
+        <div className="relative max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
+          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          {!isStreaming && (
+            <button
+              onClick={startEdit}
+              className="absolute -left-8 top-1/2 flex -translate-y-1/2 items-center rounded-md p-1.5 text-ink-faint opacity-0 transition hover:bg-panel hover:text-ink group-hover:opacity-100"
+              aria-label="Edit message"
+              title="Edit & resend"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -73,7 +234,9 @@ export function MessageBubble({
               seg.kind === "text" ? (
                 seg.text.trim() ? (
                   <div key={i} className="prose-nexo text-sm text-ink">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.text}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {seg.text}
+                    </ReactMarkdown>
                   </div>
                 ) : null
               ) : seg.kind === "summary" ? (
@@ -94,7 +257,7 @@ export function MessageBubble({
           </div>
         ) : (
           <div className="prose-nexo text-sm text-ink">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {message.content}
             </ReactMarkdown>
           </div>

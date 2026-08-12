@@ -179,6 +179,7 @@ export default function ChatPage() {
             role: m.role,
             content: m.content,
             modelId: m.model_id,
+            persisted: true,
           }))
         );
       }
@@ -471,6 +472,55 @@ export default function ChatPage() {
     }
   }
 
+  async function handleResend(messageId: string, newContent: string) {
+    // Edit the user message to newContent, drop every message after it,
+    // and re-stream the assistant reply — mirroring handleRegenerate but
+    // starting from an arbitrary (editable) user message.
+    if (isStreaming) return;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    if (idx === -1 || messages[idx].role !== "user" || !newContent.trim()) return;
+
+    const chatId = await ensureChat();
+    const conversationSoFar: ChatMessage[] = [
+      ...messages.slice(0, idx),
+      { ...messages[idx], content: newContent.trim() },
+    ];
+
+    // Remove the superseded messages from the DB (client state is dropped
+    // below), so persisted history matches what we re-render.
+    if (chatId) {
+      const toDelete = messages.slice(idx + 1);
+      await Promise.all(
+        toDelete.map((m) =>
+          fetch(`/api/chats/${chatId}/messages?id=${m.id}`, {
+            method: "DELETE",
+          }).catch(() => {})
+        )
+      );
+      // If the edited message was a freshly created one (never saved to the
+      // DB), persist it now so history keeps the edited content.
+      if (!conversationSoFar[idx].persisted) {
+        saveMessage(chatId, "user", conversationSoFar[idx].content);
+      }
+    }
+
+    const assistantId = crypto.randomUUID();
+
+    setPendingApproval(null);
+    setMessages([
+      ...conversationSoFar,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        modelId: isCoderMode ? "craft-v3" : selectedModel,
+      },
+    ]);
+    setIsStreaming(true);
+
+    await streamResponse(chatId, conversationSoFar, assistantId);
+  }
+
   async function handleRegenerate() {
     if (isStreaming || messages.length < 2) return;
 
@@ -718,6 +768,8 @@ export default function ChatPage() {
                           <MessageBubble
                             message={m}
                             isLast={isLastAssistant}
+                            onEdit={handleResend}
+                            isStreaming={isStreaming}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
                             coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
                             repoFullName={selectedRepo}

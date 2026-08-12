@@ -73,3 +73,38 @@ export async function POST(
 
   return new Response(JSON.stringify({ message: data }), { status: 201 });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { searchParams } = new URL(req.url);
+  const messageId = searchParams.get("id");
+
+  if (!messageId) {
+    return new Response(JSON.stringify({ error: "Missing message id" }), {
+      status: 400,
+    });
+  }
+
+  const supabase = getSupabase();
+
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", messageId)
+    .eq("chat_id", params.id);
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+    });
+  }
+
+  await supabase
+    .from("chats")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", params.id);
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+}

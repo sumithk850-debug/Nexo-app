@@ -1,0 +1,52 @@
+/* Minimal dark prism theme for Nexo */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #64748b;
+}
+.token.punctuation {
+  color: #94a3b8;
+}
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #7dd3fc;
+}
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #86efac;
+}
+.token.operator,
+.token.entity,
+.token.url {
+  color: #fbbf24;
+}
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #c084fc;
+}
+.token.function,
+.token.class-name {
+  color: #fdba74;
+}
+.token.regex,
+.token.important,
+.token.variable {
+  color: #f472b6;
+}
+.token.bold {
+  font-weight: bold;
+}
+.token.italic {
+  font-style: italic;
+}
