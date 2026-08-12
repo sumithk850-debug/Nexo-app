@@ -428,13 +428,24 @@ export function stripTaskSummaryBlocks(text: string): string {
 // fence yet) are matched too, so the card appears the moment the operation
 // starts instead of after the whole file has been printed.
 
+// Server-injected marker for Gemini's built-in Google Search: emitted by
+// app/api/chat/route.ts whenever the Gemini stream emits a googleSearchCall
+// part. Rendered by the UI as a live "Searching..." pill in the status bar.
+export const SEARCHING_MARKER = /\[NEXO:SEARCHING ([^\]]*)\]/g;
+
+export interface SearchingAction {
+  type: "searching";
+  queries: string[];
+}
+
 export type CraftSegment =
   | { kind: "text"; text: string }
   | { kind: "action"; action: FileAction; streaming: boolean }
+  | { kind: "searching"; action: SearchingAction; streaming: boolean }
   | { kind: "summary"; summary: TaskSummary; streaming: boolean };
 
 const SEGMENT_SCANNER =
-  /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)/gi;
+  /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)|\[NEXO:SEARCHING ([^\]]*)\]/gi;
 
 function isClosed(text: string, endIndex: number): boolean {
   // A block is complete when the scanner consumed a closing fence.
@@ -549,6 +560,20 @@ export function parseCraftSegments(text: string): CraftSegment[] {
           filePath,
           language: detectLanguageFromPath(filePath),
         },
+      });
+    } else if (match[8] !== undefined) {
+      // [NEXO:SEARCHING query1, query2] — Gemini performed a real web search
+      // (built-in Google Search grounding). Show it as a live "Searching"
+      // pill in the status bar; collapse to "Searched" when the response
+      // finished.
+      const queries = match[8]
+        .split(",")
+        .map((q) => q.trim())
+        .filter(Boolean);
+      segments.push({
+        kind: "searching",
+        streaming: scanner.lastIndex >= text.trimEnd().length,
+        action: { type: "searching", queries },
       });
     }
   }

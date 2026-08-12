@@ -30,7 +30,7 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2 } from "lucide-react";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -245,6 +245,33 @@ export function MessageBubble({
                   summary={seg.summary}
                   streaming={seg.streaming}
                 />
+              ) : seg.kind === "searching" ? (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-full border border-edge bg-panel px-3 py-1.5 text-xs text-ink"
+                >
+                  {seg.streaming ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin text-violet-400" />
+                      <span className="font-semibold text-violet-400">Searching</span>
+                      {seg.action.queries.length > 0 && (
+                        <span className="max-w-[40ch] truncate text-ink-faint" title={seg.action.queries.join(", ")}>
+                          {seg.action.queries.join(", ")}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3 w-3 text-green-400" />
+                      <span className="font-semibold text-ink-muted">Searched</span>
+                      {seg.action.queries.length > 0 && (
+                        <span className="max-w-[40ch] truncate text-ink-faint" title={seg.action.queries.join(", ")}>
+                          {seg.action.queries.join(", ")}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
               ) : (
                 <CraftStatusCard
                   key={i}

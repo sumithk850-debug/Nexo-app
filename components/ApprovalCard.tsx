@@ -32,6 +32,7 @@ export function ApprovalCard({
   onApprove,
   onReject,
   status,
+  errorDetail,
 }: {
   actions: FileAction[];
   commitMessage: string;
@@ -39,6 +40,7 @@ export function ApprovalCard({
   onApprove: () => void;
   onReject: () => void;
   status: "pending" | "approving" | "approved" | "rejected" | "error";
+  errorDetail?: string | null;
 }) {
   const [diffOpen, setDiffOpen] = useState(false);
   // Reading-only actions never need approval. Every mutating action renders
@@ -193,6 +195,11 @@ export function ApprovalCard({
         {status === "error" && (
           <div className="rounded-lg bg-red-500/10 py-2.5 text-center text-sm font-medium text-red-400">
             ❌ Commit failed — please try again
+            {errorDetail && (
+              <p className="mt-1 max-h-24 overflow-auto break-words border-t border-red-500/20 pt-1.5 font-mono text-[10px] font-normal leading-relaxed text-red-300/80">
+                {errorDetail}
+              </p>
+            )}
           </div>
         )}
       </div>

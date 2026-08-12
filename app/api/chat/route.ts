@@ -427,11 +427,28 @@ export async function POST(req: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                const delta = isGemini
-                  ? json.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("")
-                  : json.choices?.[0]?.delta?.content;
-                if (delta) {
-                  controller.enqueue(encoder.encode(delta));
+                if (isGemini) {
+                  const parts = json.candidates?.[0]?.content?.parts ?? [];
+                  const textParts = parts.map((part: { text?: string }) => part.text ?? "").join("");
+                  if (textParts) {
+                    controller.enqueue(encoder.encode(textParts));
+                  }
+                  // Built-in Google Search: when the model decides to search the
+                  // web, the stream emits a part with a `googleSearchCall`
+                  // field containing the queries it executed. Relay that back
+                  // to the client as a [NEXO:SEARCHING ...] marker so the UI
+                  // can show a "Searching..." pill in the live status bar.
+                  for (const part of parts) {
+                    if (part?.googleSearchCall?.arguments?.queries?.length) {
+                      const queries = part.googleSearchCall.arguments.queries.join(", ");
+                      controller.enqueue(encoder.encode(`\n[NEXO:SEARCHING ${queries}]\n`));
+                    }
+                  }
+                } else {
+                  const delta = json.choices?.[0]?.delta?.content;
+                  if (delta) {
+                    controller.enqueue(encoder.encode(delta));
+                  }
                 }
               } catch {
                 // ignore malformed keep-alive lines

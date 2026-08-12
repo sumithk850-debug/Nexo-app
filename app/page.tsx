@@ -52,6 +52,7 @@ export default function ChatPage() {
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [coderLimitNotice, setCoderLimitNotice] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
 
   // Task activity belongs to the current assistant turn only. This prevents a
@@ -63,6 +64,16 @@ export default function ChatPage() {
     return segments
       .filter((s): s is Extract<typeof s, { kind: "action" }> => s.kind === "action")
       .map((s) => s.action);
+  })();
+
+  // A live Google Search (Gemini built-in grounding) shows as the most recent
+  // activity in the status bar — the search marker is server-injected whenever
+  // the Gemini stream emits a googleSearchCall part.
+  const activitySearching: ReturnType<typeof parseCraftSegments>[number] | null = (() => {
+    if (!lastAssistantMsg?.content) return null;
+    const segments = parseCraftSegments(lastAssistantMsg.content);
+    const searches = segments.filter((s) => s.kind === "searching") as Extract<typeof segments[number], { kind: "searching" }>[];
+    return searches.length > 0 ? searches[searches.length - 1] : null;
   })();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -347,13 +358,26 @@ export default function ChatPage() {
       const data = await res.json();
 
       if (!data.success) {
+        // Surface the real failure reason instead of a generic "commit failed"
+        // so the user knows whether to retry, fix the repo, or reject.
+        const failed = Array.isArray(data.results)
+          ? data.results.filter((r: { success: boolean }) => !r.success)
+          : [];
+        setCommitErrorDetail(
+          failed.length > 0
+            ? (failed as { filePath: string; error?: string }[]).map((r) => `${r.filePath}: ${r.error ?? "unknown error"}`).join("; ")
+            : data.error ?? data.message ?? "Commit failed"
+        );
         console.error("[approve] Commit failed:", data.error ?? data.message);
+      } else {
+        setCommitErrorDetail(null);
       }
       setPendingApproval({
         ...pendingApproval,
         status: data.success ? "approved" : "error",
       });
     } catch {
+      setCommitErrorDetail("Network error — the commit request could not be sent");
       setPendingApproval({ ...pendingApproval, status: "error" });
     }
   }
@@ -361,6 +385,7 @@ export default function ChatPage() {
   function handleRejectChanges() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "rejected" });
+    setCommitErrorDetail(null);
   }
 
   async function streamResponse(
@@ -782,6 +807,7 @@ export default function ChatPage() {
                                 commitMessage={pendingApproval.commitMessage}
                                 repoFullName={selectedRepo}
                                 status={pendingApproval.status}
+                                errorDetail={commitErrorDetail}
                                 onApprove={handleApproveChanges}
                                 onReject={handleRejectChanges}
                               />
@@ -799,6 +825,7 @@ export default function ChatPage() {
               actions={activityActions}
               streaming={isStreaming}
               repoFullName={selectedRepo}
+              searching={activitySearching?.action ?? null}
             />
             <ChatInput
               value={input}

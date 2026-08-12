@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Search, Pencil, Sparkles, Trash2, Loader2, Check, ChevronDown, Github } from "lucide-react";
-import type { FileAction, FileActionType } from "@/lib/craftParser";
+import type { FileAction, FileActionType, SearchingAction } from "@/lib/craftParser";
 
 // A Manus-style compact status bar rendered ABOVE the chat input while Craft
 // V3 is actively working on a file. It shows the live (latest) operation with
@@ -49,6 +49,34 @@ const STYLE_MAP: Record<
   },
 };
 
+function SearchingPill({ searching, streaming }: { searching: SearchingAction; streaming: boolean }) {
+  const queries = searching.queries.join(", ");
+  return (
+    <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
+      <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
+        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/10">
+          {streaming ? (
+            <Loader2 className="h-3 w-3 animate-spin text-violet-400" />
+          ) : (
+            <Check className="h-3 w-3 text-violet-400" />
+          )}
+        </div>
+        {streaming ? (
+          <span className="h-2 w-2 animate-ping rounded-full bg-violet-400" />
+        ) : (
+          <Check className="h-3 w-3 flex-shrink-0 text-green-400" />
+        )}
+        <span className="min-w-0 truncate text-ink">
+          <span className={`font-semibold ${streaming ? "text-violet-400" : "text-ink-muted"}`}>
+            {streaming ? "Searching" : "Searched"}
+          </span>{" "}
+          {queries && <span className="truncate text-ink-faint" title={queries}>{queries}</span>}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function pickPreview(action: FileAction): string | null {
   // First ~20 lines of whatever content we have: diff block or full content.
   if (action.diffRaw) {
@@ -65,15 +93,27 @@ export function LiveStatusBar({
   actions,
   streaming,
   repoFullName,
+  searching,
 }: {
   actions: FileAction[];
   streaming: boolean;
   repoFullName?: string | null;
+  searching?: SearchingAction | null;
 }) {
   const [open, setOpen] = useState(false);
-  if (actions.length === 0) return null;
+  if (actions.length === 0 && !searching) return null;
 
-  const action = actions[actions.length - 1];
+  // A live (or just-finished) web search is the most recent activity and
+  // should take the lead in the status bar when present.
+  const showSearch = !!searching;
+  const action = actions.length > 0 ? actions[actions.length - 1] : null;
+  if (!action && !showSearch) return null;
+
+  if (showSearch && searching) {
+    return <SearchingPill searching={searching} streaming={streaming} />;
+  }
+  // At this point an action is guaranteed to exist (both empty cases bail above).
+  if (!action) return null;
   const style = STYLE_MAP[action.type];
   const Icon = style.icon;
 
