@@ -810,6 +810,13 @@ export default function ChatPage() {
         <AnnouncementBanner />
         <AnnouncementModal />
         {/* Usage panel renders inside its own portal-like fixed overlay */}
+        <RateLimitationPanel
+          sessionId={sessionId || ""}
+          userId={user?.id}
+          theme={{ edge: "" }}
+          open={usagePanelOpen}
+          onOpen={() => setUsagePanelOpen(false)}
+        />
 
         {/* Session Resume Card — shows when user has recent chats and no active chat */}
         {!activeChatId && chats.length > 0 && (
