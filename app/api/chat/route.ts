@@ -4,7 +4,11 @@ import { PROVIDER_CONFIG } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import type { NexoModelId } from "@/lib/models";
-import { recordTokenUsage } from "@/lib/rateLimits.server";
+import {
+  checkCoderTokenAvailability,
+  estimateTokens,
+  recordTokenUsage,
+} from "@/lib/rateLimits.server";
 
 export const runtime = "nodejs";
 // Preserve enough execution time for one bounded primary attempt plus a fast
@@ -19,7 +23,6 @@ interface IncomingMessage {
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
-const CODER_DAILY_LIMIT = 5;
 
 const SECRET_HANDLING_PROTOCOL = `
 
@@ -50,7 +53,8 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
   "spadec-3.5": 16384,
   "galex-4.0": 32768,
   "brainex-10.8": 32768,
-  "craft-v3": 65536,
+  // Craft V3 is intentionally capped at its requested 3K Coder allowance.
+  "craft-v3": 3000,
 };
 
 // Vision-capable fallback model, also served via OpenRouter, used to analyze
@@ -64,15 +68,13 @@ function getSupabase() {
   );
 }
 
-async function checkRateLimit(sessionId: string, isCoder: boolean): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+async function checkRateLimit(sessionId: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
   const supabase = getSupabase();
   const today = new Date().toISOString().slice(0, 10);
-  const column = isCoder ? "coder_count" : "message_count";
-  const limit = isCoder ? CODER_DAILY_LIMIT : DAILY_MESSAGE_LIMIT;
 
   const { data: existing, error } = await supabase
     .from("rate_limits")
-    .select("message_count, coder_count")
+    .select("message_count")
     .eq("session_id", sessionId)
     .eq("date", today)
     .maybeSingle();
@@ -81,12 +83,16 @@ async function checkRateLimit(sessionId: string, isCoder: boolean): Promise<{ al
     throw new Error(`Could not read usage data: ${error.message}`);
   }
 
-  const currentCount = Number(existing?.[column] ?? 0);
-  if (currentCount >= limit) {
-    return { allowed: false, remaining: 0, limit };
+  const currentCount = Number(existing?.message_count ?? 0);
+  if (currentCount >= DAILY_MESSAGE_LIMIT) {
+    return { allowed: false, remaining: 0, limit: DAILY_MESSAGE_LIMIT };
   }
 
-  return { allowed: true, remaining: limit - currentCount - 1, limit };
+  return {
+    allowed: true,
+    remaining: DAILY_MESSAGE_LIMIT - currentCount - 1,
+    limit: DAILY_MESSAGE_LIMIT,
+  };
 }
 
 async function incrementRateLimit(sessionId: string, isCoder: boolean): Promise<void> {
@@ -247,22 +253,42 @@ export async function POST(req: NextRequest) {
     const githubEnabled = body.githubEnabled !== false;
     const isCoderMode = body.isCoderMode as boolean | undefined;
     const activePersona = body.persona as string | undefined;
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+    const usesCoderBudget = Boolean(isCoderMode || modelId === "craft-v3");
+    let coderRemainingTokens: number | undefined;
 
     if (sessionId) {
-      const { allowed, remaining, limit } = await checkRateLimit(sessionId, !!isCoderMode);
-      if (!allowed) {
-        return new Response(
-          JSON.stringify({
-            error: "rate_limit_exceeded",
-            message: isCoderMode 
-              ? `You've reached your free limit of ${CODER_DAILY_LIMIT} Nexo Coder queries today. Upgrade for unlimited access.`
-              : `You've reached today's limit of ${DAILY_MESSAGE_LIMIT} messages. Come back tomorrow, or upgrade for unlimited access.`,
-          }),
-          { status: 429 }
+      if (usesCoderBudget) {
+        const coderAvailability = await checkCoderTokenAvailability(
+          sessionId,
+          estimateTokens(lastUserMessage?.content ?? "")
         );
+        if (!coderAvailability.allowed) {
+          return new Response(
+            JSON.stringify({
+              error: "coder_token_limit_reached",
+              message:
+                "NEXO Coder is paused because its 3,000-token budget has been used. Your current task and chat are saved and will be ready to continue after the 24-hour pause.",
+              pausedUntil: coderAvailability.pausedUntil,
+            }),
+            { status: 429 }
+          );
+        }
+        coderRemainingTokens = coderAvailability.remainingTokens;
+      } else {
+        const { allowed, remaining, limit } = await checkRateLimit(sessionId);
+        if (!allowed) {
+          return new Response(
+            JSON.stringify({
+              error: "rate_limit_exceeded",
+              message: `You've reached today's limit of ${DAILY_MESSAGE_LIMIT} messages. Come back tomorrow, or upgrade for unlimited access.`,
+            }),
+            { status: 429 }
+          );
+        }
+        void remaining;
+        void limit;
       }
-      void remaining;
-      void limit;
     }
 
     const config = PROVIDER_CONFIG[modelId];
@@ -286,7 +312,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const webContext = lastUserMessage
       ? await readUrlsFromText(lastUserMessage.content)
       : "";
@@ -380,6 +405,10 @@ export async function POST(req: NextRequest) {
     }
 
     const isGemini = config.provider === "gemini";
+    const outputTokenLimit =
+      usesCoderBudget && coderRemainingTokens !== undefined
+        ? Math.max(1, Math.min(MODEL_TOKEN_LIMITS[modelId] ?? 3000, coderRemainingTokens))
+        : MODEL_TOKEN_LIMITS[modelId] ?? 8192;
     let activeProviderModel = config.model;
     const upstreamUrl = isGemini
       ? `https://generativelanguage.googleapis.com/v1beta/models/${activeProviderModel}:streamGenerateContent?alt=sse`
@@ -396,7 +425,7 @@ export async function POST(req: NextRequest) {
             generationConfig: {
               temperature: 1.0,
               topP: 1.0,
-              maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+              maxOutputTokens: outputTokenLimit,
             },
             ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
           }
@@ -405,7 +434,7 @@ export async function POST(req: NextRequest) {
             stream: true,
             temperature: 1.0,
             top_p: 1.0,
-            max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+            max_tokens: outputTokenLimit,
             messages: [
               { role: "system", content: systemPrompt },
               ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -562,7 +591,7 @@ export async function POST(req: NextRequest) {
     // A provider has accepted the request, so this completed request now counts.
     // Failed/busy provider attempts do not consume a user's NEXO message allowance.
     if (sessionId) {
-      await incrementRateLimit(sessionId, !!isCoderMode);
+      await incrementRateLimit(sessionId, usesCoderBudget);
       // Persist prompt usage at acceptance time. Completion usage is added when
       // the stream ends, so dashboard totals remain truthful even if a provider
       // stalls after accepting a request.

@@ -13,6 +13,7 @@ export interface TokenUsageResult {
   total: number;
   messageCount: number;
   coderCount: number;
+  coderPausedUntil: string | null;
   date: string;
 }
 
@@ -32,8 +33,13 @@ export const DAILY_LIMITS: DailyLimits = {
   spadec: { tokens: 150_000, messages: 30 },
   galex: { tokens: 100_000, messages: 20 },
   brainex: { tokens: 60_000, messages: 10 },
-  craft: { tokens: 50_000, messages: 5 },    // biggest model → least credits
+  // Craft V3 is measured only by its 3K token budget; coder_count remains an
+  // informational dashboard metric and no longer stops the fifth request.
+  craft: { tokens: 3_000, messages: 0 },
 };
+
+export const CRAFT_TOKEN_LIMIT = DAILY_LIMITS.craft.tokens;
+export const CODER_PAUSE_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function getSupabase() {
   return createClient(
@@ -77,17 +83,32 @@ export async function recordTokenUsage(
 
     const { data: existing } = await supabase
       .from("rate_limits")
-      .select(`id, ${column}, total_tokens`)
+      .select(`id, ${column}, total_tokens, coder_paused_until`)
       .eq("session_id", sessionId)
       .eq("date", today)
       .maybeSingle();
 
-    const currentModelTokens = existing ? ((existing as unknown) as Record<string, unknown>)[column] ?? 0 : 0;
-    const currentTotal = existing ? ((existing as unknown) as Record<string, unknown>).total_tokens ?? 0 : 0;
+    const existingRecord = (existing ?? null) as unknown as Record<string, unknown> | null;
+    const currentModelTokens = existingRecord?.[column] ?? 0;
+    const currentTotal = existingRecord?.total_tokens ?? 0;
+    const nextModelTokens = Number(currentModelTokens) + totalForThis;
 
     const updateData: Record<string, unknown> = {};
-    updateData[column] = Number(currentModelTokens) + totalForThis;
+    updateData[column] = nextModelTokens;
     updateData["total_tokens"] = Number(currentTotal) + totalForThis;
+
+    // The first response that exhausts Craft's 3K budget starts the exact
+    // 24-hour pause. This timestamp is retained in Supabase so refreshes and
+    // later visits cannot accidentally resume the paused task too early.
+    if (
+      modelId === "craft-v3" &&
+      nextModelTokens >= CRAFT_TOKEN_LIMIT &&
+      !existingRecord?.coder_paused_until
+    ) {
+      updateData.coder_paused_until = new Date(
+        Date.now() + CODER_PAUSE_DURATION_MS
+      ).toISOString();
+    }
 
     const { error } = await supabase
       .from("rate_limits")
@@ -115,11 +136,88 @@ function getTokensColumn(modelId: NexoModelId): string | null {
   }
 }
 
-// Get today's token usage for a session
+export interface CoderAvailability {
+  allowed: boolean;
+  remainingTokens: number;
+  pausedUntil: string | null;
+}
+
+// Check Craft's running 3K token allowance. The pause search is intentionally
+// not limited to the current UTC date because a 24-hour cooldown can cross
+// midnight and must stay effective for its full duration.
+export async function checkCoderTokenAvailability(
+  sessionId: string,
+  requestedInputTokens: number
+): Promise<CoderAvailability> {
+  const supabase = getSupabase();
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  const { data: activePause, error: pauseError } = await supabase
+    .from("rate_limits")
+    .select("coder_paused_until")
+    .eq("session_id", sessionId)
+    .gt("coder_paused_until", nowIso)
+    .order("coder_paused_until", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (pauseError) {
+    throw new Error(`Could not read coder pause state: ${pauseError.message}`);
+  }
+
+  if (activePause?.coder_paused_until) {
+    return {
+      allowed: false,
+      remainingTokens: 0,
+      pausedUntil: activePause.coder_paused_until,
+    };
+  }
+
+  const today = nowIso.slice(0, 10);
+  const { data: todayUsage, error: usageError } = await supabase
+    .from("rate_limits")
+    .select("craft_tokens")
+    .eq("session_id", sessionId)
+    .eq("date", today)
+    .maybeSingle();
+
+  if (usageError) {
+    throw new Error(`Could not read coder usage: ${usageError.message}`);
+  }
+
+  const craftTokens = Number(todayUsage?.craft_tokens ?? 0);
+  if (craftTokens + requestedInputTokens >= CRAFT_TOKEN_LIMIT) {
+    const pausedUntil = new Date(
+      now.getTime() + CODER_PAUSE_DURATION_MS
+    ).toISOString();
+    const { error: pauseWriteError } = await supabase
+      .from("rate_limits")
+      .upsert(
+        { session_id: sessionId, date: today, coder_paused_until: pausedUntil },
+        { onConflict: "session_id,date" }
+      );
+
+    if (pauseWriteError) {
+      throw new Error(`Could not save coder pause state: ${pauseWriteError.message}`);
+    }
+
+    return { allowed: false, remainingTokens: 0, pausedUntil };
+  }
+
+  return {
+    allowed: true,
+    remainingTokens: CRAFT_TOKEN_LIMIT - craftTokens - requestedInputTokens,
+    pausedUntil: null,
+  };
+}
+
+// Get today's token usage and any active Craft pause for a session.
 export async function getDailyUsage(sessionId: string): Promise<TokenUsageResult | null> {
   try {
     const supabase = getSupabase();
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
 
     const { data } = await supabase
       .from("rate_limits")
@@ -130,17 +228,27 @@ export async function getDailyUsage(sessionId: string): Promise<TokenUsageResult
       .eq("date", today)
       .maybeSingle();
 
-    if (!data) return null;
+    const { data: activePause } = await supabase
+      .from("rate_limits")
+      .select("coder_paused_until")
+      .eq("session_id", sessionId)
+      .gt("coder_paused_until", now.toISOString())
+      .order("coder_paused_until", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data && !activePause) return null;
 
     return {
-      nexio: data.nexio_tokens ?? 0,
-      spadec: data.spadec_tokens ?? 0,
-      galex: data.galex_tokens ?? 0,
-      brainex: data.brainex_tokens ?? 0,
-      craft: data.craft_tokens ?? 0,
-      total: data.total_tokens ?? 0,
-      messageCount: data.message_count ?? 0,
-      coderCount: data.coder_count ?? 0,
+      nexio: data?.nexio_tokens ?? 0,
+      spadec: data?.spadec_tokens ?? 0,
+      galex: data?.galex_tokens ?? 0,
+      brainex: data?.brainex_tokens ?? 0,
+      craft: data?.craft_tokens ?? 0,
+      total: data?.total_tokens ?? 0,
+      messageCount: data?.message_count ?? 0,
+      coderCount: data?.coder_count ?? 0,
+      coderPausedUntil: activePause?.coder_paused_until ?? null,
       date: today,
     };
   } catch (err) {

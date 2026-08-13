@@ -56,7 +56,6 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCoderMode, setIsCoderMode] = useState(false);
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
-  const [coderLimitNotice, setCoderLimitNotice] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
@@ -141,13 +140,6 @@ export default function ChatPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
-
-  // Auto-hide the "Craft V3 credits finished" banner shortly after it appears
-  useEffect(() => {
-    if (!coderLimitNotice) return;
-    const timer = setTimeout(() => setCoderLimitNotice(false), 6000);
-    return () => clearTimeout(timer);
-  }, [coderLimitNotice]);
 
   // Extract code from messages for the side panel and parse repository actions
   // from every model so live task and approval cards work consistently.
@@ -488,12 +480,14 @@ export default function ChatPage() {
     override?: { modelId: NexoModelId; isCoder: boolean },
     uploadedImages?: { base64Image: string }[]
   ) {
-    const effectiveCoder = override ? override.isCoder : isCoderMode;
     const effectiveModel = override
       ? override.modelId
       : isCoderMode
       ? "craft-v3"
       : selectedModel;
+    const effectiveCoder = Boolean(
+      (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
+    );
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -517,19 +511,24 @@ export default function ChatPage() {
         const errData = await res.json().catch(() => null);
 
         if (res.status === 429) {
-          // Craft V3 (Nexo Coder) daily limit reached → automatically fall back to
-          // Nexio 1.1, flash the red notice banner, and answer with the free model.
-          if (effectiveCoder) {
-            setIsCoderMode(false);
-            setSelectedModel("nexio-1.1");
-            setCoderLimitNotice(true);
+          // Keep the active Craft task in place when its token allowance ends.
+          // It must never be silently retried with another model because that
+          // would break the user's coding workflow and lose model continuity.
+          if (effectiveCoder && errData?.error === "coder_token_limit_reached") {
+            const resumeAt = errData?.pausedUntil
+              ? new Date(errData.pausedUntil).toLocaleString()
+              : "exactly 24 hours after the limit was reached";
+            const pausedMessage = `## NEXO Coder is paused\n\nඔබගේ Craft V3 **3,000-token** budget එක අවසන් වී ඇත. ඔබගේ වත්මන් task එක සහ chat context එක ආරක්ෂිතව save කර ඇත.\n\n**නැවත ආරම්භ කළ හැකි වේලාව:** ${resumeAt}\n\nඑම වේලාවෙන් පසු මෙම chat එකේම message එකක් යවා task එක නතර වූ තැනින් ඉදිරියට කරගෙන යා හැක.`;
+
             setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, modelId: "nexio-1.1" } : m))
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: pausedMessage } : m
+              )
             );
-            await streamResponse(chatId, conversationSoFar, assistantId, {
-              modelId: "nexio-1.1",
-              isCoder: false,
-            }, uploadedImages);
+            if (chatId) {
+              await saveMessage(chatId, "assistant", pausedMessage, "craft-v3");
+            }
+            setIsStreaming(false);
             return;
           }
 
@@ -1029,15 +1028,6 @@ export default function ChatPage() {
           )}
         </div>
       </main>
-
-      {coderLimitNotice && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[120] flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-red-500/40 bg-red-500/15 px-4 py-2.5 text-sm font-semibold text-red-400 shadow-2xl backdrop-blur-xl animate-fade-up">
-            <span className="h-2 w-2 flex-shrink-0 rounded-full bg-red-500 animate-pulse"></span>
-            <span>NEXO Craft V3 ක්‍රෙඩිට් අද ඉවරයි — Nexo 1.1 එකට මාරු විය</span>
-          </div>
-        </div>
-      )}
 
       <AuthModal
         open={authModalOpen}

@@ -29,6 +29,7 @@ interface UsageData {
   total: number;
   messageCount: number;
   coderCount: number;
+  coderPausedUntil: string | null;
   date: string;
 }
 
@@ -158,6 +159,8 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
   const totalUsed = usage?.total ?? 0;
   const totalLimit = Object.values(limits ?? {}).reduce((sum, l) => sum + l.tokens, 0);
   const totalPct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
+  const coderResumeAt = usage?.coderPausedUntil ? new Date(usage.coderPausedUntil) : null;
+  const coderIsPaused = Boolean(coderResumeAt && coderResumeAt.getTime() > Date.now());
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
@@ -234,6 +237,15 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
             </div>
           </div>
 
+          {coderIsPaused && coderResumeAt && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3">
+              <p className="text-xs font-semibold text-red-300">NEXO Coder is paused</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-red-200/80">
+                Craft V3&apos;s 3K-token budget is exhausted. This chat can continue at {coderResumeAt.toLocaleString()}.
+              </p>
+            </div>
+          )}
+
           {/* Per-model breakdown */}
           <div className="rounded-xl bg-white/5 border border-white/5 p-3">
             <p className="text-xs text-gray-400 mb-2 font-medium">Per-Model Token Usage</p>
@@ -251,7 +263,7 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
 
           {/* Note */}
           <p className="text-[10px] text-gray-500 text-center">
-            Token counts are estimates. Limits reset daily at midnight (UTC).
+            Token counts are estimates. Craft V3 pauses for exactly 24 hours after its 3K-token budget is exhausted; other limits reset daily at midnight (UTC).
           </p>
         </div>
       </div>
