@@ -18,6 +18,7 @@ import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { TypingSpeedPill } from "@/components/TypingSpeedIndicator";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
+import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
@@ -62,6 +63,10 @@ export default function ChatPage() {
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [githubIntegrationEnabled, setGithubIntegrationEnabled] = useState(true);
+  const [pendingGithubSecret, setPendingGithubSecret] = useState<string | null>(null);
+  const [secretModalOpen, setSecretModalOpen] = useState(false);
+  const [secretSaving, setSecretSaving] = useState(false);
+  const [secretSaveError, setSecretSaveError] = useState<string | null>(null);
   const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
 
   // Typing speed tracking (chars/sec during streaming)
@@ -303,6 +308,45 @@ export default function ChatPage() {
       // best-effort cleanup
     }
     setSettingsOpen(false);
+  }
+
+  function handleSecretDetected(secret: string) {
+    setPendingGithubSecret(secret);
+    setSecretSaveError(null);
+    setSecretModalOpen(true);
+  }
+
+  function cancelDetectedSecret() {
+    setPendingGithubSecret(null);
+    setSecretSaveError(null);
+    setSecretModalOpen(false);
+  }
+
+  async function confirmDetectedSecret() {
+    if (!user || !pendingGithubSecret) return;
+    setSecretSaving(true);
+    setSecretSaveError(null);
+    try {
+      const response = await fetch("/api/github/personal-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, token: pendingGithubSecret }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSecretSaveError(data.error ?? "Could not validate this GitHub secret.");
+        return;
+      }
+      setGithubIntegrationEnabled(true);
+      window.localStorage.setItem("nexo_github_integration_enabled", "true");
+      setPendingGithubSecret(null);
+      setSecretModalOpen(false);
+      await loadSelectedRepo(user.id);
+    } catch {
+      setSecretSaveError("Could not save this GitHub secret. Please try again.");
+    } finally {
+      setSecretSaving(false);
+    }
   }
 
   async function handleApproveChanges() {
@@ -967,8 +1011,9 @@ export default function ChatPage() {
               unlockedTiers={UNLOCKED_TIERS}
               onAttach={handleAttach}
               attachedFile={attachedFile}
-              onRemoveAttach={() => setAttachedFile(null)}
-              isStreaming={isStreaming}
+        onRemoveAttach={() => setAttachedFile(null)}
+        isStreaming={isStreaming}
+        onSecretDetected={handleSecretDetected}
             />
           </div>
 
@@ -998,6 +1043,15 @@ export default function ChatPage() {
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
+      />
+
+      <SecretDetectedModal
+        open={secretModalOpen}
+        saving={secretSaving}
+        error={secretSaveError}
+        signedIn={Boolean(user)}
+        onCancel={cancelDetectedSecret}
+        onConfirm={confirmDetectedSecret}
       />
 
       <IntegrationsPanel

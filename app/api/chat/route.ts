@@ -21,6 +21,10 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
+const SECRET_HANDLING_PROTOCOL = `
+
+SECRET HANDLING: Treat passwords, API keys, GitHub Personal Access Tokens, and any string that appears to be a credential as secrets. Never ask the user to paste one into chat, never repeat one, and never include one in a file, diff, report, or tool instruction. If a user asks how to connect GitHub using a token, direct them to Integrations → GitHub → Use token, where it is stored as a protected connection secret and used only server-side for repository requests.`;
+
 const REPOSITORY_ACTION_PROTOCOL = `
 REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 - When the user asks to read, create, edit, or delete repository files, perform the task through NEXO's repository workflow; do not paste implementation code as the answer.
@@ -35,6 +39,7 @@ REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 - A status marker is never a complete response. After every [READING FILE] marker, finish the read, explain the key result in one to three short sentences, and emit the Task report. Never stop after a marker.
 - Never expose internal phrases such as "tool call", "function call", provider names, raw API instructions, or chain-of-thought. The user must see only the compact status card and a clear human-readable report.
 - Infer repository intent from natural language, including indirect requests such as "look at the chat input", "check why this is slow", or "see how this works". When an active repository is available, inspect the relevant file and use the same status-marker-to-report workflow.
+- Treat passwords, API keys, GitHub Personal Access Tokens, and any string that appears to be a credential as secrets. Never ask the user to paste one into chat, never repeat one, and never include one in a file, diff, report, or tool instruction. If a user asks how to connect GitHub using a token, tell them to use Integrations → GitHub → Use token, where it is stored as a protected connection secret and used only server-side for repository requests.
 `;
 
 // Output budgets. These are deliberately generous: replies were getting cut
@@ -347,8 +352,9 @@ export async function POST(req: NextRequest) {
     }
 
     let systemPrompt = memory
-      ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n"""\n${memory}\n"""`
+      ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n\"\"\"\n${memory}\n\"\"\"`
       : `${basePrompt}\n\n${activePersonaPrompt}`;
+    systemPrompt += SECRET_HANDLING_PROTOCOL;
 
     // Code Review Mode: deep code analysis instructions for Craft V3
     if (codeReviewEnabled && modelId === "craft-v3") {

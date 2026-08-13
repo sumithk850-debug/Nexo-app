@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
 import type { NexoModelId } from "@/lib/models";
@@ -8,6 +8,13 @@ import type { NexoModelId } from "@/lib/models";
 const WAVE_BAR_COUNT = 24;
 const WAVE_MIN_HEIGHT = 4;
 const WAVE_MAX_HEIGHT = 32;
+
+// GitHub's classic and fine-grained token prefixes. Detection happens only in
+// the client input so a matching secret never enters message state or reaches
+// the model/chat API.
+function extractGithubPersonalAccessToken(value: string): string | null {
+  return value.match(/(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/)?.[0] ?? null;
+}
 
 export function ChatInput({
   value,
@@ -22,6 +29,7 @@ export function ChatInput({
   attachedFile,
   onRemoveAttach,
   isStreaming,
+  onSecretDetected,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -35,6 +43,7 @@ export function ChatInput({
   attachedFile?: File | null;
   onRemoveAttach?: () => void;
   isStreaming?: boolean;
+  onSecretDetected?: (secret: string) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,11 +169,32 @@ export function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function interceptSecret(): boolean {
+    const secret = extractGithubPersonalAccessToken(value);
+    if (!secret) return false;
+    onChange("");
+    onSecretDetected?.(secret);
+    return true;
+  }
+
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if ((value.trim() || attachedFile) && !disabled) onSend();
+      if ((value.trim() || attachedFile) && !disabled && !interceptSecret()) onSend();
     }
+  }
+
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const pastedText = e.clipboardData.getData("text");
+    const secret = extractGithubPersonalAccessToken(pastedText);
+    if (!secret) return;
+    e.preventDefault();
+    onChange("");
+    onSecretDetected?.(secret);
+  }
+
+  function handleSendClick() {
+    if (!interceptSecret()) onSend();
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -212,6 +242,7 @@ export function ChatInput({
               rows={1}
               value={value}
               onChange={(e) => onChange(e.target.value)}
+              onPaste={handlePaste}
               onKeyDown={handleKeyDown}
               placeholder="Chat with NEXO AI…"
               className="max-h-40 w-full resize-none bg-transparent px-1 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
@@ -270,7 +301,7 @@ export function ChatInput({
             </div>
 
             <button
-              onClick={onSend}
+              onClick={handleSendClick}
               disabled={disabled || (!value.trim() && !attachedFile) || isStreaming}
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-cyan text-void transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-30 hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] hover:scale-105 active:scale-95"
               aria-label="Send message"
