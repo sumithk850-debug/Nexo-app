@@ -420,19 +420,62 @@ export async function POST(req: NextRequest) {
     const UPSTREAM_REQUEST_TIMEOUT_MS = 10_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
-    const candidateModels = isGemini
-      ? [config.model]
-      : [config.model, ...(config.fallbackModels ?? [])];
+    const candidateModels = [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
       activeProviderModel = candidateModel;
+      
+      // Dynamic upstream URL: switch to OpenRouter if we are using a fallback model for a Gemini profile
+      const isCandidateGemini = candidateModel.startsWith("gemini-") || (isGemini && candidateModel === config.model);
+      const currentUpstreamUrl = isCandidateGemini
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
+        : OPENROUTER_ENDPOINT;
+
+      const currentIsGemini = isCandidateGemini;
+
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         try {
-          upstreamRes = await fetch(upstreamUrl, {
+          // Re-build headers and body for each candidate as the provider might change
+          const currentHeaders = currentIsGemini
+            ? { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY || "" }
+            : {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
+                "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+                "X-Title": "NEXO AI",
+              };
+
+          const currentBody = currentIsGemini
+            ? {
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: messages.map((m) => ({
+                  role: m.role === "assistant" ? "model" : "user",
+                  parts: [{ text: m.content }],
+                })),
+                generationConfig: {
+                  temperature: 1.0,
+                  topP: 1.0,
+                  maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+                },
+                ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
+              }
+            : {
+                model: candidateModel,
+                stream: true,
+                temperature: 1.0,
+                top_p: 1.0,
+                max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  ...messages.map((m) => ({ role: m.role, content: m.content })),
+                ],
+              };
+
+          upstreamRes = await fetch(currentUpstreamUrl, {
             method: "POST",
-            headers: buildUpstreamHeaders(),
-            body: JSON.stringify(buildUpstreamBody()),
+            headers: currentHeaders,
+            body: JSON.stringify(currentBody),
             signal: AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS),
           });
         } catch (error) {
