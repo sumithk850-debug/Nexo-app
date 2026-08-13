@@ -7,6 +7,9 @@ import type { NexoModelId } from "@/lib/models";
 import { recordTokenUsage } from "@/lib/rateLimits.server";
 
 export const runtime = "nodejs";
+// Preserve enough execution time for one bounded primary attempt plus a fast
+// fallback response; the request loop itself stays deliberately much shorter.
+export const maxDuration = 60;
 
 interface IncomingMessage {
   role: "user" | "assistant";
@@ -410,8 +413,11 @@ export async function POST(req: NextRequest) {
     // A free provider can be briefly queued or exhausted. Bound every request
     // and then try the profile's next free route rather than leaving the user in
     // an endless thinking state.
-    const MAX_RETRIES_PER_MODEL = 1;
-    const UPSTREAM_REQUEST_TIMEOUT_MS = 25_000;
+    // Prefer a known-good fallback instead of spending the whole function
+    // budget retrying a queued free route. This keeps every profile responsive
+    // even when its preferred upstream is temporarily unavailable.
+    const MAX_RETRIES_PER_MODEL = 0;
+    const UPSTREAM_REQUEST_TIMEOUT_MS = 10_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
     const candidateModels = isGemini
