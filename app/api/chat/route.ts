@@ -237,6 +237,9 @@ export async function POST(req: NextRequest) {
     // The user's actual auth/user id, distinct from sessionId, used to look up
     // their GitHub connection. Sent by the client alongside sessionId.
     const userId = body.userId as string | undefined;
+    // The Integrations panel owns this user-controlled switch. When off, the
+    // chat may still answer normally but it must not receive repository context.
+    const githubEnabled = body.githubEnabled !== false;
     const isCoderMode = body.isCoderMode as boolean | undefined;
     const activePersona = body.persona as string | undefined;
 
@@ -322,7 +325,7 @@ export async function POST(req: NextRequest) {
     // system prompt claims repo access and the tree/file fetch costs extra
     // GitHub API calls we don't want to pay on every free-tier chat message.
     let githubContextBlock = "";
-    if (userId && lastUserMessage) {
+    if (githubEnabled && userId && lastUserMessage) {
       const githubContext = await buildGithubContext(userId, lastUserMessage.content);
       githubContextBlock = githubContext.contextBlock;
     }
@@ -366,6 +369,8 @@ export async function POST(req: NextRequest) {
 
     if (githubContextBlock) {
       systemPrompt += `${githubContextBlock}\n${REPOSITORY_ACTION_PROTOCOL}`;
+    } else if (!githubEnabled) {
+      systemPrompt += "\n\nGITHUB INTEGRATION IS CURRENTLY TURNED OFF BY THE USER. Do not claim to read repositories, do not emit repository status markers, and do not propose commits or file changes until the user turns GitHub back on in Integrations.";
     }
 
     const isGemini = config.provider === "gemini";

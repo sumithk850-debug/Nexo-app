@@ -17,6 +17,7 @@ import { LiveStatusBar } from "@/components/LiveStatusBar";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { TypingSpeedPill } from "@/components/TypingSpeedIndicator";
+import { IntegrationsPanel } from "@/components/IntegrationsPanel";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
@@ -59,6 +60,8 @@ export default function ChatPage() {
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [githubIntegrationEnabled, setGithubIntegrationEnabled] = useState(true);
   const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
 
   // Typing speed tracking (chars/sec during streaming)
@@ -109,6 +112,9 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const savedGithubToggle = window.localStorage.getItem("nexo_github_integration_enabled");
+    if (savedGithubToggle !== null) setGithubIntegrationEnabled(savedGithubToggle === "true");
+
     const sid = getSessionId();
     setSessionId(sid);
     if (sid) loadChats(sid);
@@ -301,6 +307,11 @@ export default function ChatPage() {
 
   async function handleApproveChanges() {
     if (!pendingApproval || !user) return;
+    if (!githubIntegrationEnabled) {
+      setCommitErrorDetail("GitHub integration is turned off. Turn it on in Integrations before approving repository changes.");
+      setPendingApproval({ ...pendingApproval, status: "error" });
+      return;
+    }
 
     setPendingApproval({ ...pendingApproval, status: "approving" });
 
@@ -450,6 +461,7 @@ export default function ChatPage() {
           // connection (selected repo + access token) for Craft V3 requests.
           // Without this, /api/chat has no way to know which repo is active.
           userId: user?.id,
+          githubEnabled: githubIntegrationEnabled,
           isCoderMode: effectiveCoder,
           uploadedImages,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
@@ -800,6 +812,7 @@ export default function ChatPage() {
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
         onGlobalSearch={() => setSearchModalOpen(true)}
+        onOpenIntegrations={() => setIntegrationsOpen(true)}
         activePersona={activePersona}
         onSelectPersona={setActivePersona}
         onInsertTemplate={(prompt) => setInput((prev) => (prev ? prev + "\n\n" + prompt : prompt))}
@@ -903,8 +916,8 @@ export default function ChatPage() {
                             onEdit={handleResend}
                             isStreaming={isLastAssistant && isStreaming}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
-                            coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
-                            repoFullName={selectedRepo}
+                            coderMode={githubIntegrationEnabled && (Boolean(selectedRepo) || m.modelId === "craft-v3")}
+                            repoFullName={githubIntegrationEnabled ? selectedRepo : null}
                             sessionId={sessionId}
                             onSuggestionSelect={isLastAssistant && !isStreaming ? handleSuggestionSelect : undefined}
                           />
@@ -931,9 +944,9 @@ export default function ChatPage() {
             </div>
 
             <LiveStatusBar
-              actions={activityActions}
+              actions={githubIntegrationEnabled ? activityActions : []}
               streaming={isStreaming}
-              repoFullName={selectedRepo}
+              repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               searching={activitySearching?.action ?? null}
               charsPerSecond={typingSpeedRef.current}
             />
@@ -985,6 +998,21 @@ export default function ChatPage() {
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
+      />
+
+      <IntegrationsPanel
+        open={integrationsOpen}
+        onClose={() => setIntegrationsOpen(false)}
+        userId={user?.id}
+        githubEnabled={githubIntegrationEnabled}
+        onGithubEnabledChange={(enabled) => {
+          setGithubIntegrationEnabled(enabled);
+          window.localStorage.setItem("nexo_github_integration_enabled", String(enabled));
+          if (!enabled) {
+            setPendingApproval(null);
+            setCommitErrorDetail(null);
+          }
+        }}
       />
 
       <SettingsPanel

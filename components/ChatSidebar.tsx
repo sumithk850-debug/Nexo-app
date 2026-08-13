@@ -43,6 +43,7 @@ export function ChatSidebar({
   isCoderMode,
   onToggleCoderMode,
   onGlobalSearch,
+  onOpenIntegrations,
   activePersona,
   onSelectPersona,
   onInsertTemplate,
@@ -61,6 +62,7 @@ export function ChatSidebar({
   isCoderMode: boolean;
   onToggleCoderMode: () => void;
   onGlobalSearch: () => void;
+  onOpenIntegrations: () => void;
   activePersona: string;
   onSelectPersona: (id: string) => void;
   onInsertTemplate: (prompt: string) => void;
@@ -270,6 +272,7 @@ export function ChatSidebar({
 
           <button
             type="button"
+            onClick={onOpenIntegrations}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
             aria-label="Integrations"
             title="Integrations"
