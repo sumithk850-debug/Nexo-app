@@ -362,8 +362,9 @@ export async function POST(req: NextRequest) {
     }
 
     const isGemini = config.provider === "gemini";
+    let activeProviderModel = config.model;
     const upstreamUrl = isGemini
-      ? `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:streamGenerateContent?alt=sse`
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${activeProviderModel}:streamGenerateContent?alt=sse`
       : OPENROUTER_ENDPOINT;
 
     const buildUpstreamBody = () =>
@@ -382,7 +383,7 @@ export async function POST(req: NextRequest) {
             ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
           }
         : {
-            model: config.model,
+            model: activeProviderModel,
             stream: true,
             temperature: 1.0,
             top_p: 1.0,
@@ -406,32 +407,53 @@ export async function POST(req: NextRequest) {
             "X-Title": "NEXO AI",
           };
 
-    // Retry logic for transient provider errors (429/502/503)
-    const MAX_RETRIES = 3;
+    // A free provider can be briefly queued or exhausted. Bound every request
+    // and then try the profile's next free route rather than leaving the user in
+    // an endless thinking state.
+    const MAX_RETRIES_PER_MODEL = 1;
+    const UPSTREAM_REQUEST_TIMEOUT_MS = 25_000;
     let upstreamRes: Response | null = null;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      upstreamRes = await fetch(upstreamUrl, {
-        method: "POST",
-        headers: buildUpstreamHeaders(),
-        body: JSON.stringify(buildUpstreamBody()),
-      });
+    let lastProviderError: unknown = null;
+    const candidateModels = isGemini
+      ? [config.model]
+      : [config.model, ...(config.fallbackModels ?? [])];
 
-      // Success — break out of retry loop
-      if (upstreamRes.ok && upstreamRes.body) break;
-
-      const status = upstreamRes.status;
-      // Only retry on transient errors (429, 502, 503)
-      if (status === 429 || status === 502 || status === 503) {
-        if (attempt < MAX_RETRIES) {
-          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-          console.log(`[chat] Provider busy (${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+    providerAttempt:
+    for (const candidateModel of candidateModels) {
+      activeProviderModel = candidateModel;
+      for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
+        try {
+          upstreamRes = await fetch(upstreamUrl, {
+            method: "POST",
+            headers: buildUpstreamHeaders(),
+            body: JSON.stringify(buildUpstreamBody()),
+            signal: AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS),
+          });
+        } catch (error) {
+          lastProviderError = error;
+          upstreamRes = null;
+          console.warn(`[chat] Provider request timed out or failed for ${candidateModel}`, error);
         }
-      } else {
-        // Non-transient error — break immediately
+
+        if (upstreamRes?.ok && upstreamRes.body) {
+          break providerAttempt;
+        }
+
+        const status = upstreamRes?.status ?? 0;
+        const isTransient = status === 0 || status === 429 || status === 502 || status === 503;
+        if (isTransient && attempt < MAX_RETRIES_PER_MODEL) {
+          const delay = 1_000;
+          console.log(`[chat] Provider unavailable (${status || "timeout"}), retrying ${candidateModel} in ${delay}ms`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // This route is exhausted; continue with the next free fallback model.
         break;
       }
     }
+
+    void lastProviderError;
 
     if (!upstreamRes || !upstreamRes.ok || !upstreamRes.body) {
       const status = upstreamRes?.status ?? 0;
@@ -458,34 +480,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!upstreamRes.ok || !upstreamRes.body) {
-      const status = upstreamRes.status;
-      const errBody = await upstreamRes.text().catch(() => "");
-      let errMsg = "Something went wrong reaching NEXO. Please try again.";
-
-      if (status === 429) {
-        // Provider-side rate limit (not our daily limit).
-        errMsg = "The AI provider is temporarily busy. Please wait a moment and try again.";
-      } else if (status === 502 || status === 503) {
-        errMsg = "The AI provider is temporarily unavailable. Please try again in a moment.";
-      } else if (status === 500) {
-        errMsg = "An internal error occurred on the AI provider side. Please try again.";
-      } else if (status >= 400 && status < 500) {
-        errMsg = "There was an issue with your request. Please try again.";
-      }
-
-      console.error("[chat] Upstream provider error:", status, errBody.slice(0, 500));
-
-      return new Response(
-        JSON.stringify({ error: "upstream_error", message: errMsg }),
-        { status: 502 }
-      );
-    }
-
     // A provider has accepted the request, so this completed request now counts.
     // Failed/busy provider attempts do not consume a user's NEXO message allowance.
     if (sessionId) {
       await incrementRateLimit(sessionId, !!isCoderMode);
+      // Persist prompt usage at acceptance time. Completion usage is added when
+      // the stream ends, so dashboard totals remain truthful even if a provider
+      // stalls after accepting a request.
+      await recordTokenUsage(sessionId, modelId, lastUserMessage?.content ?? "", "");
     }
 
     const encoder = new TextEncoder();
@@ -503,17 +505,20 @@ export async function POST(req: NextRequest) {
         const persistTokenUsage = async () => {
           if (usageRecorded || !sessionId) return;
           usageRecorded = true;
-          await recordTokenUsage(
-            sessionId,
-            modelId,
-            lastUserMessage?.content ?? "",
-            responseText
-          );
+          await recordTokenUsage(sessionId, modelId, "", responseText);
         };
 
         try {
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await Promise.race([
+              reader.read(),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("UPSTREAM_STREAM_IDLE_TIMEOUT")),
+                  45_000
+                )
+              ),
+            ]);
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
 
@@ -565,6 +570,11 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (err) {
           await persistTokenUsage();
+          try {
+            await reader.cancel(err);
+          } catch {
+            // The upstream stream may already be closed.
+          }
           controller.error(err);
         }
       },
