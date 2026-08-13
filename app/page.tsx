@@ -25,7 +25,8 @@ import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3 } from "lucide-react";
 
-const UNLOCKED_TIERS = ["Free"];
+// All five routed profiles use zero-cost provider paths and must remain selectable.
+const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
 
 interface PendingApproval {
   messageId: string;
