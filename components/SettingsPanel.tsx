@@ -105,6 +105,7 @@ export function SettingsPanel({
       return;
     }
     const redirectUri = `${window.location.origin}/api/github/callback`;
+    // Request 'repo' scope for private repos + 'read:user' for profile info
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo%20read:user&state=${userId}`;
     window.location.href = authUrl;
   }

@@ -58,6 +58,7 @@ export default function ChatPage() {
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
+  const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
 
   // Typing speed tracking (chars/sec during streaming)
   const typingSpeedRef = useRef<number>(0);
@@ -414,6 +415,14 @@ export default function ChatPage() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "rejected" });
     setCommitErrorDetail(null);
+    setCommitResult(null);
+  }
+
+  function handleRetryChanges() {
+    if (!pendingApproval) return;
+    setPendingApproval({ ...pendingApproval, status: "pending" });
+    setCommitErrorDetail(null);
+    setCommitResult(null);
   }
 
   async function streamResponse(
