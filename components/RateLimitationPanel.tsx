@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BarChart3, X, Zap, Clock, TrendingUp } from "lucide-react";
+import { BarChart3, X, Zap, Clock, TrendingUp, RefreshCw } from "lucide-react";
 import type { NexoModelId } from "@/lib/models";
 
 interface ModelUsage {
@@ -119,6 +119,10 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
     setIsOpen(next);
     if (onOpen) onOpen();
   };
+
+  const handleRefresh = async () => {
+    await fetchUsage();
+  };
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,8 +147,9 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
   }, [sessionId, userId]);
 
   useEffect(() => {
-    if (isOpen && !usage) fetchUsage();
-  }, [isOpen, usage, fetchUsage]);
+    // Always refetch on open to get the latest usage data
+    if (isOpen) fetchUsage();
+  }, [isOpen, fetchUsage]);
 
   // Countdown to midnight reset
   useEffect(() => {
@@ -193,12 +198,21 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
             <TrendingUp size={18} className="text-cyan-400" />
             <h2 className="text-sm font-bold text-white">Usage Dashboard</h2>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            <X size={16} className="text-gray-400" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleRefresh}
+              className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+              title="Refresh usage data"
+            >
+              <RefreshCw size={14} className={`text-gray-400 ${loading ? "animate-spin text-cyan-400" : "hover:text-cyan-400"}`} />
+            </button>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <X size={16} className="text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Divider */}

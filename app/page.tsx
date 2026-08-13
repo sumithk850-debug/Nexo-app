@@ -797,7 +797,7 @@ export default function ChatPage() {
           <div className="absolute inset-0 pointer-events-none z-50 border-[2px] border-cyan/20 rounded-none shadow-[inset_0_0_50px_rgba(0,229,255,0.1)] animate-pulse"></div>
         )}
 
-        {/* Top bar with usage + settings icons (top-right) */}
+        {/* Top bar with settings icon (top-right) */}
         <div className="flex items-center justify-end px-4 py-2 border-b border-edge/50 gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
@@ -805,13 +805,6 @@ export default function ChatPage() {
             aria-label="Open settings"
           >
             <Settings className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setUsagePanelOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-ink"
-            aria-label="Open usage dashboard"
-          >
-            <BarChart3 className="h-4 w-4" />
           </button>
         </div>
 

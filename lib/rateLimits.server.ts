@@ -26,11 +26,13 @@ export interface DailyLimits {
 
 // Daily limits per model — tokens and messages
 export const DAILY_LIMITS: DailyLimits = {
-  nexio: { tokens: 50_000, messages: 50 },
-  spadec: { tokens: 60_000, messages: 50 },
-  galex: { tokens: 100_000, messages: 30 },
-  brainex: { tokens: 150_000, messages: 20 },
-  craft: { tokens: 200_000, messages: 5 },
+  // Credit allocation: bigger models get LOWER credits (more expensive),
+  // smaller models get HIGHER credits (cheaper).
+  nexio: { tokens: 200_000, messages: 50 },  // smallest model → most credits
+  spadec: { tokens: 150_000, messages: 30 },
+  galex: { tokens: 100_000, messages: 20 },
+  brainex: { tokens: 60_000, messages: 10 },
+  craft: { tokens: 50_000, messages: 5 },    // biggest model → least credits
 };
 
 function getSupabase() {
@@ -44,6 +46,16 @@ function getSupabase() {
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
+
+// Cost multiplier per model — bigger models consume more "credits" per token.
+// This means Craft V3 usage drains credits faster than Nexio.
+export const MODEL_COST_MULTIPLIER: Partial<Record<NexoModelId, number>> = {
+  "nexio-1.1": 1,
+  "spadec-3.5": 1.5,
+  "galex-4.0": 2,
+  "brainex-10.8": 3,
+  "craft-v3": 5,
+};
 
 // Increment token usage for a specific model after a chat response
 export async function recordTokenUsage(

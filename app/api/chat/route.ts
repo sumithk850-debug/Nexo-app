@@ -340,9 +340,36 @@ export async function POST(req: NextRequest) {
     const upstreamUrl = isGemini
       ? `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:streamGenerateContent?alt=sse`
       : OPENROUTER_ENDPOINT;
-    const upstreamRes = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: isGemini
+
+    const buildUpstreamBody = () =>
+      isGemini
+        ? {
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: messages.map((m) => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }],
+            })),
+            generationConfig: {
+              temperature: 1.0,
+              topP: 1.0,
+              maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+            },
+            ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
+          }
+        : {
+            model: config.model,
+            stream: true,
+            temperature: 1.0,
+            top_p: 1.0,
+            max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...messages.map((m) => ({ role: m.role, content: m.content })),
+            ],
+          };
+
+    const buildUpstreamHeaders = (): Record<string, string> =>
+      isGemini
         ? {
             "Content-Type": "application/json",
             "x-goog-api-key": apiKey,
@@ -352,39 +379,59 @@ export async function POST(req: NextRequest) {
             Authorization: `Bearer ${apiKey}`,
             "HTTP-Referer": "https://nexo-app-delta.vercel.app",
             "X-Title": "NEXO AI",
-          },
-      body: JSON.stringify(
-        isGemini
-          ? {
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: messages.map((m) => ({
-                role: m.role === "assistant" ? "model" : "user",
-                parts: [{ text: m.content }],
-              })),
-              generationConfig: {
-                temperature: 1.0,
-                topP: 1.0,
-                maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
-              },
-              // Built-in Google Search grounding: the model automatically
-              // searches the web when the answer needs fresh/external info
-              // (e.g. "check my GitHub account", recent news) and grounds its
-              // reply in the results. Only enabled when user has it turned on.
-              ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
-            }
-          : {
-              model: config.model,
-              stream: true,
-              temperature: 1.0,
-              top_p: 1.0,
-              max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
-              messages: [
-                { role: "system", content: systemPrompt },
-                ...messages.map((m) => ({ role: m.role, content: m.content })),
-              ],
-            }
-      ),
-    });
+          };
+
+    // Retry logic for transient provider errors (429/502/503)
+    const MAX_RETRIES = 3;
+    let upstreamRes: Response | null = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      upstreamRes = await fetch(upstreamUrl, {
+        method: "POST",
+        headers: buildUpstreamHeaders(),
+        body: JSON.stringify(buildUpstreamBody()),
+      });
+
+      // Success — break out of retry loop
+      if (upstreamRes.ok && upstreamRes.body) break;
+
+      const status = upstreamRes.status;
+      // Only retry on transient errors (429, 502, 503)
+      if (status === 429 || status === 502 || status === 503) {
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.log(`[chat] Provider busy (${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } else {
+        // Non-transient error — break immediately
+        break;
+      }
+    }
+
+    if (!upstreamRes || !upstreamRes.ok || !upstreamRes.body) {
+      const status = upstreamRes?.status ?? 0;
+      const errBody = await upstreamRes?.text().catch(() => "") ?? "";
+      let errMsg = "Something went wrong reaching NEXO. Please try again.";
+
+      if (status === 429) {
+        errMsg = "The AI provider is temporarily busy. Please wait a moment and try again.";
+      } else if (status === 502 || status === 503) {
+        errMsg = "The AI provider is temporarily unavailable. Please try again in a moment.";
+      } else if (status === 500) {
+        errMsg = "An internal error occurred on the AI provider side. Please try again.";
+      } else if (status >= 400 && status < 500) {
+        errMsg = "There was an issue with your request. Please try again.";
+      } else if (status === 0) {
+        errMsg = "Could not reach the AI provider. Please check your connection and try again.";
+      }
+
+      console.error("[chat] Upstream provider error after retries:", status, errBody.slice(0, 500));
+
+      return new Response(
+        JSON.stringify({ error: "upstream_error", message: errMsg }),
+        { status: 502 }
+      );
+    }
 
     if (!upstreamRes.ok || !upstreamRes.body) {
       const status = upstreamRes.status;
