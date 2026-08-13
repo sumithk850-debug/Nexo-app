@@ -63,17 +63,25 @@ function Toggle({ enabled, onChange, disabled }: { enabled: boolean; onChange: (
       aria-checked={enabled}
       disabled={disabled}
       onClick={() => onChange(!enabled)}
-      className={`relative h-6 w-11 rounded-full transition ${
+      className={`relative h-7 w-12 rounded-full p-[3px] shadow-inner transition-colors ${
         enabled ? "bg-cyan" : "bg-ink-faint/30"
       } disabled:cursor-not-allowed disabled:opacity-40`}
       title={enabled ? "Turn integration off" : "Turn integration on"}
     >
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-          enabled ? "translate-x-5" : "translate-x-0.5"
+        className={`block h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+          enabled ? "translate-x-[22px]" : "translate-x-0"
         }`}
       />
     </button>
+  );
+}
+
+function ComingSoonBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-300" /> Coming soon
+    </span>
   );
 }
 
@@ -291,16 +299,16 @@ export function IntegrationsPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-sm font-semibold text-ink">Vercel</h3>
-                  <StatusBadge connected={status.vercel.connected} />
+                  <ComingSoonBadge />
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  Deployment status, build output, and runtime logs. Deployment actions will always ask for approval.
+                  Deployment status, build output, and runtime logs will be available in a future update.
                 </p>
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-edge bg-panel/60 px-3 py-2 text-[11px] text-ink-faint">
-              <ShieldCheck className="h-3.5 w-3.5 text-cyan" />
-              {status.vercel.connected ? "Read-only connection ready" : "Connect credentials when you are ready"}
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
+              Vercel integration is coming soon
             </div>
           </article>
 
@@ -312,16 +320,16 @@ export function IntegrationsPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-sm font-semibold text-ink">Supabase</h3>
-                  <StatusBadge connected={status.supabase.connected} />
+                  <ComingSoonBadge />
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  Database schema, table inspection, and project data. SQL writes and migrations will always ask for approval.
+                  Database schema, table inspection, and project actions will be available in a future update.
                 </p>
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-edge bg-panel/60 px-3 py-2 text-[11px] text-ink-faint">
-              <Link2 className="h-3.5 w-3.5 text-emerald-400" />
-              {status.supabase.connected ? "App database connection ready" : "Supabase credentials are not configured"}
+              <Link2 className="h-3.5 w-3.5 text-amber-300" />
+              Supabase integration is coming soon
             </div>
           </article>
 
