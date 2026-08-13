@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, Pencil, Sparkles, Trash2, Loader2, Check, ChevronDown, Github, Gauge, Zap } from "lucide-react";
 import { TypingSpeedBadge } from "./TypingSpeedIndicator";
 import type { FileAction, FileActionType, SearchingAction } from "@/lib/craftParser";
@@ -104,6 +104,28 @@ export function LiveStatusBar({
   charsPerSecond?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const activeTaskRef = useRef<string | null>(null);
+
+  const latestAction = actions.length > 0 ? actions[actions.length - 1] : null;
+  const taskKey = latestAction ? `${latestAction.type}:${latestAction.filePath}` : searching ? `search:${searching.queries.join(",")}` : null;
+
+  useEffect(() => {
+    if (!streaming || !taskKey) {
+      setElapsedSeconds(0);
+      activeTaskRef.current = null;
+      return;
+    }
+    if (activeTaskRef.current !== taskKey) {
+      activeTaskRef.current = taskKey;
+      setElapsedSeconds(0);
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.max(1, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [streaming, taskKey]);
 
   // A live (or just-finished) web search is the most recent activity and
   // should take the lead in the status bar when present.
@@ -168,6 +190,12 @@ export function LiveStatusBar({
         </span>
 
         {/* Typing Speed Indicator */}
+        {streaming && elapsedSeconds > 0 && (
+          <span className="flex-shrink-0 font-mono text-[10px] text-ink-faint" title="Task elapsed time">
+            {elapsedSeconds}s
+          </span>
+        )}
+
         {streaming && charsPerSecond !== undefined && charsPerSecond > 0 && (
           <TypingSpeedBadge charsPerSecond={charsPerSecond} streaming={streaming} />
         )}

@@ -32,6 +32,9 @@ REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 - Mutating actions pause for explicit user approval. Never claim a change was committed before approval.
 - Keep prose brief. File bodies and diffs are rendered as live task cards and must not be repeated in normal prose.
 - End every repository task with a concise report in the user's language under a "Task report" heading. Summarize what was read, created, edited, or proposed for deletion and the result. For proposed mutations, explicitly say they are waiting for approval rather than committed. Never repeat code, diffs, or full file contents in this report.
+- A status marker is never a complete response. After every [READING FILE] marker, finish the read, explain the key result in one to three short sentences, and emit the Task report. Never stop after a marker.
+- Never expose internal phrases such as "tool call", "function call", provider names, raw API instructions, or chain-of-thought. The user must see only the compact status card and a clear human-readable report.
+- Infer repository intent from natural language, including indirect requests such as "look at the chat input", "check why this is slow", or "see how this works". When an active repository is available, inspect the relevant file and use the same status-marker-to-report workflow.
 `;
 
 // Output budgets. These are deliberately generous: replies were getting cut

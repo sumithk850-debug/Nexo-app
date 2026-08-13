@@ -263,14 +263,14 @@ export function MessageBubble({
                 <SummaryCard
                   key={i}
                   summary={seg.summary}
-                  streaming={seg.streaming}
+                  streaming={isStreaming && seg.streaming}
                 />
               ) : seg.kind === "searching" ? (
                 <div
                   key={i}
                   className="flex items-center gap-2 rounded-full border border-edge bg-panel px-3 py-1.5 text-xs text-ink"
                 >
-                  {seg.streaming ? (
+                  {isStreaming && seg.streaming ? (
                     <>
                       <Loader2 className="h-3 w-3 animate-spin text-violet-400" />
                       <span className="font-semibold text-violet-400">Searching</span>
@@ -296,7 +296,7 @@ export function MessageBubble({
                 <CraftStatusCard
                   key={i}
                   action={seg.action}
-                  streaming={seg.streaming}
+                  streaming={isStreaming && seg.streaming}
                   repoFullName={repoFullName}
                 />
               )

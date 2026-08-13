@@ -519,6 +519,19 @@ export default function ChatPage() {
         );
       }
 
+      // A provider can occasionally end immediately after emitting a file-status
+      // marker. Never leave the user with a spinning/empty repository task: add
+      // a compact, honest report that asks them to retry for the actual findings.
+      const parsedTask = parseCraftResponse(accumulated);
+      const readActions = parsedTask.fileActions.filter((action) => action.type === "reading");
+      if (readActions.length > 0 && !parsedTask.summary) {
+        const paths = [...new Set(readActions.map((action) => action.filePath))].join(", ");
+        accumulated += `\n\n\`\`\`task-summary\nstatus: partial\nfiles read: ${paths}\nfiles changed:\nfiles deleted:\ndetails: The provider ended before it returned the file findings. Please retry this read request.\n\`\`\``;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+        );
+      }
+
       if (chatId && accumulated) {
         saveMessage(chatId, "assistant", accumulated, effectiveModel);
       }
@@ -888,7 +901,7 @@ export default function ChatPage() {
                             message={m}
                             isLast={isLastAssistant}
                             onEdit={handleResend}
-                            isStreaming={isStreaming}
+                            isStreaming={isLastAssistant && isStreaming}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
                             coderMode={Boolean(selectedRepo) || m.modelId === "craft-v3"}
                             repoFullName={selectedRepo}
