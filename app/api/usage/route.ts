@@ -4,16 +4,16 @@ import { getDailyUsage, DAILY_LIMITS } from "@/lib/rateLimits.server";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const sessionId = request.headers.get("x-session-id") ?? "";
-  const userId = request.nextUrl.searchParams.get("userId") ?? "";
+  const sessionId = request.headers.get("x-session-id")?.trim() ?? "";
 
-  if (!sessionId && !userId) {
+  // Usage is written by /api/chat using the client chat session ID. User IDs
+  // are intentionally not used here: querying by a user ID creates a different
+  // lookup key and makes a real session's dashboard incorrectly show zero.
+  if (!sessionId) {
     return new Response(JSON.stringify({ error: "Missing session" }), { status: 401 });
   }
 
-  // Try userId first, then sessionId
-  const identifier = userId || sessionId;
-  const usage = await getDailyUsage(identifier);
+  const usage = await getDailyUsage(sessionId);
 
   return new Response(
     JSON.stringify({

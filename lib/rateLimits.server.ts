@@ -89,11 +89,15 @@ export async function recordTokenUsage(
     updateData[column] = Number(currentModelTokens) + totalForThis;
     updateData["total_tokens"] = Number(currentTotal) + totalForThis;
 
-    await supabase
+    const { error } = await supabase
       .from("rate_limits")
       .update(updateData)
       .eq("session_id", sessionId)
       .eq("date", today);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   } catch (err) {
     // Silently ignore — token tracking is best-effort
     console.error("[rateLimits] Failed to record token usage:", err);

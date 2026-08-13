@@ -4,6 +4,7 @@ import { PROVIDER_CONFIG } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import type { NexoModelId } from "@/lib/models";
+import { recordTokenUsage } from "@/lib/rateLimits.server";
 
 export const runtime = "nodejs";
 
@@ -51,36 +52,60 @@ function getSupabase() {
   );
 }
 
-async function checkAndIncrementRateLimit(sessionId: string, isCoder: boolean): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+async function checkRateLimit(sessionId: string, isCoder: boolean): Promise<{ allowed: boolean; remaining: number; limit: number }> {
   const supabase = getSupabase();
   const today = new Date().toISOString().slice(0, 10);
   const column = isCoder ? "coder_count" : "message_count";
   const limit = isCoder ? CODER_DAILY_LIMIT : DAILY_MESSAGE_LIMIT;
 
-  const { data: existing } = await supabase
+  const { data: existing, error } = await supabase
     .from("rate_limits")
-    .select(`message_count, coder_count`)
+    .select("message_count, coder_count")
     .eq("session_id", sessionId)
     .eq("date", today)
     .maybeSingle();
 
-  const currentCount = (isCoder ? existing?.coder_count : existing?.message_count) ?? 0;
+  if (error) {
+    throw new Error(`Could not read usage data: ${error.message}`);
+  }
 
+  const currentCount = Number(existing?.[column] ?? 0);
   if (currentCount >= limit) {
     return { allowed: false, remaining: 0, limit };
   }
 
-  const updateData: any = { session_id: sessionId, date: today };
-  updateData[column] = currentCount + 1;
-
-  await supabase
-    .from("rate_limits")
-    .upsert(
-      updateData,
-      { onConflict: "session_id,date" }
-    );
-
   return { allowed: true, remaining: limit - currentCount - 1, limit };
+}
+
+async function incrementRateLimit(sessionId: string, isCoder: boolean): Promise<void> {
+  const supabase = getSupabase();
+  const today = new Date().toISOString().slice(0, 10);
+  const column = isCoder ? "coder_count" : "message_count";
+
+  const { data: existing, error: readError } = await supabase
+    .from("rate_limits")
+    .select("message_count, coder_count")
+    .eq("session_id", sessionId)
+    .eq("date", today)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error(`Could not read usage data before update: ${readError.message}`);
+  }
+
+  const updateData: Record<string, number | string> = {
+    session_id: sessionId,
+    date: today,
+    [column]: Number(existing?.[column] ?? 0) + 1,
+  };
+
+  const { error: writeError } = await supabase
+    .from("rate_limits")
+    .upsert(updateData, { onConflict: "session_id,date" });
+
+  if (writeError) {
+    throw new Error(`Could not save message usage: ${writeError.message}`);
+  }
 }
 
 async function getUserMemory(sessionId: string): Promise<any> {
@@ -209,7 +234,7 @@ export async function POST(req: NextRequest) {
     const activePersona = body.persona as string | undefined;
 
     if (sessionId) {
-      const { allowed, remaining, limit } = await checkAndIncrementRateLimit(sessionId, !!isCoderMode);
+      const { allowed, remaining, limit } = await checkRateLimit(sessionId, !!isCoderMode);
       if (!allowed) {
         return new Response(
           JSON.stringify({
@@ -457,6 +482,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // A provider has accepted the request, so this completed request now counts.
+    // Failed/busy provider attempts do not consume a user's NEXO message allowance.
+    if (sessionId) {
+      await incrementRateLimit(sessionId, !!isCoderMode);
+    }
+
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -466,6 +497,19 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         const reader = upstreamReader;
         let buffer = "";
+        let responseText = "";
+        let usageRecorded = false;
+
+        const persistTokenUsage = async () => {
+          if (usageRecorded || !sessionId) return;
+          usageRecorded = true;
+          await recordTokenUsage(
+            sessionId,
+            modelId,
+            lastUserMessage?.content ?? "",
+            responseText
+          );
+        };
 
         try {
           while (true) {
@@ -481,6 +525,7 @@ export async function POST(req: NextRequest) {
               if (!trimmed.startsWith("data:")) continue;
               const data = trimmed.slice(5).trim();
               if (data === "[DONE]") {
+                await persistTokenUsage();
                 controller.close();
                 return;
               }
@@ -490,6 +535,7 @@ export async function POST(req: NextRequest) {
                   const parts = json.candidates?.[0]?.content?.parts ?? [];
                   const textParts = parts.map((part: { text?: string }) => part.text ?? "").join("");
                   if (textParts) {
+                    responseText += textParts;
                     controller.enqueue(encoder.encode(textParts));
                   }
                   // Built-in Google Search: when the model decides to search the
@@ -506,6 +552,7 @@ export async function POST(req: NextRequest) {
                 } else {
                   const delta = json.choices?.[0]?.delta?.content;
                   if (delta) {
+                    responseText += delta;
                     controller.enqueue(encoder.encode(delta));
                   }
                 }
@@ -514,8 +561,10 @@ export async function POST(req: NextRequest) {
               }
             }
           }
+          await persistTokenUsage();
           controller.close();
         } catch (err) {
+          await persistTokenUsage();
           controller.error(err);
         }
       },

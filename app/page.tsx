@@ -797,8 +797,16 @@ export default function ChatPage() {
           <div className="absolute inset-0 pointer-events-none z-50 border-[2px] border-cyan/20 rounded-none shadow-[inset_0_0_50px_rgba(0,229,255,0.1)] animate-pulse"></div>
         )}
 
-        {/* Top bar with settings icon (top-right) */}
+        {/* Top bar: usage control is intentionally aligned immediately left of Settings. */}
         <div className="flex items-center justify-end px-4 py-2 border-b border-edge/50 gap-1">
+          <button
+            onClick={() => setUsagePanelOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-cyan"
+            aria-label="Open usage dashboard"
+            title="Usage Dashboard"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-ink"
@@ -811,13 +819,11 @@ export default function ChatPage() {
 
         <AnnouncementBanner />
         <AnnouncementModal />
-        {/* Usage panel renders inside its own portal-like fixed overlay */}
         <RateLimitationPanel
-          sessionId={sessionId || ""}
-          userId={user?.id}
+          sessionId={sessionId}
           theme={{ edge: "" }}
           open={usagePanelOpen}
-          onOpen={() => setUsagePanelOpen(false)}
+          onClose={() => setUsagePanelOpen(false)}
         />
 
         {/* Session Resume Card — shows when user has recent chats and no active chat */}

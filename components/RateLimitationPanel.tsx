@@ -42,10 +42,9 @@ interface Limits {
 
 interface Props {
   sessionId: string;
-  userId?: string;
   theme: { edge: string };
-  open?: boolean;
-  onOpen?: () => void;
+  open: boolean;
+  onClose: () => void;
 }
 
 function formatNumber(num: number): string {
@@ -106,19 +105,7 @@ function ModelRow({ config, used, limit }: { config: ModelUsage; used: number; l
   );
 }
 
-export default function RateLimitationPanel({ sessionId, userId, theme, open: openProp, onOpen }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Sync with controlled open prop from parent
-  useEffect(() => {
-    if (openProp !== undefined) setIsOpen(openProp);
-  }, [openProp]);
-
-  const handleToggle = () => {
-    const next = !isOpen;
-    setIsOpen(next);
-    if (onOpen) onOpen();
-  };
+export default function RateLimitationPanel({ sessionId, theme, open, onClose }: Props) {
 
   const handleRefresh = async () => {
     await fetchUsage();
@@ -131,9 +118,9 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const identifier = userId || sessionId;
-      const res = await fetch(`/api/usage?userId=${encodeURIComponent(identifier)}`, {
+      const res = await fetch("/api/usage", {
         headers: { "x-session-id": sessionId },
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -144,12 +131,12 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
       // silently fail
     }
     setLoading(false);
-  }, [sessionId, userId]);
+  }, [sessionId]);
 
   useEffect(() => {
     // Always refetch on open to get the latest usage data
-    if (isOpen) fetchUsage();
-  }, [isOpen, fetchUsage]);
+    if (open && sessionId) fetchUsage();
+  }, [open, sessionId, fetchUsage]);
 
   // Countdown to midnight reset
   useEffect(() => {
@@ -166,24 +153,14 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
     return () => clearInterval(timer);
   }, []);
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={handleToggle}
-        className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-200"
-        title="Usage Dashboard"
-      >
-        <BarChart3 size={20} className="text-gray-400 hover:text-cyan-400 transition-colors" />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   const totalUsed = usage?.total ?? 0;
   const totalLimit = Object.values(limits ?? {}).reduce((sum, l) => sum + l.tokens, 0);
   const totalPct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={handleToggle}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
@@ -207,7 +184,7 @@ export default function RateLimitationPanel({ sessionId, userId, theme, open: op
               <RefreshCw size={14} className={`text-gray-400 ${loading ? "animate-spin text-cyan-400" : "hover:text-cyan-400"}`} />
             </button>
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={onClose}
               className="p-1 rounded-lg hover:bg-white/10 transition-colors"
             >
               <X size={16} className="text-gray-400" />
