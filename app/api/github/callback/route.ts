@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encryptGithubToken } from "@/lib/githubToken.server";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
         {
           user_id: userId,
           github_username: githubUsername,
-          access_token: accessToken,
+          access_token: encryptGithubToken(accessToken),
           connected_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }

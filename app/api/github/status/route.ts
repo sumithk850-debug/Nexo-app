@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 
 export const runtime = "nodejs";
 
@@ -25,14 +26,19 @@ export async function GET(req: NextRequest) {
 
   let canWrite = false;
   if (data?.access_token) {
-    const scopesRes = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `Bearer ${data.access_token}`,
+    try {
+      const token = decryptGithubToken(data.access_token);
+      const scopesRes = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
     });
-    const scopes = scopesRes.headers.get("x-oauth-scopes") ?? "";
-    canWrite = scopes.split(",").map((scope) => scope.trim()).some((scope) => scope === "repo" || scope === "public_repo");
+      const scopes = scopesRes.headers.get("x-oauth-scopes") ?? "";
+      canWrite = scopes.split(",").map((scope) => scope.trim()).some((scope) => scope === "repo" || scope === "public_repo");
+    } catch {
+      canWrite = false;
+    }
   }
 
   return new Response(

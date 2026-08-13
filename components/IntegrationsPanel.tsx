@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Database,
   Github,
+  KeyRound,
   Link2,
   Loader2,
   LogIn,
@@ -86,6 +87,11 @@ export function IntegrationsPanel({
   const [status, setStatus] = useState<IntegrationStatus>(INITIAL_STATUS);
   const [loading, setLoading] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
+  const [personalTokenMode, setPersonalTokenMode] = useState(false);
+  const [personalToken, setPersonalToken] = useState("");
+  const [secretDetected, setSecretDetected] = useState(false);
+  const [patSaving, setPatSaving] = useState(false);
+  const [patError, setPatError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -115,6 +121,34 @@ export function IntegrationsPanel({
     onGithubEnabledChange(false);
     setDisconnectConfirm(false);
     await loadStatus();
+  }
+
+  async function savePersonalToken() {
+    if (!userId || !personalToken.trim()) return;
+    setPatSaving(true);
+    setPatError(null);
+    try {
+      const response = await fetch("/api/github/personal-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, token: personalToken.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setPatError(data.error ?? "Could not validate this GitHub secret.");
+        return;
+      }
+      // Clear the browser value immediately after the server accepts it.
+      setPersonalToken("");
+      setSecretDetected(false);
+      setPersonalTokenMode(false);
+      onGithubEnabledChange(true);
+      await loadStatus();
+    } catch {
+      setPatError("Could not connect GitHub. Please try again.");
+    } finally {
+      setPatSaving(false);
+    }
   }
 
   if (!open) return null;
@@ -176,9 +210,66 @@ export function IntegrationsPanel({
             </div>
 
             {!status.github.connected ? (
-              <button onClick={connectGithub} disabled={!userId} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-edge bg-panel py-2 text-xs font-semibold text-ink transition hover:border-cyan/50 disabled:cursor-not-allowed disabled:opacity-50">
-                <LogIn className="h-3.5 w-3.5" /> Connect GitHub
-              </button>
+              personalTokenMode ? (
+                <div className="mt-3 rounded-xl border border-cyan/20 bg-cyan/5 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-ink">
+                    <KeyRound className="h-3.5 w-3.5 text-cyan" /> Personal Access Token
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                    Paste a GitHub token here only. It is detected as a secret, encrypted on the server, and never displayed in chat or sent to the AI model.
+                  </p>
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={personalToken}
+                    onPaste={() => setSecretDetected(true)}
+                    onChange={(event) => {
+                      setPersonalToken(event.target.value);
+                      setSecretDetected(Boolean(event.target.value));
+                    }}
+                    placeholder="Paste secret token"
+                    className="mt-3 w-full rounded-lg border border-edge bg-void px-3 py-2 font-mono text-xs text-ink outline-none transition focus:border-cyan/60"
+                    aria-label="GitHub Personal Access Token secret"
+                  />
+                  {secretDetected && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-amber-300">
+                      <ShieldCheck className="h-3.5 w-3.5" /> Secret detected — this value will be stored as a protected connection secret.
+                    </div>
+                  )}
+                  {patError && <p className="mt-2 text-[11px] text-red-400">{patError}</p>}
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setPersonalToken("");
+                        setSecretDetected(false);
+                        setPatError(null);
+                        setPersonalTokenMode(false);
+                      }}
+                      className="rounded-md px-2.5 py-1.5 text-xs text-ink-muted transition hover:bg-panel hover:text-ink"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={savePersonalToken}
+                      disabled={!userId || !personalToken.trim() || patSaving}
+                      className="flex items-center gap-1.5 rounded-md bg-cyan px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-cyan-dim disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {patSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      Save secret
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button onClick={connectGithub} disabled={!userId} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel py-2 text-xs font-semibold text-ink transition hover:border-cyan/50 disabled:cursor-not-allowed disabled:opacity-50">
+                    <LogIn className="h-3.5 w-3.5" /> OAuth
+                  </button>
+                  <button onClick={() => setPersonalTokenMode(true)} disabled={!userId} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel py-2 text-xs font-semibold text-ink transition hover:border-cyan/50 disabled:cursor-not-allowed disabled:opacity-50">
+                    <KeyRound className="h-3.5 w-3.5" /> Use token
+                  </button>
+                </div>
+              )
             ) : disconnectConfirm ? (
               <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                 <p className="text-xs text-red-300">Disconnect GitHub? Nexo will lose repository access until you connect again.</p>

@@ -5,6 +5,7 @@
 // system prompt. Never import this into a "use client" file.
 
 import { createClient } from "@supabase/supabase-js";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 
 const GITHUB_API = "https://api.github.com";
 const MAX_FILE_BYTES = 40_000; // guard against dumping huge files into the prompt
@@ -155,7 +156,16 @@ export async function buildGithubContext(
   }
 
   const repoFullName = connection.selected_repo;
-  const accessToken = connection.access_token;
+  let accessToken: string;
+  try {
+    accessToken = decryptGithubToken(connection.access_token);
+  } catch {
+    return {
+      connected: true,
+      repoFullName,
+      contextBlock: `\n\nThe user has repository "${repoFullName}" selected as active, but its saved secret could not be used. Ask the user to reconnect GitHub in Integrations.`,
+    };
+  }
 
   const tree = await fetchRepoTree(repoFullName, accessToken);
   if (tree.length === 0) {

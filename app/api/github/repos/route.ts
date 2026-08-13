@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 
 export const runtime = "nodejs";
 
@@ -29,9 +30,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const token = decryptGithubToken(connection.access_token);
     const res = await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
       headers: {
-        Authorization: `Bearer ${connection.access_token}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
     });
