@@ -17,6 +17,7 @@ interface IncomingMessage {
 }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DAILY_MESSAGE_LIMIT = 50;
 const CODER_DAILY_LIMIT = 5;
 
@@ -37,11 +38,11 @@ REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 // off mid-sentence (and mid-diff, which corrupts a proposed edit), so every
 // model now gets a much larger completion window.
 const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
-  "nexio-1.1": 8192,
-  "spadec-3.5": 8192,
-  "galex-4.0": 16384,
-  "brainex-10.8": 16384,
-  "craft-v3": 32768,
+  "nexio-1.1": 16384,
+  "spadec-3.5": 16384,
+  "galex-4.0": 32768,
+  "brainex-10.8": 32768,
+  "craft-v3": 65536,
 };
 
 // Vision-capable fallback model, also served via OpenRouter, used to analyze
@@ -417,22 +418,26 @@ export async function POST(req: NextRequest) {
     // budget retrying a queued free route. This keeps every profile responsive
     // even when its preferred upstream is temporarily unavailable.
     const MAX_RETRIES_PER_MODEL = 0;
-    const UPSTREAM_REQUEST_TIMEOUT_MS = 10_000;
+    const UPSTREAM_REQUEST_TIMEOUT_MS = 60_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
+    let activeProviderIsGemini = isGemini;
     const candidateModels = [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
       activeProviderModel = candidateModel;
       
-      // Dynamic upstream URL: switch to OpenRouter if we are using a fallback model for a Gemini profile
-      const isCandidateGemini = candidateModel.startsWith("gemini-") || (isGemini && candidateModel === config.model);
+      // Dynamic upstream URL: switch to Groq or OpenRouter depending on model prefix
+      const isCandidateGemini = candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
+      const isCandidateGroq = candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1");
+      
       const currentUpstreamUrl = isCandidateGemini
         ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
-        : OPENROUTER_ENDPOINT;
+        : (isCandidateGroq && process.env.GROQ_API_KEY) ? GROQ_ENDPOINT : OPENROUTER_ENDPOINT;
 
       const currentIsGemini = isCandidateGemini;
+      const currentIsGroq = isCandidateGroq && !!process.env.GROQ_API_KEY;
 
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         try {
@@ -441,6 +446,11 @@ export async function POST(req: NextRequest) {
             ? {
                 "Content-Type": "application/json",
                 "x-goog-api-key": process.env.GEMINI_API_KEY || "",
+              }
+            : currentIsGroq
+            ? {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.GROQ_API_KEY || ""}`,
               }
             : {
                 "Content-Type": "application/json",
@@ -488,6 +498,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (upstreamRes?.ok && upstreamRes.body) {
+          // Remember which provider actually accepted the request. Craft V3 may
+          // fall back from Gemini to Groq/OpenRouter, which use a different SSE shape.
+          activeProviderIsGemini = currentIsGemini;
           break providerAttempt;
         }
 
@@ -588,7 +601,7 @@ export async function POST(req: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                if (isGemini) {
+                if (activeProviderIsGemini) {
                   const parts = json.candidates?.[0]?.content?.parts ?? [];
                   const textParts = parts.map((part: { text?: string }) => part.text ?? "").join("");
                   if (textParts) {
