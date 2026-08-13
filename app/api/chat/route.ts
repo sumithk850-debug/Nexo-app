@@ -437,8 +437,11 @@ export async function POST(req: NextRequest) {
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         try {
           // Re-build headers and body for each candidate as the provider might change
-          const currentHeaders = currentIsGemini
-            ? { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY || "" }
+          const currentHeaders: Record<string, string> = currentIsGemini
+            ? {
+                "Content-Type": "application/json",
+                "x-goog-api-key": process.env.GEMINI_API_KEY || "",
+              }
             : {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
