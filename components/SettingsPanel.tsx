@@ -56,17 +56,32 @@ export function SettingsPanel({
   const [githubLoading, setGithubLoading] = useState(true);
 
   useEffect(() => {
-    if (open && sessionId) loadSettings();
-    if (open && userId) loadGithubConnection();
-  }, [open, sessionId, userId]);
+    if (!open) return;
 
-  async function loadSettings() {
+    // Long-term settings belong to the authenticated user, not to the browser
+    // session. This lets the same saved memory follow the user across devices.
+    if (userId) {
+      void loadSettings(userId);
+      void loadGithubConnection();
+    } else {
+      setSettings(DEFAULT_SETTINGS);
+      setMemoryDraft("");
+      setPersonaDraft("");
+      setLoading(false);
+    }
+  }, [open, userId]);
+
+  async function loadSettings(settingsUserId: string) {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_settings")
       .select("*")
-      .eq("session_id", sessionId)
+      .eq("user_id", settingsUserId)
       .maybeSingle();
+
+    if (error) {
+      console.error("[settings] Could not load user settings:", error.message);
+    }
 
     if (data) {
       const loaded = {
@@ -81,6 +96,7 @@ export function SettingsPanel({
       };
       setSettings(loaded);
       setMemoryDraft(loaded.memory_content);
+      setPersonaDraft(loaded.custom_persona);
     }
     setLoading(false);
   }
@@ -117,11 +133,22 @@ export function SettingsPanel({
   }
 
   async function saveSettings(next: UserSettings) {
-    setSettings(next);
-    await supabase.from("user_settings").upsert(
-      { session_id: sessionId, ...next, updated_at: new Date().toISOString() },
-      { onConflict: "session_id" }
+    if (!userId) {
+      console.warn("[settings] Cannot save long-term settings without an authenticated user.");
+      return;
+    }
+
+    const { error } = await supabase.from("user_settings").upsert(
+      { user_id: userId, ...next, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
     );
+
+    if (error) {
+      console.error("[settings] Could not save user settings:", error.message);
+      return;
+    }
+
+    setSettings(next);
     onSettingsChange?.(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);

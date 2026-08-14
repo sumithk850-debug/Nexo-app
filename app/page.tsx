@@ -489,6 +489,11 @@ export default function ChatPage() {
       (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
     );
     try {
+      // Forward the signed-in user's Supabase access token only to the same
+      // first-party chat route. This allows the server-side settings read to
+      // respect user_id-based RLS policies without exposing any service key.
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -499,6 +504,7 @@ export default function ChatPage() {
           // connection (selected repo + access token) for Craft V3 requests.
           // Without this, /api/chat has no way to know which repo is active.
           userId: user?.id,
+          userAccessToken: authSession?.access_token,
           githubEnabled: githubIntegrationEnabled,
           isCoderMode: effectiveCoder,
           uploadedImages,

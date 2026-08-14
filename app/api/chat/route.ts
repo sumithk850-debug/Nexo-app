@@ -62,10 +62,13 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
 // selected model responds, so text-only profiles can still answer image tasks.
 const VISION_FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free";
 
-function getSupabase() {
+function getSupabase(userAccessToken?: string) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    userAccessToken
+      ? { global: { headers: { Authorization: `Bearer ${userAccessToken}` } } }
+      : undefined
   );
 }
 
@@ -127,21 +130,38 @@ async function incrementRateLimit(sessionId: string, isCoder: boolean): Promise<
   }
 }
 
-async function getUserMemory(sessionId: string): Promise<any> {
+async function getUserMemory(
+  userId: string | undefined,
+  userAccessToken: string | undefined
+): Promise<any> {
+  const defaults = { memory: "", persona: "", searchGrounding: true, codeReview: false } as const;
+  if (!userId) return defaults;
+
   try {
-    const supabase = getSupabase();
-    const { data } = await supabase
+    // Use the requesting user's token when available so Supabase RLS can
+    // authorize this user_id-scoped read correctly.
+    const supabase = getSupabase(userAccessToken);
+    const { data, error } = await supabase
       .from("user_settings")
       .select("memory_content, custom_persona, search_grounding_enabled, code_review_enabled")
-      .eq("session_id", sessionId)
+      .eq("user_id", userId)
       .maybeSingle();
+
+    if (error) {
+      console.error("[settings] Could not load chat settings:", error.message);
+      return defaults;
+    }
+
     return {
       memory: data?.memory_content?.trim() ?? "",
       persona: data?.custom_persona?.trim() ?? "",
       searchGrounding: data?.search_grounding_enabled ?? true,
       codeReview: data?.code_review_enabled ?? false,
-    } as any;
-  } catch { return { memory: "", persona: "", searchGrounding: true, codeReview: false } as any; }
+    } as const;
+  } catch (error) {
+    console.error("[settings] Unexpected error while loading chat settings:", error);
+    return defaults;
+  }
 }
 
 async function describeUploadedImagesWithVisionModel(
@@ -249,6 +269,9 @@ export async function POST(req: NextRequest) {
     // The user's actual auth/user id, distinct from sessionId, used to look up
     // their GitHub connection. Sent by the client alongside sessionId.
     const userId = body.userId as string | undefined;
+    // Passed from the signed-in browser only for the user's own Supabase RLS
+    // context. It is never stored, logged, or sent to an AI provider.
+    const userAccessToken = body.userAccessToken as string | undefined;
     // The Integrations panel owns this user-controlled switch. When off, the
     // chat may still answer normally but it must not receive repository context.
     const githubEnabled = body.githubEnabled !== false;
@@ -361,7 +384,10 @@ export async function POST(req: NextRequest) {
       githubContextBlock = githubContext.contextBlock;
     }
 
-    const userMem = sessionId ? await getUserMemory(sessionId) : { memory: "", persona: "", searchGrounding: true, codeReview: false };
+    // Use the authenticated account identifier for persistent settings. A
+    // browser-local session ID is intentionally used only for chat history and
+    // usage, so saved memory remains available on every signed-in device.
+    const userMem = await getUserMemory(userId, userAccessToken);
     const memory = userMem.memory;
     const customPersona = userMem.persona;
     const searchGroundingEnabled = userMem.searchGrounding ?? true;
