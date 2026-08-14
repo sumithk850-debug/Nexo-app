@@ -115,6 +115,24 @@ export default function ChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  async function loadSavedDefaultModel(settingsUserId: string) {
+    const { data, error } = await supabase
+      .from("user_settings")
+      .select("default_model")
+      .eq("user_id", settingsUserId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[settings] Could not load default model:", error.message);
+      return;
+    }
+
+    const savedModel = data?.default_model;
+    if (typeof savedModel === "string" && getPublicModel(savedModel as NexoModelId)) {
+      setSelectedModel(savedModel as NexoModelId);
+    }
+  }
+
   useEffect(() => {
     const savedGithubToggle = window.localStorage.getItem("nexo_github_integration_enabled");
     if (savedGithubToggle !== null) setGithubIntegrationEnabled(savedGithubToggle === "true");
@@ -126,13 +144,18 @@ export default function ChatPage() {
     getCurrentUser().then((u) => {
       setUser(u);
       setAuthLoading(false);
-      if (u) loadSelectedRepo(u.id);
+      if (u) {
+        loadSelectedRepo(u.id);
+        void loadSavedDefaultModel(u.id);
+      }
     });
     const subscription = onAuthStateChange((u) => {
       setUser(u);
       setAuthLoading(false);
-      if (u) loadSelectedRepo(u.id);
-      else setSelectedRepo(null);
+      if (u) {
+        loadSelectedRepo(u.id);
+        void loadSavedDefaultModel(u.id);
+      } else setSelectedRepo(null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -505,6 +528,9 @@ export default function ChatPage() {
           // Without this, /api/chat has no way to know which repo is active.
           userId: user?.id,
           userAccessToken: authSession?.access_token,
+          // The signed-in display name comes from the account profile and is
+          // included only in this first-party request for prompt context.
+          userName: user?.fullName,
           githubEnabled: githubIntegrationEnabled,
           isCoderMode: effectiveCoder,
           uploadedImages,
@@ -1093,6 +1119,10 @@ export default function ChatPage() {
         }}
         sessionId={sessionId}
         userId={user?.id}
+        onSettingsChange={(settings) => {
+          const savedModel = settings.default_model as NexoModelId;
+          if (getPublicModel(savedModel)) setSelectedModel(savedModel);
+        }}
         onClearHistory={handleClearHistory}
       />
     </div>
