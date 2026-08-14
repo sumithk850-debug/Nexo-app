@@ -690,22 +690,33 @@ export default function ChatPage() {
 
     const chatId = await ensureChat();
 
-    // If the attached file is an image, convert it to base64 for the backend
+    // If the attached file is an image, keep one browser-local data URL for
+    // the chat bubble preview and send the same image to the vision workflow.
     let uploadedImages: { base64Image: string }[] | undefined;
+    let imageDataUrl: string | undefined;
     if (attachedFile && attachedFile.type.startsWith("image/")) {
       try {
-        const base64 = await fileToBase64(attachedFile);
-        uploadedImages = [{ base64Image: base64 }];
+        imageDataUrl = await fileToBase64(attachedFile);
+        uploadedImages = [{ base64Image: imageDataUrl }];
       } catch (err) {
         console.error("Failed to convert image to base64:", err);
       }
     }
 
-    const messageText = attachedFile
+    // Images are shown as actual previews, not as a filename-only attachment
+    // card. Non-image files keep the existing text attachment behavior.
+    const messageText = attachedFile && !imageDataUrl
       ? `${text}\n\n[Attached file: ${attachedFile.name}]`
       : text;
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: messageText };
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: messageText,
+      ...(imageDataUrl && attachedFile
+        ? { imageAttachment: { dataUrl: imageDataUrl, name: attachedFile.name } }
+        : {}),
+    };
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
@@ -715,10 +726,17 @@ export default function ChatPage() {
     setAttachedFile(null);
     setIsStreaming(true);
 
-    if (chatId) saveMessage(chatId, "user", messageText);
+    if (chatId) {
+      // Persist a compact filename marker for history without storing image
+      // bytes in the database. The live chat still renders the actual preview.
+      const persistedMessageText = imageDataUrl && attachedFile
+        ? `${messageText}${messageText ? "\n\n" : ""}[Image attached: ${attachedFile.name}]`
+        : messageText;
+      saveMessage(chatId, "user", persistedMessageText);
+    }
 
     if (chatId && messages.length === 0) {
-      const words = messageText.split(/\s+/).filter(Boolean);
+      const words = (messageText || attachedFile?.name || "New chat").split(/\s+/).filter(Boolean);
       const title = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
       
       fetch("/api/chats", {

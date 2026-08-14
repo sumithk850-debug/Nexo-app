@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -218,7 +219,21 @@ export function MessageBubble({
     return (
       <div className="group flex justify-end px-4 py-2">
         <div className="relative max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          {message.imageAttachment && (
+            <Image
+              src={message.imageAttachment.dataUrl}
+              alt="Image sent in this message"
+              width={320}
+              height={240}
+              unoptimized
+              className="max-h-56 w-auto max-w-full rounded-xl border border-white/20 object-contain shadow-sm"
+            />
+          )}
+          {message.content && (
+            <div className={`${message.imageAttachment ? "mt-2" : ""} whitespace-pre-wrap break-words`}>
+              {message.content}
+            </div>
+          )}
           {!isStreaming && (
             <button
               onClick={startEdit}
