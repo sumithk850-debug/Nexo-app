@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
@@ -49,6 +50,7 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isListening, setIsListening] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [waveLevels, setWaveLevels] = useState<number[]>(
     Array(WAVE_BAR_COUNT).fill(WAVE_MIN_HEIGHT)
   );
@@ -169,6 +171,16 @@ export function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!attachedFile?.type.startsWith("image/")) {
+      setImagePreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(attachedFile);
+    setImagePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [attachedFile]);
+
   function interceptSecret(): boolean {
     const secret = extractGithubPersonalAccessToken(value);
     if (!secret) return false;
@@ -210,12 +222,25 @@ export function ChatInput({
           
           {attachedFile && (
             <div className="mb-2 flex items-center gap-2 rounded-lg bg-void/50 p-2 animate-fade-up">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan/10 text-cyan">
-                <Paperclip className="h-4 w-4" />
-              </div>
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt="Attached image preview"
+                  width={40}
+                  height={40}
+                  unoptimized
+                  className="h-10 w-10 rounded-md border border-cyan/30 object-cover"
+                />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan/10 text-cyan">
+                  <Paperclip className="h-4 w-4" />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs font-bold text-ink">{attachedFile.name}</p>
-                <p className="text-[10px] text-ink-faint uppercase">{(attachedFile.size / 1024).toFixed(1)} KB</p>
+                <p className="text-[10px] text-ink-faint uppercase">
+                  {imagePreview ? "Image ready for analysis" : `${(attachedFile.size / 1024).toFixed(1)} KB`}
+                </p>
               </div>
               <button 
                 onClick={onRemoveAttach}
@@ -271,7 +296,8 @@ export function ChatInput({
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-edge text-ink-muted transition hover:border-cyan/40 hover:text-ink"
-                aria-label="Attach file"
+                aria-label="Attach image or file"
+                title="Attach image or file"
               >
                 <Plus className="h-4 w-4" />
               </button>

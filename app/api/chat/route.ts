@@ -57,9 +57,9 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
   "craft-v3": 3000,
 };
 
-// Vision-capable fallback model, also served via OpenRouter, used to analyze
-// screenshots for models that can't natively see images.
-const VISION_FALLBACK_MODEL = "nvidia/nemotron-nano-12b-2-vl:free";
+// Gemma 4 is the shared vision layer. It analyzes uploaded images before the
+// selected model responds, so text-only profiles can still answer image tasks.
+const VISION_FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free";
 
 function getSupabase() {
   return createClient(
@@ -316,10 +316,10 @@ export async function POST(req: NextRequest) {
       ? await readUrlsFromText(lastUserMessage.content)
       : "";
 
-    // All models here are text-only (no native vision), so any shared link
-    // screenshots and uploaded images always get silently routed through the
-    // vision fallback model, and the description is woven into the active
-    // model's own system prompt. The user only ever talks to the model they picked.
+    // Uploaded images are analyzed by the shared Gemma 4 vision layer. Its
+    // description is woven into the selected profile's system prompt, so every
+    // NEXO profile can answer about an image without exposing internal routing.
+    // Craft V3 keeps its existing Gemini/Groq model routing unchanged.
     let visionContext = "";
     let uploadedImageDescription = "";
 
