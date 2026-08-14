@@ -133,7 +133,20 @@ export function SettingsPanel({
     setGithubUsername(null);
   }
 
-  async function saveSettings(next: UserSettings): Promise<{ success: boolean; error?: string }> {
+  async function saveSettings(
+    next: UserSettings,
+    optimistic = true
+  ): Promise<{ success: boolean; error?: string }> {
+    // Toggles and preference buttons must respond immediately to a touch. Their
+    // local state is applied first while the database write continues in the
+    // background; a failed write never makes the control feel unresponsive.
+    const applyLocalSettings = () => {
+      setSettings(next);
+      onSettingsChange?.(next);
+    };
+
+    if (optimistic) applyLocalSettings();
+
     if (!userId) {
       const error = "Sign in is required before saving long-term memory.";
       console.warn("[settings]", error);
@@ -168,8 +181,7 @@ export function SettingsPanel({
       }
     }
 
-    setSettings(next);
-    onSettingsChange?.(next);
+    if (!optimistic) applyLocalSettings();
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
     return { success: true };
@@ -178,7 +190,7 @@ export function SettingsPanel({
   
   async function handleSavePersona() {
     setMemorySaving(true);
-    await saveSettings({ ...settings, custom_persona: personaDraft });
+    await saveSettings({ ...settings, custom_persona: personaDraft }, false);
     setMemorySaving(false);
   }
 
@@ -186,7 +198,7 @@ export function SettingsPanel({
     setMemorySaving(true);
     setMemorySaveState("idle");
     try {
-      const result = await saveSettings({ ...settings, memory_content: memoryDraft });
+      const result = await saveSettings({ ...settings, memory_content: memoryDraft }, false);
       setMemorySaveState(result.success ? "saved" : "error");
     } finally {
       setMemorySaving(false);
