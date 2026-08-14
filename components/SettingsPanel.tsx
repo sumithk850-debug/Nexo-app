@@ -50,6 +50,7 @@ export function SettingsPanel({
   const [personaDraft, setPersonaDraft] = useState("");
   const [saved, setSaved] = useState(false);
   const [memorySaving, setMemorySaving] = useState(false);
+  const [memorySaveState, setMemorySaveState] = useState<"idle" | "saved" | "error">("idle");
   const [confirmClear, setConfirmClear] = useState(false);
   const [loading, setLoading] = useState(true);
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
@@ -132,26 +133,46 @@ export function SettingsPanel({
     setGithubUsername(null);
   }
 
-  async function saveSettings(next: UserSettings) {
+  async function saveSettings(next: UserSettings): Promise<{ success: boolean; error?: string }> {
     if (!userId) {
-      console.warn("[settings] Cannot save long-term settings without an authenticated user.");
-      return;
+      const error = "Sign in is required before saving long-term memory.";
+      console.warn("[settings]", error);
+      return { success: false, error };
     }
 
-    const { error } = await supabase.from("user_settings").upsert(
-      { user_id: userId, ...next, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
+    const values = { ...next, updated_at: new Date().toISOString() };
 
-    if (error) {
-      console.error("[settings] Could not save user settings:", error.message);
-      return;
+    // First update the user's existing row. If this is the first saved memory,
+    // insert a new row instead. This does not depend on a user_id unique-index
+    // conflict target and works with the user_id table already in production.
+    const { data: updated, error: updateError } = await supabase
+      .from("user_settings")
+      .update(values)
+      .eq("user_id", userId)
+      .select("user_id")
+      .maybeSingle();
+
+    if (updateError) {
+      console.error("[settings] Could not update user settings:", updateError.message);
+      return { success: false, error: updateError.message };
+    }
+
+    if (!updated) {
+      const { error: insertError } = await supabase
+        .from("user_settings")
+        .insert({ user_id: userId, ...values });
+
+      if (insertError) {
+        console.error("[settings] Could not create user settings:", insertError.message);
+        return { success: false, error: insertError.message };
+      }
     }
 
     setSettings(next);
     onSettingsChange?.(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+    return { success: true };
   }
 
   
@@ -163,8 +184,13 @@ export function SettingsPanel({
 
   async function handleSaveMemory() {
     setMemorySaving(true);
-    await saveSettings({ ...settings, memory_content: memoryDraft });
-    setMemorySaving(false);
+    setMemorySaveState("idle");
+    try {
+      const result = await saveSettings({ ...settings, memory_content: memoryDraft });
+      setMemorySaveState(result.success ? "saved" : "error");
+    } finally {
+      setMemorySaving(false);
+    }
   }
 
   function handleClearHistory() {
@@ -254,7 +280,10 @@ export function SettingsPanel({
               </p>
               <textarea
                 value={memoryDraft}
-                onChange={(e) => setMemoryDraft(e.target.value)}
+                onChange={(e) => {
+                  setMemoryDraft(e.target.value);
+                  setMemorySaveState("idle");
+                }}
                 placeholder="e.g. My name is Hasith, I'm a developer from Sri Lanka…"
                 rows={3}
                 className="mt-2 w-full resize-none rounded-lg border border-edge bg-void px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-cyan/50"
@@ -265,7 +294,13 @@ export function SettingsPanel({
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-cyan py-2 text-sm font-semibold text-white transition hover:bg-cyan-dim disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Save className="h-4 w-4" />
-                {memorySaving ? "Saving…" : memoryDirty ? "Save memory" : "Saved"}
+                {memorySaving
+                  ? "Saving…"
+                  : memorySaveState === "error"
+                  ? "Save failed — retry"
+                  : memorySaveState === "saved" || !memoryDirty
+                  ? "Saved"
+                  : "Save memory"}
               </button>
             </section>
 
