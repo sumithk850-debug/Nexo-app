@@ -11,9 +11,10 @@ import {
 } from "@/lib/rateLimits.server";
 
 export const runtime = "nodejs";
-// Preserve enough execution time for one bounded primary attempt plus a fast
-// fallback response; the request loop itself stays deliberately much shorter.
-export const maxDuration = 60;
+// Long AI generations and repository tasks can legitimately take several
+// minutes. Keep this aligned with Vercel's function setting below so an active
+// stream is not terminated midway through a response.
+export const maxDuration = 300;
 
 interface IncomingMessage {
   role: "user" | "assistant";
@@ -454,14 +455,12 @@ export async function POST(req: NextRequest) {
             "X-Title": "NEXO AI",
           };
 
-    // A free provider can be briefly queued or exhausted. Bound every request
-    // and then try the profile's next free route rather than leaving the user in
-    // an endless thinking state.
-    // Prefer a known-good fallback instead of spending the whole function
-    // budget retrying a queued free route. This keeps every profile responsive
-    // even when its preferred upstream is temporarily unavailable.
+    // A free provider can be briefly queued or exhausted. Use a deliberately
+    // long bounded wait so slow but active model generations are not cut off.
+    // A real provider failure still advances to the next configured fallback.
     const MAX_RETRIES_PER_MODEL = 0;
-    const UPSTREAM_REQUEST_TIMEOUT_MS = 60_000;
+    const UPSTREAM_REQUEST_TIMEOUT_MS = 240_000;
+    const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 240_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
     let activeProviderIsGemini = isGemini;
@@ -618,15 +617,24 @@ export async function POST(req: NextRequest) {
 
         try {
           while (true) {
-            const { done, value } = await Promise.race([
-              reader.read(),
-              new Promise<never>((_, reject) =>
-                setTimeout(
+            const { done, value } = await new Promise<ReadableStreamReadResult<Uint8Array>>(
+              (resolve, reject) => {
+                const idleTimer = setTimeout(
                   () => reject(new Error("UPSTREAM_STREAM_IDLE_TIMEOUT")),
-                  45_000
-                )
-              ),
-            ]);
+                  UPSTREAM_STREAM_IDLE_TIMEOUT_MS
+                );
+                reader.read().then(
+                  (result) => {
+                    clearTimeout(idleTimer);
+                    resolve(result);
+                  },
+                  (error) => {
+                    clearTimeout(idleTimer);
+                    reject(error);
+                  }
+                );
+              }
+            );
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
 
