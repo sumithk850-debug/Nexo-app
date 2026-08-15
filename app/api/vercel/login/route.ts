@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   // Pass the NEXO user id through as OAuth "state" so the callback knows
   // which account to attach this Vercel connection to.
   authUrl.searchParams.set("state", userId);
+  // Vercel filters out scopes that are not enabled on the app's Permissions
+  // page; explicitly request the standard set so the refresh token is issued.
+  authUrl.searchParams.set("scope", "openid email profile offline_access");
+  authUrl.searchParams.set("response_type", "code");
 
   return NextResponse.redirect(authUrl.toString());
 }
