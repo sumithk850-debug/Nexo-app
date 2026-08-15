@@ -23,8 +23,8 @@ interface IntegrationStatus {
     canWrite: boolean;
     selectedRepo: string | null;
   };
-  vercel: { connected: boolean };
-  supabase: { connected: boolean };
+  vercel: { connected: boolean; username: string | null };
+  supabase: { connected: boolean; username: string | null };
 }
 
 interface IntegrationsPanelProps {
@@ -37,9 +37,38 @@ interface IntegrationsPanelProps {
 
 const INITIAL_STATUS: IntegrationStatus = {
   github: { connected: false, username: null, canWrite: false, selectedRepo: null },
-  vercel: { connected: false },
-  supabase: { connected: false },
+  vercel: { connected: false, username: null },
+  supabase: { connected: false, username: null },
 };
+
+interface VercelProject {
+  id: string;
+  name: string;
+  framework: string | null;
+  productionUrl: string | null;
+}
+
+interface VercelDeployment {
+  id: string;
+  url: string;
+  readyState: string;
+  createdAt: number | string;
+  meta: { gitCommitMessage: string | null } | null;
+  isProduction: boolean;
+  projectId: string;
+  ready: boolean | null;
+}
+
+interface ApprovalState {
+  kind: "vercel-promote" | "supabase-sql";
+  projectId: string;
+  projectName: string;
+  deploymentId?: string;
+  deploymentUrl?: string;
+  sql?: string;
+  busy: boolean;
+  error: string | null;
+}
 
 function StatusBadge({ connected, enabled }: { connected: boolean; enabled?: boolean }) {
   const isOn = connected && enabled !== false;
@@ -95,11 +124,33 @@ export function IntegrationsPanel({
   const [status, setStatus] = useState<IntegrationStatus>(INITIAL_STATUS);
   const [loading, setLoading] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
+  const [vercelDisconnectConfirm, setVercelDisconnectConfirm] = useState(false);
+  const [supabaseDisconnectConfirm, setSupabaseDisconnectConfirm] = useState(false);
   const [personalTokenMode, setPersonalTokenMode] = useState(false);
   const [personalToken, setPersonalToken] = useState("");
   const [secretDetected, setSecretDetected] = useState(false);
   const [patSaving, setPatSaving] = useState(false);
   const [patError, setPatError] = useState<string | null>(null);
+
+  // Vercel live data
+  const [vercelProjects, setVercelProjects] = useState<VercelProject[]>([]);
+  const [vercelDeployments, setVercelDeployments] = useState<Record<string, VercelDeployment[]>>({});
+  const [vercelDataLoading, setVercelDataLoading] = useState(false);
+  const [vercelDataError, setVercelDataError] = useState<string | null>(null);
+  const [vercelExpanded, setVercelExpanded] = useState(false);
+
+  // Supabase live data
+  const [supabaseProjectId, setSupabaseProjectId] = useState<string | null>(null);
+  const [supabaseTables, setSupabaseTables] = useState<unknown[]>([]);
+  const [supabaseColumns, setSupabaseColumns] = useState<unknown[]>([]);
+  const [supabaseDataLoading, setSupabaseDataLoading] = useState(false);
+  const [supabaseDataError, setSupabaseDataError] = useState<string | null>(null);
+  const [supabaseExpanded, setSupabaseExpanded] = useState(false);
+  const [supabaseSql, setSupabaseSql] = useState("");
+  const [supabaseSqlResult, setSupabaseSqlResult] = useState<string | null>(null);
+
+  // Approval card state
+  const [approval, setApproval] = useState<ApprovalState | null>(null);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -118,9 +169,170 @@ export function IntegrationsPanel({
     if (open) void loadStatus();
   }, [open, loadStatus]);
 
+  // Refresh Vercel viewer data whenever the connection state changes.
+  useEffect(() => {
+    if (open && status.vercel.connected) void loadVercelData();
+  }, [open, status.vercel.connected]);
+
   function connectGithub() {
     if (!userId) return;
     window.location.href = `/api/github/login?userId=${encodeURIComponent(userId)}`;
+  }
+
+  // ---- Vercel ----
+
+  function connectVercel() {
+    if (!userId) return;
+    window.location.href = `/api/vercel/login?userId=${encodeURIComponent(userId)}`;
+  }
+
+  async function disconnectVercel() {
+    if (!userId) return;
+    await fetch(`/api/vercel/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    setVercelExpanded(false);
+    setVercelProjects([]);
+    setVercelDeployments({});
+    setVercelDisconnectConfirm(false);
+    await loadStatus();
+  }
+
+  async function loadVercelData() {
+    if (!userId) return;
+    setVercelDataLoading(true);
+    setVercelDataError(null);
+    try {
+      const response = await fetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setVercelDataError(data.error ?? "Could not load Vercel data.");
+        return;
+      }
+      setVercelProjects(data.projects ?? []);
+      setVercelDeployments(data.deployments ?? {});
+    } catch {
+      setVercelDataError("Could not load Vercel data.");
+    } finally {
+      setVercelDataLoading(false);
+    }
+  }
+
+  function confirmVercelPromote(projectName: string, projectId: string, deploymentId: string, deploymentUrl?: string) {
+    setApproval({
+      kind: "vercel-promote",
+      projectId,
+      projectName,
+      deploymentId,
+      deploymentUrl,
+      busy: false,
+      error: null,
+    });
+  }
+
+  async function executeApproval() {
+    if (!approval || !userId) return;
+    setApproval({ ...approval, busy: true, error: null });
+    try {
+      if (approval.kind === "vercel-promote" && approval.deploymentId) {
+        const response = await fetch(`/api/vercel/action?userId=${encodeURIComponent(userId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "promote",
+            payload: { projectId: approval.projectId, deploymentId: approval.deploymentId },
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setApproval((current) => (current ? { ...current, busy: false, error: data.error ?? "Action failed." } : current));
+          return;
+        }
+      } else if (approval.kind === "supabase-sql" && approval.sql) {
+        const response = await fetch(`/api/supabase/action?userId=${encodeURIComponent(userId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sql",
+            payload: { projectId: approval.projectId, sql: approval.sql },
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setApproval((current) => (current ? { ...current, busy: false, error: data.error ?? "SQL execution failed." } : current));
+          return;
+        }
+        setSupabaseSqlResult(JSON.stringify(data.result ?? data, null, 2).slice(0, 4000));
+      }
+      setApproval(null);
+      await loadStatus();
+    } catch {
+      setApproval((current) => (current ? { ...current, busy: false, error: "Something went wrong. Please try again." } : current));
+    }
+  }
+
+  // ---- Supabase ----
+
+  async function disconnectSupabase() {
+    if (!userId) return;
+    await fetch(`/api/supabase/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    setSupabaseExpanded(false);
+    setSupabaseTables([]);
+    setSupabaseColumns([]);
+    setSupabaseSqlResult(null);
+    setSupabaseDisconnectConfirm(false);
+    await loadStatus();
+  }
+
+  async function loadSupabaseSchema(projectId: string) {
+    if (!userId) return;
+    setSupabaseDataLoading(true);
+    setSupabaseDataError(null);
+    setSupabaseSqlResult(null);
+    try {
+      const response = await fetch(
+        `/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(projectId)}`,
+        { cache: "no-store" }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setSupabaseDataError(data.error ?? "Could not load schema.");
+        return;
+      }
+      setSupabaseProjectId(projectId);
+      setSupabaseTables(data.tables ?? []);
+      setSupabaseColumns([]);
+    } catch {
+      setSupabaseDataError("Could not load schema.");
+    } finally {
+      setSupabaseDataLoading(false);
+    }
+  }
+
+  async function loadTableColumns(projectId: string, tableName: string) {
+    if (!userId) return;
+    setSupabaseDataLoading(true);
+    setSupabaseDataError(null);
+    try {
+      const response = await fetch(
+        `/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(projectId)}&table=${encodeURIComponent(tableName)}`,
+        { cache: "no-store" }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setSupabaseDataError(data.error ?? "Could not load columns.");
+        return;
+      }
+      setSupabaseColumns(data.columns ?? []);
+    } catch {
+      setSupabaseDataError("Could not load columns.");
+    } finally {
+      setSupabaseDataLoading(false);
+    }
+  }
+
+  function confirmSupabaseSql(projectId: string, projectName: string, sql: string) {
+    setApproval({ kind: "supabase-sql", projectId, projectName, sql, busy: false, error: null });
   }
 
   async function disconnectGithub() {
@@ -299,17 +511,147 @@ export function IntegrationsPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-sm font-semibold text-ink">Vercel</h3>
-                  <ComingSoonBadge />
+                  <StatusBadge connected={status.vercel.connected} />
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  Deployment status, build output, and runtime logs will be available in a future update.
+                  Deployments, build output, and project status from your Vercel account. Promotion to production requires approval.
                 </p>
+                {status.vercel.connected && (
+                  <p className="mt-2 truncate font-mono text-[11px] text-ink-faint" title={status.vercel.username ?? undefined}>
+                    {status.vercel.username}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-edge bg-panel/60 px-3 py-2 text-[11px] text-ink-faint">
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
-              Vercel integration is coming soon
-            </div>
+
+            {status.vercel.connected ? (
+              <>
+                <div className="mt-3 flex items-center justify-between border-t border-edge pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setVercelExpanded((expanded) => !expanded)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-ink transition hover:text-cyan"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    {vercelExpanded ? "Hide deployments" : "View projects & deployments"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void loadVercelData()}
+                    disabled={vercelDataLoading}
+                    className="rounded-md px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel hover:text-ink disabled:opacity-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {vercelExpanded && (
+                  <div className="mt-3 space-y-3">
+                    {vercelDataLoading && (
+                      <div className="flex items-center justify-center gap-2 py-3 text-xs text-ink-muted">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading Vercel…
+                      </div>
+                    )}
+                    {vercelDataError && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+                        {vercelDataError}
+                        <button
+                          type="button"
+                          onClick={() => void loadVercelData()}
+                          className="ml-2 font-semibold text-red-200 hover:underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
+                    {!vercelDataLoading && !vercelDataError && vercelProjects.length === 0 && (
+                      <p className="rounded-lg border border-edge px-3 py-2 text-[11px] text-ink-faint">
+                        No projects found on this Vercel account.
+                      </p>
+                    )}
+                    {vercelProjects.map((project) => {
+                      const deployments = vercelDeployments[project.id] ?? [];
+                      return (
+                        <section key={project.id} className="rounded-xl border border-edge bg-panel/60 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="truncate text-xs font-semibold text-ink" title={project.productionUrl ?? project.name}>
+                              {project.name}
+                            </h4>
+                            {project.productionUrl ? (
+                              <a
+                                href={project.productionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-[11px] font-medium text-cyan hover:underline"
+                              >
+                                Live ↗
+                              </a>
+                            ) : null}
+                          </div>
+                          {project.framework && (
+                            <p className="mt-0.5 text-[11px] text-ink-faint">{project.framework}</p>
+                          )}
+                          <div className="mt-2 space-y-1.5">
+                            {deployments.slice(0, 6).map((deployment) => {
+                              const commitMessage = deployment.meta?.gitCommitMessage;
+                              return (
+                                <div
+                                  key={deployment.id}
+                                  className="flex flex-wrap items-center justify-between gap-1.5 rounded-lg border border-edge/70 bg-void/40 px-2.5 py-1.5"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[11px] font-medium text-ink-faint" title={commitMessage ?? deployment.url}>
+                                      {commitMessage ?? deployment.url}
+                                    </p>
+                                    <p className="mt-0.5 font-mono text-[10px] text-ink-faint/70">
+                                      {deployment.readyState}{deployment.isProduction ? " · production" : ""}
+                                    </p>
+                                  </div>
+                                  {!deployment.isProduction && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        confirmVercelPromote(project.name, project.id, deployment.id, deployment.url)
+                                      }
+                                      className="shrink-0 rounded-md border border-cyan/40 px-2 py-1 text-[10px] font-semibold text-cyan transition hover:bg-cyan/10"
+                                    >
+                                      Promote
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {deployments.length === 0 && (
+                              <p className="text-[11px] text-ink-faint">No deployments yet.</p>
+                            )}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {vercelDisconnectConfirm ? (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                    <p className="text-xs text-red-300">Disconnect Vercel? Read access and deployment actions will stop until you connect again.</p>
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button onClick={() => setVercelDisconnectConfirm(false)} className="rounded-md px-2 py-1 text-xs text-ink-muted hover:bg-panel">Cancel</button>
+                      <button onClick={() => void disconnectVercel()} className="rounded-md bg-red-500 px-2 py-1 text-xs font-semibold text-white">Disconnect</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setVercelDisconnectConfirm(true)} className="mt-3 text-xs font-medium text-red-400 hover:underline">Disconnect Vercel</button>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={connectVercel}
+                disabled={!userId}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-cyan/10 py-2 text-xs font-semibold text-cyan transition hover:bg-cyan/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <LogIn className="h-3.5 w-3.5" /> Connect Vercel account
+              </button>
+            )}
           </article>
 
           <article className="rounded-2xl border border-edge bg-void/40 p-4">
@@ -320,18 +662,218 @@ export function IntegrationsPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-sm font-semibold text-ink">Supabase</h3>
-                  <ComingSoonBadge />
+                  <StatusBadge connected={status.supabase.connected} />
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  Database schema, table inspection, and project actions will be available in a future update.
+                  Browse your project schema and tables. Every SQL statement requires your explicit approval before running.
                 </p>
+                {status.supabase.connected && (
+                  <p className="mt-2 truncate font-mono text-[11px] text-ink-faint" title={status.supabase.username ?? undefined}>
+                    {status.supabase.username}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-edge bg-panel/60 px-3 py-2 text-[11px] text-ink-faint">
-              <Link2 className="h-3.5 w-3.5 text-amber-300" />
-              Supabase integration is coming soon
-            </div>
+
+            {status.supabase.connected ? (
+              <>
+                <div className="mt-3 flex items-center justify-between border-t border-edge pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setSupabaseExpanded((expanded) => !expanded)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-ink transition hover:text-emerald-400"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    {supabaseExpanded ? "Hide database" : "View schema & SQL console"}
+                  </button>
+                </div>
+
+                {supabaseExpanded && (
+                  <div className="mt-3 space-y-3">
+                    {supabaseDataLoading && (
+                      <div className="flex items-center justify-center gap-2 py-3 text-xs text-ink-muted">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading schema…
+                      </div>
+                    )}
+                    {supabaseDataError && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+                        {supabaseDataError}
+                        <button
+                          type="button"
+                          onClick={() => supabaseProjectId ? void loadSupabaseSchema(supabaseProjectId) : undefined}
+                          className="ml-2 font-semibold text-red-200 hover:underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
+                    {supabaseSqlResult && (
+                      <pre className="max-h-40 overflow-auto rounded-lg border border-edge bg-void p-2.5 text-[10px] leading-relaxed text-ink-faint">
+                        {supabaseSqlResult}
+                      </pre>
+                    )}
+                    {!supabaseDataLoading && !supabaseDataError && supabaseTables.length > 0 && (
+                      <section className="rounded-xl border border-edge bg-panel/60 p-3">
+                        <h4 className="text-xs font-semibold text-ink">Tables</h4>
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                          {(supabaseTables as Array<{ name: string; table_schema?: string }>).map((table) => (
+                            <button
+                              key={`${table.table_schema ?? "public"}.${table.name}`}
+                              type="button"
+                              onClick={() => void loadTableColumns("apvqebqigqirmvemhnmz", table.name)}
+                              className="truncate rounded-lg border border-edge/70 bg-void/40 px-2.5 py-1.5 text-left text-[11px] font-medium text-ink-faint transition hover:border-emerald-500/40 hover:text-ink"
+                              title={`${table.table_schema ?? "public"}.${table.name}`}
+                            >
+                              {table.name}
+                            </button>
+                          ))}
+                        </div>
+                        {supabaseColumns.length > 0 && (
+                          <div className="mt-2.5 overflow-hidden rounded-lg border border-edge bg-void/40">
+                            <table className="w-full text-left text-[11px]">
+                              <thead className="bg-panel/80 text-ink-muted">
+                                <tr>
+                                  <th className="px-2 py-1.5 font-medium">Column</th>
+                                  <th className="px-2 py-1.5 font-medium">Type</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(supabaseColumns as Array<{ name: string; data_type?: string }>).map((column) => (
+                                  <tr key={column.name} className="border-t border-edge/70 text-ink-faint">
+                                    <td className="px-2 py-1.5">{column.name}</td>
+                                    <td className="px-2 py-1.5 font-mono text-[10px]">{column.data_type ?? ""}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </section>
+                    )}
+                    <section className="rounded-xl border border-edge bg-panel/60 p-3">
+                      <h4 className="text-xs font-semibold text-ink">SQL Console</h4>
+                      <textarea
+                        value={supabaseSql}
+                        onChange={(event) => setSupabaseSql(event.target.value)}
+                        rows={4}
+                        spellCheck={false}
+                        placeholder={"SELECT * FROM announcements LIMIT 5;"}
+                        className="mt-2 w-full rounded-lg border border-edge bg-void/60 px-2.5 py-2 font-mono text-[11px] text-ink outline-none transition focus:border-emerald-500/40"
+                      />
+                      <p className="mt-1 text-[10px] text-ink-faint">
+                        Only read-only queries are recommended. Destructive schema operations are blocked.
+                      </p>
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          disabled={!supabaseSql.trim()}
+                          onClick={() => void confirmSupabaseSql("apvqebqigqirmvemhnmz", "nexo-app", supabaseSql)}
+                          className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Run SQL
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {supabaseDisconnectConfirm ? (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                    <p className="text-xs text-red-300">Disconnect Supabase? Schema access and SQL actions will stop until you connect again.</p>
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button onClick={() => setSupabaseDisconnectConfirm(false)} className="rounded-md px-2 py-1 text-xs text-ink-muted hover:bg-panel">Cancel</button>
+                      <button onClick={() => void disconnectSupabase()} className="rounded-md bg-red-500 px-2 py-1 text-xs font-semibold text-white">Disconnect</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setSupabaseDisconnectConfirm(true)} className="mt-3 text-xs font-medium text-red-400 hover:underline">Disconnect Supabase</button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
+                  Connect with a Supabase management token so Nexo can inspect your project on your behalf. Your token is encrypted server-side and never shared.
+                </p>
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-ink-faint">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                  All SQL runs only after you approve it on an approval card
+                </div>
+                <a
+                  href="https://supabase.com/dashboard/account/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 hover:underline"
+                >
+                  Create a token on Supabase ↗
+                </a>
+              </>
+            )}
           </article>
+
+          {/* Approval card overlay */}
+          {approval && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl border border-edge bg-panel p-5 shadow-2xl">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-display text-sm font-semibold text-ink">
+                      {approval.kind === "vercel-promote" ? "Confirm deployment promotion" : "Confirm SQL execution"}
+                    </h4>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                      {approval.kind === "vercel-promote"
+                        ? `This will promote a deployment of "${approval.projectName}" to production. Anyone visiting the production URL will see the change immediately.`
+                        : `This will execute the following statement against the "${approval.projectName}" project:`}
+                    </p>
+                    {approval.kind === "supabase-sql" && approval.sql && (
+                      <pre className="mt-2 max-h-36 overflow-auto rounded-lg border border-edge bg-void p-2.5 font-mono text-[11px] leading-relaxed text-ink-faint">
+                        {approval.sql}
+                      </pre>
+                    )}
+                    {approval.kind === "vercel-promote" && approval.deploymentUrl && (
+                      <a
+                        href={approval.deploymentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block font-mono text-[11px] text-cyan hover:underline"
+                      >
+                        {approval.deploymentUrl}
+                      </a>
+                    )}
+                    {approval.error && (
+                      <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300">{approval.error}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    onClick={() => setApproval(null)}
+                    disabled={approval.busy}
+                    className="rounded-md px-3 py-1.5 text-xs text-ink-muted transition hover:bg-panel disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void executeApproval()}
+                    disabled={approval.busy}
+                    className="flex items-center gap-1.5 rounded-md bg-cyan px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-cyan/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {approval.busy ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing…
+                      </>
+                    ) : approval.kind === "vercel-promote" ? (
+                      "Approve & promote"
+                    ) : (
+                      "Approve & run"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {loading && <div className="flex items-center justify-center gap-2 py-2 text-xs text-ink-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking connections…</div>}
         </div>
