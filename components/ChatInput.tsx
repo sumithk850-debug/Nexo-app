@@ -30,6 +30,8 @@ export function ChatInput({
   attachedFile,
   onRemoveAttach,
   isStreaming,
+  onStop,
+  streamElapsedSeconds = 0,
   onSecretDetected,
 }: {
   value: string;
@@ -44,6 +46,8 @@ export function ChatInput({
   attachedFile?: File | null;
   onRemoveAttach?: () => void;
   isStreaming?: boolean;
+  onStop?: () => void;
+  streamElapsedSeconds?: number;
   onSecretDetected?: (secret: string) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -327,12 +331,17 @@ export function ChatInput({
             </div>
 
             <button
-              onClick={handleSendClick}
-              disabled={disabled || (!value.trim() && !attachedFile) || isStreaming}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-cyan text-void transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-30 hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] hover:scale-105 active:scale-95"
-              aria-label="Send message"
+              onClick={isStreaming ? onStop : handleSendClick}
+              disabled={isStreaming ? !onStop : disabled || (!value.trim() && !attachedFile)}
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-30 hover:scale-105 active:scale-95 ${
+                isStreaming
+                  ? "bg-rose-500 text-white hover:bg-rose-400 hover:shadow-[0_0_15px_rgba(244,63,94,0.35)]"
+                  : "bg-cyan text-void hover:shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+              }`}
+              aria-label={isStreaming ? `Stop generating after ${streamElapsedSeconds} seconds` : "Send message"}
+              title={isStreaming ? "Stop generating" : "Send message"}
             >
-              <ArrowUp className="h-4 w-4" strokeWidth={3} />
+              {isStreaming ? <Square className="h-3.5 w-3.5 fill-current" /> : <ArrowUp className="h-4 w-4" strokeWidth={3} />}
             </button>
           </div>
         </div>

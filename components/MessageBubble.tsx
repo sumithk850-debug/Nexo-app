@@ -31,7 +31,7 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2 } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 
 /**
@@ -103,6 +103,8 @@ export function MessageBubble({
   message,
   onEdit,
   onRegenerate,
+  onRetry,
+  onContinue,
   isLast,
   coderMode = false,
   repoFullName,
@@ -113,6 +115,8 @@ export function MessageBubble({
   message: ChatMessage;
   onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: () => void;
+  onRetry?: (messageId: string) => void;
+  onContinue?: (messageId: string) => void;
   isLast?: boolean;
   coderMode?: boolean;
   repoFullName?: string | null;
@@ -372,6 +376,25 @@ export function MessageBubble({
             >
               <ThumbsDown className="h-3.5 w-3.5" />
             </button>
+          </div>
+        )}
+
+        {isLast && message.generationState && !isStreaming && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${message.generationState === "stopped" ? "border-amber-400/30 bg-amber-400/10 text-amber-300" : "border-rose-400/30 bg-rose-400/10 text-rose-300"}`}>
+              <Square className="h-2.5 w-2.5 fill-current" />
+              {message.generationState === "stopped" ? "Stopped" : "Connection interrupted"}
+            </span>
+            {onRetry && (
+              <button onClick={() => onRetry(message.id)} className="inline-flex items-center gap-1 rounded-full border border-edge bg-panel px-2 py-1 text-[10px] font-bold text-ink-muted transition hover:border-cyan/40 hover:text-cyan" aria-label="Retry response">
+                <RotateCw className="h-3 w-3" /> Retry
+              </button>
+            )}
+            {message.generationState === "stopped" && onContinue && (
+              <button onClick={() => onContinue(message.id)} className="inline-flex items-center gap-1 rounded-full border border-edge bg-panel px-2 py-1 text-[10px] font-bold text-ink-muted transition hover:border-cyan/40 hover:text-cyan" aria-label="Continue response">
+                <Play className="h-3 w-3 fill-current" /> Continue
+              </button>
+            )}
           </div>
         )}
 

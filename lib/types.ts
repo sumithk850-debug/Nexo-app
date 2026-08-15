@@ -15,4 +15,6 @@ export interface ChatMessage {
   modelId?: NexoModelId;
   /** True when this message was loaded from / saved to the database. */
   persisted?: boolean;
+  /** Local-only recovery state for a streamed assistant response. */
+  generationState?: "stopped" | "failed";
 }

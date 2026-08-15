@@ -59,6 +59,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamElapsedSeconds, setStreamElapsedSeconds] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCoderMode, setIsCoderMode] = useState(false);
   const [coderModel, setCoderModel] = useState<CoderModelId>(() => {
@@ -86,6 +87,10 @@ export default function ChatPage() {
   const typingSpeedRef = useRef<number>(0);
   const typingSpeedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevContentLengthRef = useRef<number>(0);
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const activeAssistantIdRef = useRef<string | null>(null);
+  const streamStartedAtRef = useRef<number | null>(null);
+  const streamingLockRef = useRef(false);
 
   useEffect(() => {
     if (isStreaming) {
@@ -105,6 +110,43 @@ export default function ChatPage() {
       if (typingSpeedTimerRef.current) clearInterval(typingSpeedTimerRef.current);
     };
   }, [isStreaming, messages]);
+
+  useEffect(() => {
+    if (!isStreaming || streamStartedAtRef.current === null) {
+      setStreamElapsedSeconds(0);
+      return;
+    }
+    const updateElapsed = () => {
+      const startedAt = streamStartedAtRef.current;
+      setStreamElapsedSeconds(startedAt ? Math.max(1, Math.floor((Date.now() - startedAt) / 1000)) : 0);
+    };
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 1000);
+    return () => clearInterval(timer);
+  }, [isStreaming]);
+
+  function startStreamingTurn(assistantId: string) {
+    const controller = new AbortController();
+    streamAbortControllerRef.current = controller;
+    activeAssistantIdRef.current = assistantId;
+    streamStartedAtRef.current = Date.now();
+    streamingLockRef.current = true;
+    setIsStreaming(true);
+    return controller;
+  }
+
+  function finishStreamingTurn(assistantId: string) {
+    if (activeAssistantIdRef.current !== assistantId) return;
+    streamAbortControllerRef.current = null;
+    activeAssistantIdRef.current = null;
+    streamStartedAtRef.current = null;
+    streamingLockRef.current = false;
+    setIsStreaming(false);
+  }
+
+  function handleStopGenerating() {
+    streamAbortControllerRef.current?.abort();
+  }
 
   // Task activity belongs to the current assistant turn only. This prevents a
   // completed read marker from becoming "Reading" again when a later turn starts.
@@ -515,7 +557,8 @@ export default function ChatPage() {
     conversationSoFar: ChatMessage[],
     assistantId: string,
     override?: { modelId: NexoModelId; isCoder: boolean },
-    uploadedImages?: { base64Image: string }[]
+    uploadedImages?: { base64Image: string }[],
+    providedController?: AbortController
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -525,6 +568,8 @@ export default function ChatPage() {
     const effectiveCoder = Boolean(
       (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
     );
+    const controller = providedController ?? streamAbortControllerRef.current ?? startStreamingTurn(assistantId);
+    let accumulated = "";
     try {
       // Forward the signed-in user's Supabase access token only to the same
       // first-party chat route. This allows the server-side settings read to
@@ -534,6 +579,7 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           modelId: effectiveModel,
           sessionId,
@@ -601,7 +647,7 @@ export default function ChatPage() {
         const friendlyMsg = errData?.message ?? "Something went wrong reaching NEXO. Please try again.";
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: friendlyMsg } : m
+            m.id === assistantId ? { ...m, content: friendlyMsg, generationState: "failed" } : m
           )
         );
         setIsStreaming(false);
@@ -612,7 +658,6 @@ export default function ChatPage() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -640,15 +685,22 @@ export default function ChatPage() {
         saveMessage(chatId, "assistant", accumulated, effectiveModel);
       }
     } catch {
+      if (controller.signal.aborted) {
+        setMessages((prev) => prev.map((m) => (
+          m.id === assistantId ? { ...m, generationState: "stopped" } : m
+        )));
+        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, effectiveModel);
+        return;
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: "Something went wrong reaching NEXO. Please try again." }
+            ? { ...m, content: accumulated || "Something went wrong reaching NEXO. Please try again.", generationState: "failed" }
             : m
         )
       );
     } finally {
-      setIsStreaming(false);
+      finishStreamingTurn(assistantId);
     }
   }
 
@@ -656,7 +708,7 @@ export default function ChatPage() {
     // Edit the user message to newContent, drop every message after it,
     // and re-stream the assistant reply — mirroring handleRegenerate but
     // starting from an arbitrary (editable) user message.
-    if (isStreaming) return;
+    if (isStreaming || streamingLockRef.current) return;
     const idx = messages.findIndex((m) => m.id === messageId);
     if (idx === -1 || messages[idx].role !== "user" || !newContent.trim()) return;
 
@@ -696,13 +748,12 @@ export default function ChatPage() {
         modelId: isCoderMode ? "craft-v3" : selectedModel,
       },
     ]);
-    setIsStreaming(true);
-
-    await streamResponse(chatId, conversationSoFar, assistantId);
+    const controller = startStreamingTurn(assistantId);
+    await streamResponse(chatId, conversationSoFar, assistantId, undefined, undefined, controller);
   }
 
   async function handleRegenerate() {
-    if (isStreaming || messages.length < 2) return;
+    if (isStreaming || streamingLockRef.current || messages.length < 2) return;
 
     const lastUserIndex = [...messages].reverse().findIndex((m) => m.role === "user");
     if (lastUserIndex === -1) return;
@@ -713,9 +764,45 @@ export default function ChatPage() {
 
     setPendingApproval(null);
     setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
-    setIsStreaming(true);
+    const controller = startStreamingTurn(assistantId);
+    await streamResponse(activeChatId, conversationSoFar, assistantId, undefined, undefined, controller);
+  }
 
-    await streamResponse(activeChatId, conversationSoFar, assistantId);
+  async function handleRetryResponse(messageId: string) {
+    if (isStreaming || streamingLockRef.current) return;
+    const interruptedIndex = messages.findIndex((message) => message.id === messageId && message.role === "assistant");
+    if (interruptedIndex <= 0) return;
+    let userIndex = -1;
+    for (let index = interruptedIndex - 1; index >= 0; index -= 1) {
+      if (messages[index].role === "user") {
+        userIndex = index;
+        break;
+      }
+    }
+    if (userIndex < 0) return;
+    const conversationSoFar = messages.slice(0, userIndex + 1);
+    const assistantId = crypto.randomUUID();
+    setPendingApproval(null);
+    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    const controller = startStreamingTurn(assistantId);
+    await streamResponse(activeChatId, conversationSoFar, assistantId, undefined, undefined, controller);
+  }
+
+  async function handleContinueResponse(messageId: string) {
+    if (isStreaming || streamingLockRef.current) return;
+    const interruptedIndex = messages.findIndex((message) => message.id === messageId && message.role === "assistant");
+    if (interruptedIndex < 0) return;
+    const conversationSoFar = messages.slice(0, interruptedIndex + 1);
+    const continuationPrompt: ChatMessage = {
+      id: `continue-${messageId}`,
+      role: "user",
+      content: "Continue exactly from where the previous response stopped. Do not repeat text that was already provided.",
+    };
+    const assistantId = crypto.randomUUID();
+    setPendingApproval(null);
+    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    const controller = startStreamingTurn(assistantId);
+    await streamResponse(activeChatId, [...conversationSoFar, continuationPrompt], assistantId, undefined, undefined, controller);
   }
 
   async function fileToBase64(file: File): Promise<string> {
@@ -729,7 +816,7 @@ export default function ChatPage() {
 
   async function handleSend() {
     const text = input.trim();
-    if ((!text && !attachedFile) || isStreaming) return;
+    if ((!text && !attachedFile) || isStreaming || streamingLockRef.current) return;
 
     const chatId = await ensureChat();
 
@@ -767,7 +854,7 @@ export default function ChatPage() {
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setInput("");
     setAttachedFile(null);
-    setIsStreaming(true);
+    const controller = startStreamingTurn(assistantId);
 
     if (chatId) {
       // Persist a compact filename marker for history without storing image
@@ -793,7 +880,7 @@ export default function ChatPage() {
       );
     }
 
-    await streamResponse(chatId, nextMessages, assistantId, undefined, uploadedImages);
+    await streamResponse(chatId, nextMessages, assistantId, undefined, uploadedImages, controller);
   }
 
   function handleNewChat() {
@@ -805,7 +892,7 @@ export default function ChatPage() {
   }
 
   async function handleSuggestionSelect(suggestion: string) {
-    if (isStreaming || !suggestion.trim()) return;
+    if (isStreaming || streamingLockRef.current || !suggestion.trim()) return;
     // Send the suggestion directly — same logic as handleSend but with the
     // suggestion text as the message content (no need to rely on input state).
     const chatId = await ensureChat();
@@ -819,7 +906,7 @@ export default function ChatPage() {
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setInput("");
     setAttachedFile(null);
-    setIsStreaming(true);
+    const controller = startStreamingTurn(assistantId);
 
     if (chatId) saveMessage(chatId, "user", text);
 
@@ -834,7 +921,7 @@ export default function ChatPage() {
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
     }
 
-    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined);
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller);
   }
 
   async function handleSelectChat(chatId: string) {
@@ -1039,6 +1126,8 @@ export default function ChatPage() {
                             onEdit={handleResend}
                             isStreaming={isLastAssistant && isStreaming}
                             onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                            onRetry={isLastAssistant && !isStreaming ? handleRetryResponse : undefined}
+                            onContinue={isLastAssistant && !isStreaming ? handleContinueResponse : undefined}
                             coderMode={githubIntegrationEnabled && (Boolean(selectedRepo) || m.modelId === "craft-v3")}
                             repoFullName={githubIntegrationEnabled ? selectedRepo : null}
                             sessionId={sessionId}
@@ -1074,6 +1163,13 @@ export default function ChatPage() {
               charsPerSecond={typingSpeedRef.current}
             />
 
+            {isStreaming && (
+              <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 pb-1 text-[10px] font-semibold text-ink-faint">
+                <span>Generating response</span>
+                <span>{streamElapsedSeconds}s</span>
+              </div>
+            )}
+
             {/* Typing Speed Pill — shown during streaming when no actions/searching */}
             {isStreaming && activityActions.length === 0 && !activitySearching && typingSpeedRef.current > 0 && (
               <TypingSpeedPill charsPerSecond={typingSpeedRef.current} />
@@ -1091,8 +1187,10 @@ export default function ChatPage() {
               onAttach={handleAttach}
               attachedFile={attachedFile}
         onRemoveAttach={() => setAttachedFile(null)}
-        isStreaming={isStreaming}
-        onSecretDetected={handleSecretDetected}
+              isStreaming={isStreaming}
+              onStop={handleStopGenerating}
+              streamElapsedSeconds={streamElapsedSeconds}
+              onSecretDetected={handleSecretDetected}
             />
           </div>
 
