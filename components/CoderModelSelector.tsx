@@ -135,8 +135,8 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
           </div>
           <div className="border-t border-edge/50 px-3.5 py-2.5 text-center">
             <p className="text-[10px] font-medium text-ink-muted">
-              Craft V3 & V4 අගුළු දමා ඇත — <span className="font-bold text-cyan">Pro</span>{" "}
-              උසස් කිරීමෙන් අගුළු අරින්න.
+              Craft V3 & V4 are locked — unlock them with a{" "}
+              <span className="font-bold text-cyan">Pro</span> upgrade.
             </p>
           </div>
         </div>
