@@ -78,6 +78,26 @@ function SearchingPill({ searching, streaming }: { searching: SearchingAction; s
   );
 }
 
+function GeneratingPill({ charsPerSecond, elapsedSeconds }: { charsPerSecond?: number; elapsedSeconds: number }) {
+  const speed = charsPerSecond ?? 0;
+  const tone = speed > 50 ? "text-green-400" : speed > 20 ? "text-cyan" : speed > 0 ? "text-amber-400" : "text-ink-muted";
+  return (
+    <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
+      <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
+        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-cyan/10">
+          <Loader2 className="h-3 w-3 animate-spin text-cyan" />
+        </div>
+        <span className="h-2 w-2 animate-ping rounded-full bg-cyan" />
+        <span className={`min-w-0 truncate font-semibold ${tone}`}>Generating response</span>
+        <span className="ml-auto flex items-center gap-2">
+          {speed > 0 && <TypingSpeedBadge charsPerSecond={speed} streaming />}
+          {elapsedSeconds > 0 && <span className="font-mono text-[10px] text-ink-faint">{elapsedSeconds}s</span>}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function pickPreview(action: FileAction): string | null {
   // First ~20 lines of whatever content we have: diff block or full content.
   if (action.diffRaw) {
@@ -108,7 +128,7 @@ export function LiveStatusBar({
   const activeTaskRef = useRef<string | null>(null);
 
   const latestAction = actions.length > 0 ? actions[actions.length - 1] : null;
-  const taskKey = latestAction ? `${latestAction.type}:${latestAction.filePath}` : searching ? `search:${searching.queries.join(",")}` : null;
+  const taskKey = latestAction ? `${latestAction.type}:${latestAction.filePath}` : searching ? `search:${searching.queries.join(",")}` : streaming ? "generating" : null;
 
   useEffect(() => {
     if (!streaming || !taskKey) {
@@ -131,7 +151,10 @@ export function LiveStatusBar({
   // should take the lead in the status bar when present.
   const showSearch = !!searching;
   const action = actions.length > 0 ? actions[actions.length - 1] : null;
-  if (!action && !showSearch) return null;
+  const showGenerating = streaming && !action && !showSearch;
+  if (!action && !showSearch && !showGenerating) return null;
+
+  if (showGenerating) return <GeneratingPill charsPerSecond={charsPerSecond} elapsedSeconds={elapsedSeconds} />;
 
   if (showSearch && searching) {
     return <SearchingPill searching={searching} streaming={streaming} />;

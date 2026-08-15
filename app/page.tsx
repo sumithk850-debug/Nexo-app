@@ -16,7 +16,6 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
-import { TypingSpeedPill } from "@/components/TypingSpeedIndicator";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import type { CoderModelId } from "@/lib/providers.server";
@@ -1162,18 +1161,6 @@ export default function ChatPage() {
               searching={activitySearching?.action ?? null}
               charsPerSecond={typingSpeedRef.current}
             />
-
-            {isStreaming && (
-              <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 pb-1 text-[10px] font-semibold text-ink-faint">
-                <span>Generating response</span>
-                <span>{streamElapsedSeconds}s</span>
-              </div>
-            )}
-
-            {/* Typing Speed Pill — shown during streaming when no actions/searching */}
-            {isStreaming && activityActions.length === 0 && !activitySearching && typingSpeedRef.current > 0 && (
-              <TypingSpeedPill charsPerSecond={typingSpeedRef.current} />
-            )}
 
             <ChatInput
               value={input}
