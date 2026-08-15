@@ -297,12 +297,16 @@ export async function POST(req: NextRequest) {
     // for display but must remain locked. The Lite variant routes through the
     // exact same free Craft V3 engine while carrying a deeper system prompt.
     const coderModel = body.coderModel as string | undefined;
+    // The Lite prompt is ONLY applied when the user explicitly picked the
+    // Lite variant inside Nexo Coder mode. When coderModel is unset or locked,
+    // the active chat model keeps its own identity (Nexio/Spadec/... or the
+    // regular Craft V3 persona in coder mode) — it must never silently
+    // masquerade as Craft V3 Lite for every coder-mode message.
+    const explicitlyUnlockedLite =
+      isCoderMode && coderModel === "craft-v3-lite";
     const activeCoderModel =
-      isCoderMode &&
-      coderModel &&
-      isCoderModelId(coderModel) &&
-      !CODER_MODELS.find((m) => m.id === coderModel)?.locked
-        ? coderModel
+      explicitlyUnlockedLite || (isCoderMode && coderModel && isCoderModelId(coderModel))
+        ? coderModel!
         : CODER_MODELS[0].id;
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const usesCoderBudget = Boolean(isCoderMode || modelId === "craft-v3");
@@ -345,10 +349,9 @@ export async function POST(req: NextRequest) {
     // Coder prompt override: Craft V3 Lite runs on the same free Craft engine
     // (modelId "craft-v3") but carries its own deeper system prompt.
     const baseConfig = PROVIDER_CONFIG[modelId];
-    const coderOverridePrompt =
-      activeCoderModel === "craft-v3-lite"
-        ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
-        : undefined;
+    const coderOverridePrompt = explicitlyUnlockedLite
+      ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
+      : undefined;
     const config = coderOverridePrompt
       ? { ...baseConfig, systemPrompt: coderOverridePrompt }
       : baseConfig;
