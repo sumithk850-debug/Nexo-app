@@ -18,6 +18,8 @@ import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { TypingSpeedPill } from "@/components/TypingSpeedIndicator";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
+import { CoderModelSelector } from "@/components/CoderModelSelector";
+import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
@@ -29,6 +31,10 @@ import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Databa
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
+
+// Coder sub-model persistence key — keeps the selected Coder engine (Lite) stable
+// across page reloads inside Nexo Coder Agent mode.
+const CODER_MODEL_STORAGE_KEY = "nexo.coderModel";
 
 interface PendingApproval {
   messageId: string;
@@ -55,6 +61,14 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCoderMode, setIsCoderMode] = useState(false);
+  const [coderModel, setCoderModel] = useState<CoderModelId>(() => {
+    if (typeof window === "undefined") return "craft-v3-lite";
+    const stored = window.localStorage.getItem(CODER_MODEL_STORAGE_KEY);
+    if (stored === "craft-v3-lite" || stored === "craft-v3" || stored === "craft-v4") {
+      return stored;
+    }
+    return "craft-v3-lite";
+  });
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
@@ -533,6 +547,9 @@ export default function ChatPage() {
           userName: user?.fullName,
           githubEnabled: githubIntegrationEnabled,
           isCoderMode: effectiveCoder,
+          // Coder sub-model selection: only honored server-side while in
+          // Nexo Coder mode; the Lite engine's deeper prompt is applied there.
+          coderModel: effectiveCoder ? coderModel : undefined,
           uploadedImages,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
@@ -927,6 +944,19 @@ export default function ChatPage() {
           >
             <BarChart3 className="h-4 w-4" />
           </button>
+          {isCoderMode && (
+            <CoderModelSelector
+              selected={coderModel}
+              onSelect={(id) => {
+                setCoderModel(id);
+                try {
+                  window.localStorage.setItem(CODER_MODEL_STORAGE_KEY, id);
+                } catch {
+                  // localStorage may be unavailable; keep the in-memory choice.
+                }
+              }}
+            />
+          )}
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-ink"

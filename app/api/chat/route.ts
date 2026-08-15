@@ -1,6 +1,11 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PROVIDER_CONFIG } from "@/lib/providers.server";
+import {
+  PROVIDER_CONFIG,
+  CODER_MODELS,
+  CODER_PROMPT_OVERRIDES,
+  isCoderModelId,
+} from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import type { NexoModelId } from "@/lib/models";
@@ -287,6 +292,18 @@ export async function POST(req: NextRequest) {
     const githubEnabled = body.githubEnabled !== false;
     const isCoderMode = body.isCoderMode as boolean | undefined;
     const activePersona = body.persona as string | undefined;
+    // Coder sub-model selector (Nexo Coder mode only): Craft V3 Lite / V3 / V4.
+    // Only craft-v3-lite is unlocked; the others share its engine client-side
+    // for display but must remain locked. The Lite variant routes through the
+    // exact same free Craft V3 engine while carrying a deeper system prompt.
+    const coderModel = body.coderModel as string | undefined;
+    const activeCoderModel =
+      isCoderMode &&
+      coderModel &&
+      isCoderModelId(coderModel) &&
+      !CODER_MODELS.find((m) => m.id === coderModel)?.locked
+        ? coderModel
+        : CODER_MODELS[0].id;
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const usesCoderBudget = Boolean(isCoderMode || modelId === "craft-v3");
     let coderRemainingTokens: number | undefined;
@@ -325,7 +342,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const config = PROVIDER_CONFIG[modelId];
+    // Coder prompt override: Craft V3 Lite runs on the same free Craft engine
+    // (modelId "craft-v3") but carries its own deeper system prompt.
+    const baseConfig = PROVIDER_CONFIG[modelId];
+    const coderOverridePrompt =
+      activeCoderModel === "craft-v3-lite"
+        ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
+        : undefined;
+    const config = coderOverridePrompt
+      ? { ...baseConfig, systemPrompt: coderOverridePrompt }
+      : baseConfig;
     if (!config) {
       return new Response(JSON.stringify({ error: "Unknown model" }), {
         status: 400,
