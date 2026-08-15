@@ -8,6 +8,7 @@ import {
 } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
+import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
 import type { NexoModelId } from "@/lib/models";
 import {
   checkCoderTokenAvailability,
@@ -422,6 +423,9 @@ export async function POST(req: NextRequest) {
       const githubContext = await buildGithubContext(userId, lastUserMessage.content);
       githubContextBlock = githubContext.contextBlock;
     }
+    const githubMemoryBlock = githubEnabled
+      ? await buildGithubMemoryContext(userId, lastUserMessage?.content)
+      : "";
 
     // Use the authenticated account identifier for persistent settings. A
     // browser-local session ID is intentionally used only for chat history and
@@ -486,6 +490,9 @@ export async function POST(req: NextRequest) {
       systemPrompt += `${githubContextBlock}\n${REPOSITORY_ACTION_PROTOCOL}`;
     } else if (!githubEnabled) {
       systemPrompt += "\n\nGITHUB INTEGRATION IS CURRENTLY TURNED OFF BY THE USER. Do not claim to read repositories, do not emit repository status markers, and do not propose commits or file changes until the user turns GitHub back on in Integrations.";
+    }
+    if (githubMemoryBlock) {
+      systemPrompt += githubMemoryBlock;
     }
 
     const isGemini = config.provider === "gemini";

@@ -11,3 +11,5 @@
 - [x] Convert PDF pages into bounded image previews for vision analysis.
 - [x] Add contextual assistant response read-aloud play/stop control.
 - [x] Build-test and push multiple attachment analysis and read-aloud features without changing existing UI behavior.
+- [x] Keep locked Craft V3/V4 cards and open an accessible Pro upgrade popup when either card is selected.
+- [x] Store user-approved conversation and project memory as GitHub version-controlled files and load relevant memory for future tasks without using a database.

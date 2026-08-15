@@ -351,6 +351,29 @@ export default function ChatPage() {
     }
   }
 
+  function saveGithubConversationMemory(
+    chatId: string | null,
+    transcript: Pick<ChatMessage, "role" | "content">[],
+    modelId?: string
+  ) {
+    if (!chatId || !user || !githubIntegrationEnabled || transcript.length === 0) return;
+    const title = chats.find((chat) => chat.id === chatId)?.title ?? "Nexo conversation";
+    void fetch("/api/github/memory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        chatId,
+        title,
+        modelId,
+        messages: transcript.map((message) => ({ role: message.role, content: message.content })),
+      }),
+    }).catch(() => {
+      // GitHub memory is a protected, best-effort mirror. Chat remains usable
+      // when the user has not selected a repository or GitHub is unreachable.
+    });
+  }
+
   function handleAttach(files: File[]) {
     setAttachedFiles((current) => [...current, ...files].slice(0, MAX_ATTACHMENTS_PER_MESSAGE));
   }
@@ -687,6 +710,11 @@ export default function ChatPage() {
 
       if (chatId && accumulated) {
         saveMessage(chatId, "assistant", accumulated, effectiveModel);
+        saveGithubConversationMemory(
+          chatId,
+          [...conversationSoFar, { role: "assistant", content: accumulated }],
+          effectiveModel
+        );
       }
     } catch {
       if (controller.signal.aborted) {
@@ -694,6 +722,13 @@ export default function ChatPage() {
           m.id === assistantId ? { ...m, generationState: "stopped" } : m
         )));
         if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, effectiveModel);
+        if (chatId && accumulated) {
+          saveGithubConversationMemory(
+            chatId,
+            [...conversationSoFar, { role: "assistant", content: accumulated }],
+            effectiveModel
+          );
+        }
         return;
       }
       setMessages((prev) =>

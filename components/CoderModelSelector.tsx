@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Lock, Cpu, Zap, Rocket, LockIcon } from "lucide-react";
+import { Lock, Cpu, Zap, Rocket, LockIcon, Check, Crown, X } from "lucide-react";
 import { CODER_MODELS, type CoderModelId } from "@/lib/providers.server";
 
 interface CoderModelSelectorProps {
@@ -14,6 +14,8 @@ interface CoderModelSelectorProps {
 // Craft V3 and Craft V4 are visually locked (paid tiers).
 export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [upgradeModel, setUpgradeModel] = useState<(typeof CODER_MODELS)[number] | null>(null);
+  const [upgradeInterestShown, setUpgradeInterestShown] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,8 +27,35 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
+  useEffect(() => {
+    if (!upgradeModel) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setUpgradeModel(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [upgradeModel]);
+
   const activeInfo = CODER_MODELS.find((m) => m.id === selected) ?? CODER_MODELS[0];
   const ActiveIcon = activeInfo.id === "craft-v3-lite" ? Zap : LockIcon;
+  const upgradeBenefits = upgradeModel?.id === "craft-v4"
+    ? [
+        "Next-generation architecture planning",
+        "Complex multi-file task orchestration",
+        "Extended project context for larger builds",
+        "Priority access for advanced coding runs",
+      ]
+    : [
+        "Deeper repository and code reasoning",
+        "Larger task and code context",
+        "Priority coding runs for demanding projects",
+        "Advanced change planning before edits",
+      ];
+
+  function closeUpgradePopup() {
+    setUpgradeModel(null);
+    setUpgradeInterestShown(false);
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -76,7 +105,12 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                   key={m.id}
                   type="button"
                   onClick={() => {
-                    if (m.locked) return;
+                    if (m.locked) {
+                      setOpen(false);
+                      setUpgradeInterestShown(false);
+                      setUpgradeModel(m);
+                      return;
+                    }
                     onSelect(m.id);
                     setOpen(false);
                   }}
@@ -139,6 +173,100 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
               <span className="font-bold text-cyan">Pro</span> upgrade.
             </p>
           </div>
+        </div>
+      )}
+
+      {upgradeModel && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/65 p-3 backdrop-blur-sm sm:items-center sm:p-5"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeUpgradePopup();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="nexo-pro-upgrade-title"
+            aria-describedby="nexo-pro-upgrade-description"
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-cyan/25 bg-[#101828] shadow-[0_24px_70px_rgba(0,0,0,0.65)] animate-fade-up"
+          >
+            <div className="flex items-start justify-between border-b border-edge/70 px-5 pb-4 pt-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/20 bg-amber-400/10">
+                  <Crown className="h-5 w-5 text-amber-300" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan">Unlock Nexo Pro</p>
+                  <h2 id="nexo-pro-upgrade-title" className="mt-0.5 text-base font-bold text-ink">
+                    Unlock {upgradeModel.name}
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeUpgradePopup}
+                className="rounded-lg p-1.5 text-ink-muted transition hover:bg-ink/5 hover:text-ink"
+                aria-label="Close upgrade popup"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-5">
+              <p id="nexo-pro-upgrade-description" className="text-sm leading-6 text-ink-muted">
+                {upgradeModel.id === "craft-v4"
+                  ? "A next-generation coding engine for planning and coordinating larger software builds."
+                  : "Elite coding intelligence for deeper repository work and demanding engineering tasks."}
+              </p>
+
+              <div className="rounded-xl border border-edge/80 bg-black/15 px-3.5 py-3">
+                <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-ink-muted">Included with Pro</p>
+                <ul className="space-y-2">
+                  {upgradeBenefits.map((benefit) => (
+                    <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-ink">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan" />
+                      <span>{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border border-edge/70 bg-panel/50 px-3.5 py-3 text-xs">
+                <div>
+                  <p className="font-semibold text-ink">Current engine</p>
+                  <p className="mt-0.5 text-ink-muted">Craft V3 Lite · Free</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-amber-300">Required plan</p>
+                  <p className="mt-0.5 text-ink-muted">Nexo Pro</p>
+                </div>
+              </div>
+
+              {upgradeInterestShown && (
+                <p className="rounded-lg border border-cyan/20 bg-cyan/10 px-3 py-2 text-center text-xs leading-5 text-cyan" role="status">
+                  Nexo Pro upgrades will be available here soon. Craft V3 Lite remains active for your current work.
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-edge/70 bg-black/10 px-5 py-4">
+              <button
+                type="button"
+                onClick={closeUpgradePopup}
+                className="flex-1 rounded-xl border border-edge bg-panel px-3 py-2.5 text-xs font-bold text-ink transition hover:border-cyan/35 hover:text-cyan"
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpgradeInterestShown(true)}
+                className="flex-1 rounded-xl bg-cyan px-3 py-2.5 text-xs font-black text-black transition hover:bg-cyan/90"
+              >
+                Explore Nexo Pro
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>
