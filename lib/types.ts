@@ -12,6 +12,8 @@ export interface ChatMessage {
   content: string;
   /** Present for a newly-sent image so the chat shows the actual preview. */
   imageAttachment?: ChatImageAttachment;
+  /** Browser-local previews for a multi-image upload or rendered PDF pages. */
+  imageAttachments?: ChatImageAttachment[];
   modelId?: NexoModelId;
   /** True when this message was loaded from / saved to the database. */
   persisted?: boolean;

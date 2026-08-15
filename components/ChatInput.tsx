@@ -27,7 +27,7 @@ export function ChatInput({
   onSelectModel,
   unlockedTiers,
   onAttach,
-  attachedFile,
+  attachedFiles = [],
   onRemoveAttach,
   isStreaming,
   onStop,
@@ -42,9 +42,9 @@ export function ChatInput({
   selectedModel: NexoModelId;
   onSelectModel: (id: NexoModelId) => void;
   unlockedTiers?: string[];
-  onAttach: (file: File) => void;
-  attachedFile?: File | null;
-  onRemoveAttach?: () => void;
+  onAttach: (files: File[]) => void;
+  attachedFiles?: File[];
+  onRemoveAttach?: (index: number) => void;
   isStreaming?: boolean;
   onStop?: () => void;
   streamElapsedSeconds?: number;
@@ -54,7 +54,7 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isListening, setIsListening] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [waveLevels, setWaveLevels] = useState<number[]>(
     Array(WAVE_BAR_COUNT).fill(WAVE_MIN_HEIGHT)
   );
@@ -176,14 +176,12 @@ export function ChatInput({
   }, []);
 
   useEffect(() => {
-    if (!attachedFile?.type.startsWith("image/")) {
-      setImagePreview(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(attachedFile);
-    setImagePreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [attachedFile]);
+    const objectUrls = attachedFiles
+      .filter((file) => file.type.startsWith("image/"))
+      .map((file) => URL.createObjectURL(file));
+    setImagePreviews(objectUrls);
+    return () => objectUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, [attachedFiles]);
 
   function interceptSecret(): boolean {
     const secret = extractGithubPersonalAccessToken(value);
@@ -196,7 +194,7 @@ export function ChatInput({
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if ((value.trim() || attachedFile) && !disabled && !interceptSecret()) onSend();
+      if ((value.trim() || attachedFiles.length > 0) && !disabled && !interceptSecret()) onSend();
     }
   }
 
@@ -214,8 +212,8 @@ export function ChatInput({
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) onAttach(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length > 0) onAttach(files);
     e.target.value = "";
   }
 
@@ -224,34 +222,24 @@ export function ChatInput({
       <div className="mx-auto max-w-3xl">
         <div className="relative rounded-2xl border border-edge bg-panel px-3 pb-2.5 pt-3 shadow-sm focus-within:border-cyan/50 transition-all duration-300">
           
-          {attachedFile && (
-            <div className="mb-2 flex items-center gap-2 rounded-lg bg-void/50 p-2 animate-fade-up">
-              {imagePreview ? (
-                <Image
-                  src={imagePreview}
-                  alt="Attached image preview"
-                  width={40}
-                  height={40}
-                  unoptimized
-                  className="h-10 w-10 rounded-md border border-cyan/30 object-cover"
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan/10 text-cyan">
-                  <Paperclip className="h-4 w-4" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-xs font-bold text-ink">{attachedFile.name}</p>
-                <p className="text-[10px] text-ink-faint uppercase">
-                  {imagePreview ? "Image ready for analysis" : `${(attachedFile.size / 1024).toFixed(1)} KB`}
-                </p>
-              </div>
-              <button 
-                onClick={onRemoveAttach}
-                className="p-1 text-ink-faint hover:text-red-500 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          {attachedFiles.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 overflow-x-auto rounded-lg bg-void/50 p-2 animate-fade-up custom-scrollbar">
+              {attachedFiles.map((file, index) => {
+                const imageIndex = attachedFiles.slice(0, index).filter((candidate) => candidate.type.startsWith("image/")).length;
+                const imagePreview = file.type.startsWith("image/") ? imagePreviews[imageIndex] : undefined;
+                return (
+                  <div key={`${file.name}-${index}`} className="relative flex min-w-[76px] max-w-[112px] flex-col gap-1 rounded-md border border-edge bg-panel/70 p-1.5">
+                    {imagePreview ? (
+                      <Image src={imagePreview} alt={`Attached image preview: ${file.name}`} width={84} height={56} unoptimized className="h-14 w-full rounded object-cover" />
+                    ) : (
+                      <div className="flex h-14 items-center justify-center rounded bg-cyan/10 text-cyan"><Paperclip className="h-4 w-4" /></div>
+                    )}
+                    <p className="truncate text-[10px] font-bold text-ink" title={file.name}>{file.name}</p>
+                    <p className="text-[9px] uppercase text-ink-faint">{file.type === "application/pdf" ? "PDF analysis" : "Image ready"}</p>
+                    <button onClick={() => onRemoveAttach?.(index)} className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-edge bg-panel text-ink-faint hover:text-red-400" aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -293,7 +281,8 @@ export function ChatInput({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.pdf,.txt,.md,.csv"
+                accept="image/*,application/pdf"
+                multiple
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -332,7 +321,7 @@ export function ChatInput({
 
             <button
               onClick={isStreaming ? onStop : handleSendClick}
-              disabled={isStreaming ? !onStop : disabled || (!value.trim() && !attachedFile)}
+              disabled={isStreaming ? !onStop : disabled || (!value.trim() && attachedFiles.length === 0)}
               className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-30 hover:scale-105 active:scale-95 ${
                 isStreaming
                   ? "bg-rose-500 text-white hover:bg-rose-400 hover:shadow-[0_0_15px_rgba(244,63,94,0.35)]"

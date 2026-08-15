@@ -7,3 +7,7 @@
 - [x] Prevent duplicate sends while a response is streaming.
 - [x] Build-test and push the streaming controls update without removing existing UI features.
 - [x] Merge streaming response elapsed/speed feedback into the existing Live Task bar and remove the duplicate separate line.
+- [x] Support selecting and previewing multiple images in one chat request.
+- [x] Convert PDF pages into bounded image previews for vision analysis.
+- [x] Add contextual assistant response read-aloud play/stop control.
+- [ ] Build-test and push multiple attachment analysis and read-aloud features without changing existing UI behavior.

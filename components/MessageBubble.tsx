@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
@@ -31,7 +31,7 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 
 /**
@@ -99,6 +99,15 @@ const markdownComponents = {
   },
 };
 
+function toSpeakableText(content: string) {
+  return content
+    .replace(/```[\s\S]*?```/g, " Code block omitted. ")
+    .replace(/!?(\[[^\]]*\])\([^)]*\)/g, "$1")
+    .replace(/[#>*_`~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function MessageBubble({
   message,
   onEdit,
@@ -126,10 +135,18 @@ export function MessageBubble({
 }) {
   const isUser = message.role === "user";
   const model = message.modelId ? getPublicModel(message.modelId) : undefined;
+  const attachments = message.imageAttachments ?? (message.imageAttachment ? [message.imageAttachment] : []);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   async function handleCopy() {
     try {
@@ -181,6 +198,24 @@ export function MessageBubble({
     onEdit?.(message.id, value);
   }
 
+  function handleReadAloud() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    const spokenText = toSpeakableText(message.content);
+    if (!spokenText) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.rate = 0.96;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }
+
   if (isUser) {
     if (editing) {
       return (
@@ -223,18 +258,15 @@ export function MessageBubble({
     return (
       <div className="group flex justify-end px-4 py-2">
         <div className="relative max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
-          {message.imageAttachment && (
-            <Image
-              src={message.imageAttachment.dataUrl}
-              alt="Image sent in this message"
-              width={320}
-              height={240}
-              unoptimized
-              className="max-h-56 w-auto max-w-full rounded-xl border border-white/20 object-contain shadow-sm"
-            />
+          {attachments.length > 0 && (
+            <div className={`grid gap-2 ${attachments.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {attachments.map((attachment, index) => (
+                <Image key={`${attachment.name}-${index}`} src={attachment.dataUrl} alt={`Attachment: ${attachment.name}`} width={320} height={240} unoptimized className="max-h-56 w-full rounded-xl border border-white/20 object-contain shadow-sm" />
+              ))}
+            </div>
           )}
           {message.content && (
-            <div className={`${message.imageAttachment ? "mt-2" : ""} whitespace-pre-wrap break-words`}>
+            <div className={`${attachments.length > 0 ? "mt-2" : ""} whitespace-pre-wrap break-words`}>
               {message.content}
             </div>
           )}
@@ -331,6 +363,14 @@ export function MessageBubble({
 
         {message.content && (
           <div className="mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+            <button
+              onClick={handleReadAloud}
+              className={`flex items-center gap-1 rounded-md p-1.5 transition hover:bg-panel ${isSpeaking ? "text-rose-400" : "text-ink-faint hover:text-ink"}`}
+              aria-label={isSpeaking ? "Stop reading response" : "Read response aloud"}
+              title={isSpeaking ? "Stop reading" : "Read aloud"}
+            >
+              {isSpeaking ? <Square className="h-3.5 w-3.5 fill-current" /> : <Volume2 className="h-3.5 w-3.5" />}
+            </button>
             <button
               onClick={handleCopy}
               className="flex items-center gap-1 rounded-md p-1.5 text-ink-faint transition hover:bg-panel hover:text-ink"

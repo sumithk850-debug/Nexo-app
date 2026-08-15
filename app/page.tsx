@@ -26,6 +26,7 @@ import type { ChatMessage } from "@/lib/types";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
+import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3 } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
@@ -56,7 +57,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [input, setInput] = useState("");
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamElapsedSeconds, setStreamElapsedSeconds] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -350,8 +351,12 @@ export default function ChatPage() {
     }
   }
 
-  function handleAttach(file: File) {
-    setAttachedFile(file);
+  function handleAttach(files: File[]) {
+    setAttachedFiles((current) => [...current, ...files].slice(0, MAX_ATTACHMENTS_PER_MESSAGE));
+  }
+
+  function handleRemoveAttachment(index: number) {
+    setAttachedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
   }
 
   async function handleAuthSuccess() {
@@ -804,68 +809,46 @@ export default function ChatPage() {
     await streamResponse(activeChatId, [...conversationSoFar, continuationPrompt], assistantId, undefined, undefined, controller);
   }
 
-  async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function handleSend() {
     const text = input.trim();
-    if ((!text && !attachedFile) || isStreaming || streamingLockRef.current) return;
+    if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current) return;
 
     const chatId = await ensureChat();
 
-    // If the attached file is an image, keep one browser-local data URL for
-    // the chat bubble preview and send the same image to the vision workflow.
-    let uploadedImages: { base64Image: string }[] | undefined;
-    let imageDataUrl: string | undefined;
-    if (attachedFile && attachedFile.type.startsWith("image/")) {
-      try {
-        imageDataUrl = await fileToBase64(attachedFile);
-        uploadedImages = [{ base64Image: imageDataUrl }];
-      } catch (err) {
-        console.error("Failed to convert image to base64:", err);
-      }
+    let prepared;
+    try {
+      prepared = await prepareAttachmentsForVision(attachedFiles);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "NEXO could not prepare this attachment for analysis.");
+      return;
     }
 
-    // Images are shown as actual previews, not as a filename-only attachment
-    // card. Non-image files keep the existing text attachment behavior.
-    const messageText = attachedFile && !imageDataUrl
-      ? `${text}\n\n[Attached file: ${attachedFile.name}]`
-      : text;
+    const analysisPrompt = text || "Please analyze the attached images or PDF pages.";
+    const messageText = text;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: messageText,
-      ...(imageDataUrl && attachedFile
-        ? { imageAttachment: { dataUrl: imageDataUrl, name: attachedFile.name } }
-        : {}),
+      ...(prepared.images.length > 0 ? { imageAttachments: prepared.images } : {}),
     };
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
+    const conversationForApi = [...messages, { ...userMsg, content: analysisPrompt }];
     setPendingApproval(null);
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setInput("");
-    setAttachedFile(null);
+    setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
 
     if (chatId) {
-      // Persist a compact filename marker for history without storing image
-      // bytes in the database. The live chat still renders the actual preview.
-      const persistedMessageText = imageDataUrl && attachedFile
-        ? `${messageText}${messageText ? "\n\n" : ""}[Image attached: ${attachedFile.name}]`
-        : messageText;
+      const persistedMessageText = `${analysisPrompt}${prepared.sourceNames.length > 0 ? `\n\n[Attachments: ${prepared.sourceNames.join(", ")}]` : ""}`;
       saveMessage(chatId, "user", persistedMessageText);
     }
 
     if (chatId && messages.length === 0) {
-      const words = (messageText || attachedFile?.name || "New chat").split(/\s+/).filter(Boolean);
+      const words = (analysisPrompt || prepared.sourceNames[0] || "New chat").split(/\s+/).filter(Boolean);
       const title = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
       
       fetch("/api/chats", {
@@ -879,14 +862,14 @@ export default function ChatPage() {
       );
     }
 
-    await streamResponse(chatId, nextMessages, assistantId, undefined, uploadedImages, controller);
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller);
   }
 
   function handleNewChat() {
     setActiveChatId(null);
     setMessages([]);
     setInput("");
-    setAttachedFile(null);
+    setAttachedFiles([]);
     setPendingApproval(null);
   }
 
@@ -904,7 +887,7 @@ export default function ChatPage() {
     setPendingApproval(null);
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
     setInput("");
-    setAttachedFile(null);
+    setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
 
     if (chatId) saveMessage(chatId, "user", text);
@@ -1172,8 +1155,8 @@ export default function ChatPage() {
               onSelectModel={setSelectedModel}
               unlockedTiers={UNLOCKED_TIERS}
               onAttach={handleAttach}
-              attachedFile={attachedFile}
-        onRemoveAttach={() => setAttachedFile(null)}
+              attachedFiles={attachedFiles}
+              onRemoveAttach={handleRemoveAttachment}
               isStreaming={isStreaming}
               onStop={handleStopGenerating}
               streamElapsedSeconds={streamElapsedSeconds}
