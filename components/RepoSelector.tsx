@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FolderGit2, Check, RefreshCw } from "lucide-react";
 
 interface Repo {
@@ -18,11 +18,7 @@ export function RepoSelector({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadRepos();
-  }, [userId]);
-
-  async function loadRepos() {
+  const loadRepos = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/github/repos?userId=${userId}`);
@@ -36,7 +32,11 @@ export function RepoSelector({ userId }: { userId: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [userId]);
+
+  useEffect(() => {
+    void loadRepos();
+  }, [loadRepos]);
 
   async function handleSelectRepo(repoFullName: string) {
     setSwitching(repoFullName);

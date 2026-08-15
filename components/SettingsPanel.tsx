@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn, Globe, Code2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
@@ -56,6 +56,20 @@ export function SettingsPanel({
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
   const [githubLoading, setGithubLoading] = useState(true);
 
+  const loadGithubConnection = useCallback(async () => {
+    if (!userId) return;
+    setGithubLoading(true);
+    try {
+      const res = await fetch(`/api/github/status?userId=${userId}`);
+      const data = await res.json();
+      setGithubUsername(data.connected ? data.githubUsername : null);
+    } catch {
+      setGithubUsername(null);
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -70,7 +84,7 @@ export function SettingsPanel({
       setPersonaDraft("");
       setLoading(false);
     }
-  }, [open, userId]);
+  }, [open, userId, loadGithubConnection]);
 
   async function loadSettings(settingsUserId: string) {
     setLoading(true);
@@ -100,20 +114,6 @@ export function SettingsPanel({
       setPersonaDraft(loaded.custom_persona);
     }
     setLoading(false);
-  }
-
-  async function loadGithubConnection() {
-    if (!userId) return;
-    setGithubLoading(true);
-    try {
-      const res = await fetch(`/api/github/status?userId=${userId}`);
-      const data = await res.json();
-      setGithubUsername(data.connected ? data.githubUsername : null);
-    } catch {
-      setGithubUsername(null);
-    } finally {
-      setGithubLoading(false);
-    }
   }
 
   function handleConnectGithub() {

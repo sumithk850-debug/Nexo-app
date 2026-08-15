@@ -12,13 +12,14 @@ function getSupabase() {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("messages")
     .select("id, role, content, model_id, created_at")
-    .eq("chat_id", params.id)
+    .eq("chat_id", id)
     .order("created_at", { ascending: true })
     .limit(200);
 
@@ -36,8 +37,9 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await req.json();
   const { role, content, modelId } = body;
 
@@ -52,7 +54,7 @@ export async function POST(
   const { data, error } = await supabase
     .from("messages")
     .insert({
-      chat_id: params.id,
+      chat_id: id,
       role,
       content,
       model_id: modelId || null,
@@ -69,15 +71,16 @@ export async function POST(
   await supabase
     .from("chats")
     .update({ updated_at: new Date().toISOString() })
-    .eq("id", params.id);
+    .eq("id", id);
 
   return new Response(JSON.stringify({ message: data }), { status: 201 });
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { searchParams } = new URL(req.url);
   const messageId = searchParams.get("id");
 
@@ -93,7 +96,7 @@ export async function DELETE(
     .from("messages")
     .delete()
     .eq("id", messageId)
-    .eq("chat_id", params.id);
+    .eq("chat_id", id);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -104,7 +107,7 @@ export async function DELETE(
   await supabase
     .from("chats")
     .update({ updated_at: new Date().toISOString() })
-    .eq("id", params.id);
+    .eq("id", id);
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 }

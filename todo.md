@@ -15,3 +15,4 @@
 - [x] Store user-approved conversation and project memory as GitHub version-controlled files and load relevant memory for future tasks without using a database.
 - [x] Give all five models shared structured-response rules and render Markdown tables responsively without malformed pseudo-tables or literal HTML break text.
 - [x] Audit the complete Nexo repository for production build, TypeScript, lint, dependency, and configuration issues.
+- [x] Fix only the audited Next.js/PostCSS security issues, TypeScript/ESLint compatibility warning, and two React Hook dependency warnings.
