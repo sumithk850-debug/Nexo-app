@@ -97,7 +97,38 @@ const markdownComponents = {
       <CodeBlock className={codeNode?.props?.className}>{codeNode?.props?.children}</CodeBlock>
     );
   },
+  table({ children }: { children?: React.ReactNode }) {
+    return (
+      <div className="my-3 max-w-full overflow-x-auto rounded-xl border border-edge/80 bg-panel/45 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+        <table className="min-w-[34rem] w-full border-separate border-spacing-0 text-left text-[12px] leading-5">
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead({ children }: { children?: React.ReactNode }) {
+    return <thead className="bg-cyan/10 text-[10px] uppercase tracking-[0.08em] text-cyan">{children}</thead>;
+  },
+  th({ children }: { children?: React.ReactNode }) {
+    return <th className="px-3 py-2.5 font-bold first:rounded-tl-xl last:rounded-tr-xl">{children}</th>;
+  },
+  tbody({ children }: { children?: React.ReactNode }) {
+    return <tbody className="divide-y divide-edge/70">{children}</tbody>;
+  },
+  tr({ children }: { children?: React.ReactNode }) {
+    return <tr className="align-top odd:bg-void/15">{children}</tr>;
+  },
+  td({ children }: { children?: React.ReactNode }) {
+    return <td className="max-w-[18rem] break-words px-3 py-2.5 text-ink-muted">{children}</td>;
+  },
 };
+
+function normalizeMarkdownForDisplay(content: string) {
+  return content
+    .split(/(```[\s\S]*?```)/g)
+    .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
+    .join("");
+}
 
 function toSpeakableText(content: string) {
   return content
@@ -306,7 +337,7 @@ export function MessageBubble({
                 seg.text.trim() ? (
                   <div key={i} className="prose-nexo text-sm text-ink">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {seg.text}
+                      {normalizeMarkdownForDisplay(seg.text)}
                     </ReactMarkdown>
                   </div>
                 ) : null
@@ -356,7 +387,7 @@ export function MessageBubble({
         ) : (
           <div className="prose-nexo text-sm text-ink">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {message.content}
+              {normalizeMarkdownForDisplay(message.content)}
             </ReactMarkdown>
           </div>
         )}

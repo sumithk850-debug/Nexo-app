@@ -208,3 +208,12 @@ textarea:focus-visible {
   margin: 0.9em 0 0.4em 0;
   color: rgb(var(--color-ink));
 }
+.prose-nexo table p,
+.prose-nexo table ul,
+.prose-nexo table ol {
+  margin: 0;
+}
+.prose-nexo table ul,
+.prose-nexo table ol {
+  padding-left: 1em;
+}
