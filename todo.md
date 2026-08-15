@@ -10,4 +10,4 @@
 - [x] Support selecting and previewing multiple images in one chat request.
 - [x] Convert PDF pages into bounded image previews for vision analysis.
 - [x] Add contextual assistant response read-aloud play/stop control.
-- [ ] Build-test and push multiple attachment analysis and read-aloud features without changing existing UI behavior.
+- [x] Build-test and push multiple attachment analysis and read-aloud features without changing existing UI behavior.
