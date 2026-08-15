@@ -5,4 +5,4 @@
 - [x] Preserve partial replies with an explicit Stopped status.
 - [x] Add contextual Retry and Continue actions only for interrupted replies.
 - [x] Prevent duplicate sends while a response is streaming.
-- [ ] Build-test and push the streaming controls update without removing existing UI features.
+- [x] Build-test and push the streaming controls update without removing existing UI features.
