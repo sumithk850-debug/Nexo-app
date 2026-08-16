@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Database,
@@ -209,15 +209,20 @@ export function IntegrationsPanel({
 
   // Load the saved Supabase project's schema whenever the panel opens, so the
   // viewer and SQL console are immediately usable (defaults to the nexo-app
-  // project the platform itself uses).
+  // project the platform itself uses). A ref keeps the effect fresh when the
+  // user switches projects inside the panel.
+  const latestLoadSchema = useRef(loadSupabaseSchema);
+  useEffect(() => {
+    latestLoadSchema.current = loadSupabaseSchema;
+  });
   useEffect(() => {
     if (!open || !userId) return;
     const projectId = supabaseProjectId ?? "apvqebqigqirmvemhnmz";
     if (projectId) {
       setSupabaseProjectId(projectId);
-      void loadSupabaseSchema(projectId);
+      void latestLoadSchema.current(projectId);
     }
-  }, [open, userId]);
+  }, [open, userId, supabaseProjectId]);
 
   useEffect(() => {
     if (supabaseProjectId) {
