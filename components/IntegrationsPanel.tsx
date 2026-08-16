@@ -196,6 +196,28 @@ export function IntegrationsPanel({
     }
   }, [userId]);
 
+  const loadVercelData = useCallback(async () => {
+    if (!userId) return;
+    setVercelDataLoading(true);
+    setVercelDataError(null);
+    try {
+      const response = await fetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setVercelDataError(data.error ?? "Could not load Vercel data.");
+        return;
+      }
+      setVercelProjects(data.projects ?? []);
+      setVercelDeployments(data.deployments ?? {});
+    } catch {
+      setVercelDataError("Could not load Vercel data.");
+    } finally {
+      setVercelDataLoading(false);
+    }
+  }, [userId]);
+
   // Remember the last Supabase project the user browsed so the schema viewer
   // and SQL console do not depend on a hardcoded project id.
   useEffect(() => {
@@ -260,7 +282,7 @@ export function IntegrationsPanel({
   // Refresh Vercel viewer data whenever the connection state changes.
   useEffect(() => {
     if (open && status.vercel.connected) void loadVercelData();
-  }, [open, status.vercel.connected]);
+  }, [open, status.vercel.connected, loadVercelData]);
 
   function connectGithub() {
     if (!userId) return;
@@ -282,28 +304,6 @@ export function IntegrationsPanel({
     setVercelDeployments({});
     setVercelDisconnectConfirm(false);
     await loadStatus();
-  }
-
-  async function loadVercelData() {
-    if (!userId) return;
-    setVercelDataLoading(true);
-    setVercelDataError(null);
-    try {
-      const response = await fetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
-        cache: "no-store",
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setVercelDataError(data.error ?? "Could not load Vercel data.");
-        return;
-      }
-      setVercelProjects(data.projects ?? []);
-      setVercelDeployments(data.deployments ?? {});
-    } catch {
-      setVercelDataError("Could not load Vercel data.");
-    } finally {
-      setVercelDataLoading(false);
-    }
   }
 
   function confirmVercelPromote(projectName: string, projectId: string, deploymentId: string, deploymentUrl?: string) {

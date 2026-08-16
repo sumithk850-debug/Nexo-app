@@ -21,14 +21,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Vercel personal accounts may not have any team. API endpoints work at
+    // account scope when teamId is omitted, so a missing team must not block a
+    // valid OAuth connection from listing its projects or deployments.
     const teamId = await resolveTeamId(connection.accessToken);
-    if (!teamId) {
-      return new Response(
-        JSON.stringify({ error: "Could not resolve your Vercel team. Reconnect if this persists." }),
-        { status: 404 }
-      );
-    }
-
     const client = new VercelClient({ teamId, accessToken: connection.accessToken });
     const projects = await client.listProjects();
 
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return new Response(JSON.stringify({ teamId, projects, deployments: deploymentsByProject }), {
+    return new Response(JSON.stringify({ teamId, scope: teamId ? "team" : "personal", projects, deployments: deploymentsByProject }), {
       status: 200,
     });
   } catch (err) {

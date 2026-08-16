@@ -36,11 +36,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // A personal Vercel account has no team id. The Vercel API accepts the
+    // same promotion endpoint without teamId at personal-account scope.
     const teamId = await resolveTeamId(connection.accessToken);
-    if (!teamId) {
-      return new Response(JSON.stringify({ error: "Could not resolve your Vercel team" }), { status: 404 });
-    }
-
     const client = new VercelClient({ teamId, accessToken: connection.accessToken });
     const result = await client.promoteDeployment(deploymentId);
     return new Response(

@@ -42,7 +42,8 @@ export async function getVercelConnection(userId: string): Promise<VercelConnect
 }
 
 export interface VercelApiOptions {
-  teamId: string;
+  /** Omit for a personal Vercel account; provide when a team scope is available. */
+  teamId?: string | null;
   accessToken: string;
 }
 
@@ -55,7 +56,9 @@ export class VercelClient {
 
   private async request(path: string, init?: RequestInit) {
     const url = new URL(`https://api.vercel.com${path}`);
-    url.searchParams.set("teamId", this.options.teamId);
+    if (this.options.teamId) {
+      url.searchParams.set("teamId", this.options.teamId);
+    }
     const res = await fetch(url.toString(), {
       ...init,
       headers: {
