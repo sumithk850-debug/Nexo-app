@@ -8,7 +8,9 @@ import type { ChatMessage } from "@/lib/types";
 import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
+import { parseSupabaseTaskBlocks, stripSupabaseTaskBlocks, type SupabaseTask } from "@/lib/supabaseTaskParser";
 import { CraftStatusCard } from "./CraftStatusCard";
+import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SummaryCard } from "./SummaryCard";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
@@ -124,7 +126,8 @@ const markdownComponents = {
 };
 
 function normalizeMarkdownForDisplay(content: string) {
-  return content
+  const withoutSupabaseTasks = stripSupabaseTaskBlocks(content);
+  return withoutSupabaseTasks
     .split(/(```[\s\S]*?```)/g)
     .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
     .join("");
@@ -150,6 +153,8 @@ export function MessageBubble({
   repoFullName,
   isStreaming = false,
   sessionId,
+  userId,
+  onSupabaseApprove,
   onSuggestionSelect,
 }: {
   message: ChatMessage;
@@ -162,6 +167,8 @@ export function MessageBubble({
   repoFullName?: string | null;
   isStreaming?: boolean;
   sessionId?: string;
+  userId?: string;
+  onSupabaseApprove?: (task: SupabaseTask) => Promise<{ ok: boolean; message?: string }>;
   onSuggestionSelect?: (suggestion: string) => void;
 }) {
   const isUser = message.role === "user";
@@ -172,6 +179,7 @@ export function MessageBubble({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const supabaseTasks = parseSupabaseTaskBlocks(message.content);
 
   useEffect(() => {
     return () => {
@@ -383,12 +391,30 @@ export function MessageBubble({
                 />
               )
             )}
+            {supabaseTasks.map((task) => (
+              <SupabaseTaskCard
+                key={task.id}
+                task={task}
+                streaming={isStreaming}
+                userId={userId}
+                onApprove={onSupabaseApprove}
+              />
+            ))}
           </div>
         ) : (
           <div className="prose-nexo text-sm text-ink">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {normalizeMarkdownForDisplay(message.content)}
             </ReactMarkdown>
+            {supabaseTasks.map((task) => (
+              <SupabaseTaskCard
+                key={task.id}
+                task={task}
+                streaming={isStreaming}
+                userId={userId}
+                onApprove={onSupabaseApprove}
+              />
+            ))}
           </div>
         )}
 
