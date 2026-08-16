@@ -936,8 +936,12 @@ export default function ChatPage() {
       return;
     }
 
-    const analysisPrompt = text || "Please analyze the attached images or PDF pages.";
-    const messageText = text;
+    const hasAttachments = prepared.sourceNames.length > 0;
+    const analysisPrompt = text || "Please analyze the attached files.";
+    const enrichedPrompt = hasAttachments
+      ? `${analysisPrompt}\n\n[Attached Files Read]\n- Files uploaded and verified: ${prepared.sourceNames.join(", ")}${prepared.extractedText ? `\n\nExtracted File Contents:\n${prepared.extractedText}` : ""}`
+      : analysisPrompt;
+    const messageText = text || `Uploaded files: ${prepared.sourceNames.join(", ")}`;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -948,20 +952,34 @@ export default function ChatPage() {
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
-    const conversationForApi = [...messages, { ...userMsg, content: analysisPrompt }];
+    const conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
     setPendingApproval(null);
-    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+
+    // Initial assistant reply with read intent and live task card if files are attached
+    const initialAssistantContent = hasAttachments
+      ? `මම මේ file(s) කියවන්නම්...\n\n\`[READING FILE] ${prepared.sourceNames.join(", ")}\``
+      : "";
+
+    setMessages([
+      ...nextMessages,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: initialAssistantContent,
+        modelId: isCoderMode ? "craft-v3" : selectedModel,
+      },
+    ]);
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
 
     if (chatId) {
-      const persistedMessageText = `${analysisPrompt}${prepared.sourceNames.length > 0 ? `\n\n[Attachments: ${prepared.sourceNames.join(", ")}]` : ""}`;
+      const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & read: ${prepared.sourceNames.join(", ")}]` : ""}`;
       saveMessage(chatId, "user", persistedMessageText);
     }
 
     if (chatId && messages.length === 0) {
-      const words = (analysisPrompt || prepared.sourceNames[0] || "New chat").split(/\s+/).filter(Boolean);
+      const words = (messageText || prepared.sourceNames[0] || "New chat").split(/\s+/).filter(Boolean);
       const title = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
       
       fetch("/api/chats", {

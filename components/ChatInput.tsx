@@ -235,7 +235,13 @@ export function ChatInput({
                       <div className="flex h-14 items-center justify-center rounded bg-cyan/10 text-cyan"><Paperclip className="h-4 w-4" /></div>
                     )}
                     <p className="truncate text-[10px] font-bold text-ink" title={file.name}>{file.name}</p>
-                    <p className="text-[9px] uppercase text-ink-faint">{file.type === "application/pdf" ? "PDF analysis" : "Image ready"}</p>
+                    <p className="text-[9px] uppercase text-ink-faint">
+                      {file.type === "application/pdf"
+                        ? "PDF analysis"
+                        : file.type.startsWith("image/")
+                          ? "Image ready"
+                          : "File uploaded"}
+                    </p>
                     <button onClick={() => onRemoveAttach?.(index)} className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-edge bg-panel text-ink-faint hover:text-red-400" aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button>
                   </div>
                 );
@@ -281,7 +287,7 @@ export function ChatInput({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,application/pdf"
+                accept="*"
                 multiple
                 onChange={handleFileChange}
                 className="hidden"

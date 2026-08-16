@@ -1,13 +1,9 @@
 import type { ChatImageAttachment } from "./types";
 
-export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
+export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 export const MAX_PDF_PAGES_PER_MESSAGE = 6;
 
-export type PreparedAttachmentSet = {
-  images: ChatImageAttachment[];
-  imagePayloads: { base64Image: string }[];
-  sourceNames: string[];
-};
+
 
 function normalizeImageForVision(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -63,9 +59,17 @@ async function renderPdfPages(file: File): Promise<ChatImageAttachment[]> {
   return rendered;
 }
 
+export type PreparedAttachmentSet = {
+  images: ChatImageAttachment[];
+  imagePayloads: { base64Image: string }[];
+  sourceNames: string[];
+  extractedText?: string;
+};
+
 export async function prepareAttachmentsForVision(files: File[]): Promise<PreparedAttachmentSet> {
   const images: ChatImageAttachment[] = [];
   const sourceNames: string[] = [];
+  const textSnippets: string[] = [];
 
   for (const file of files.slice(0, MAX_ATTACHMENTS_PER_MESSAGE)) {
     if (file.type.startsWith("image/")) {
@@ -77,6 +81,19 @@ export async function prepareAttachmentsForVision(files: File[]): Promise<Prepar
       const pages = await renderPdfPages(file);
       images.push(...pages);
       sourceNames.push(`${file.name}${pages.length > 1 ? ` (${pages.length} pages)` : ""}`);
+      continue;
+    }
+    // For general files (code, text, markdown, json, etc.), read text content directly
+    try {
+      const text = await file.text();
+      if (text.trim()) {
+        textSnippets.push(`--- FILE: ${file.name} ---\n${text.slice(0, 15000)}\n--- END FILE ---`);
+        sourceNames.push(file.name);
+      } else {
+        sourceNames.push(file.name);
+      }
+    } catch {
+      sourceNames.push(file.name);
     }
   }
 
@@ -84,5 +101,6 @@ export async function prepareAttachmentsForVision(files: File[]): Promise<Prepar
     images,
     imagePayloads: images.map((image) => ({ base64Image: image.dataUrl })),
     sourceNames,
+    extractedText: textSnippets.length > 0 ? textSnippets.join("\n\n") : undefined,
   };
 }
