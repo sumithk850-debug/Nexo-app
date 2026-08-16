@@ -46,12 +46,34 @@ export interface SupabaseClientOptions {
 }
 
 /**
+ * Resolves a management access token for the given user. Prefers a
+ * user-supplied token stored in `supabase_connections`; falls back to the
+ * app-level Supabase service-role key (the owner's own "nexo-app" project)
+ * so no manual token entry is ever required.
+ */
+export async function resolveSupabaseAccessToken(userId: string): Promise<string | null> {
+  const connection = await getSupabaseConnection(userId);
+  if (connection?.accessToken) return connection.accessToken;
+  // Fall back to the service-role management token configured for the
+  // platform's own Supabase project. Stored keys come from env only.
+  const serviceToken = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return serviceToken ?? null;
+}
+
+/**
  * Thin wrapper around the Supabase Management API for per-user access.
  * All schema inspection is read-only; SQL execution is intentionally exposed
  * separately so the approval card UI stays in control of every write.
  */
 export class SupabaseClient {
   constructor(private options: SupabaseClientOptions) {}
+
+  /** Build a client using the resolved token for a user (with service-key fallback). */
+  static async forUser(userId: string) {
+    const accessToken = await resolveSupabaseAccessToken(userId);
+    if (!accessToken) throw new SupabaseApiError(503, "No Supabase management token is available.");
+    return new SupabaseClient({ accessToken });
+  }
 
   private async request(path: string, init?: RequestInit) {
     const res = await fetch(`https://api.supabase.com${path}`, {

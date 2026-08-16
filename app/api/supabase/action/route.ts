@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseConnection, SupabaseClient, SupabaseApiError } from "@/lib/supabaseClient.server";
+import { SupabaseClient, SupabaseApiError } from "@/lib/supabaseClient.server";
 
 export const runtime = "nodejs";
 
@@ -26,8 +26,10 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
 
-  const connection = await getSupabaseConnection(userId);
-  if (!connection) {
+  let client: SupabaseClient;
+  try {
+    client = await SupabaseClient.forUser(userId);
+  } catch {
     return new Response(JSON.stringify({ error: "Not connected to Supabase" }), { status: 404 });
   }
 
@@ -37,7 +39,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const client = new SupabaseClient({ accessToken: connection.accessToken });
     const result = await client.executeSql(projectId, sql);
     return new Response(
       JSON.stringify({ success: true, action: "sql", result }),

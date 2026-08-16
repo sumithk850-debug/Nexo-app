@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseConnection, SupabaseClient, SupabaseApiError } from "@/lib/supabaseClient.server";
+import { SupabaseClient, SupabaseApiError } from "@/lib/supabaseClient.server";
 
 export const runtime = "nodejs";
 
@@ -19,13 +19,14 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Missing projectId" }), { status: 400 });
   }
 
-  const connection = await getSupabaseConnection(userId);
-  if (!connection) {
+  let client: SupabaseClient;
+  try {
+    client = await SupabaseClient.forUser(userId);
+  } catch {
     return new Response(JSON.stringify({ error: "Not connected to Supabase" }), { status: 404 });
   }
 
   try {
-    const client = new SupabaseClient({ accessToken: connection.accessToken });
 
     const table = req.nextUrl.searchParams.get("table");
     if (table) {

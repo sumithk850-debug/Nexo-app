@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptIntegrationToken, decryptIntegrationToken } from "@/lib/integrationToken.server";
+import { resolveSupabaseAccessToken } from "@/lib/supabaseClient.server";
 
 export const runtime = "nodejs";
 
@@ -28,25 +29,39 @@ export async function GET(req: NextRequest) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!data?.access_token) {
-    return new Response(JSON.stringify({ connected: false }), { status: 200 });
-  }
-
-  // Validate the stored token is still usable.
-  let username: string | null = data.supabase_username ?? null;
-  let connected = false;
+  // Validate that a usable management token exists: a stored per-user token
+  // takes precedence, otherwise the platform's own service-role key is used
+  // (the owner's nexo-app project) so no manual connection is ever required.
+  let token: string | null = null;
+  let username: string | null = null;
   try {
-    const token = decryptIntegrationToken(data.access_token);
-    const res = await fetch("https://api.supabase.com/v1/projects", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      connected = true;
-      const projects = (await res.json()) as Array<{ id: string; name?: string }> | undefined;
-      if (projects?.length) username = projects[0].name ?? null;
+    if (data?.access_token) {
+      token = decryptIntegrationToken(data.access_token);
+      username = data.supabase_username ?? null;
+    } else {
+      token = await resolveSupabaseAccessToken(userId);
+      username = "nexo-app";
     }
   } catch {
-    connected = false;
+    token = null;
+  }
+
+  let connected = false;
+  if (token) {
+    try {
+      const res = await fetch("https://api.supabase.com/v1/projects", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        connected = true;
+        if (!username) {
+          const projects = (await res.json()) as Array<{ id: string; name?: string }> | undefined;
+          if (projects?.length) username = projects[0].name ?? null;
+        }
+      }
+    } catch {
+      connected = false;
+    }
   }
 
   return new Response(JSON.stringify({ connected, username }), { status: 200 });

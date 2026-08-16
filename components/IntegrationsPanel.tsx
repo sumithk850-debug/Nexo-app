@@ -126,6 +126,7 @@ export function IntegrationsPanel({
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [vercelDisconnectConfirm, setVercelDisconnectConfirm] = useState(false);
   const [supabaseDisconnectConfirm, setSupabaseDisconnectConfirm] = useState(false);
+  const [supabaseConnecting, setSupabaseConnecting] = useState(false);
   const [personalTokenMode, setPersonalTokenMode] = useState(false);
   const [personalToken, setPersonalToken] = useState("");
   const [secretDetected, setSecretDetected] = useState(false);
@@ -272,6 +273,24 @@ export function IntegrationsPanel({
   }
 
   // ---- Supabase ----
+
+  async function connectSupabase() {
+    if (!userId) return;
+    setSupabaseConnecting(true);
+    try {
+      // No token is required — the server resolves access through the
+      // platform's own service-role key for this user's project.
+      const response = await fetch(`/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(supabaseProjectId ?? "apvqebqigqirmvemhnmz")}`);
+      if (response.ok) {
+        setStatus((current) => ({ ...current, supabase: { connected: true, username: "nexo-app" } }));
+        const data = (await response.json()) as { tables?: unknown[] };
+        setSupabaseTables(data.tables ?? []);
+        setSupabaseExpanded(true);
+      }
+    } finally {
+      setSupabaseConnecting(false);
+    }
+  }
 
   async function disconnectSupabase() {
     if (!userId) return;
@@ -720,7 +739,7 @@ export function IntegrationsPanel({
                             <button
                               key={`${table.table_schema ?? "public"}.${table.name}`}
                               type="button"
-                              onClick={() => void loadTableColumns("apvqebqigqirmvemhnmz", table.name)}
+                              onClick={() => void loadTableColumns(supabaseProjectId ?? "apvqebqigqirmvemhnmz", table.name)}
                               className="truncate rounded-lg border border-edge/70 bg-void/40 px-2.5 py-1.5 text-left text-[11px] font-medium text-ink-faint transition hover:border-emerald-500/40 hover:text-ink"
                               title={`${table.table_schema ?? "public"}.${table.name}`}
                             >
@@ -767,7 +786,7 @@ export function IntegrationsPanel({
                         <button
                           type="button"
                           disabled={!supabaseSql.trim()}
-                          onClick={() => void confirmSupabaseSql("apvqebqigqirmvemhnmz", "nexo-app", supabaseSql)}
+                          onClick={() => void confirmSupabaseSql(supabaseProjectId ?? "apvqebqigqirmvemhnmz", "nexo-app", supabaseSql)}
                           className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           Run SQL
@@ -792,20 +811,29 @@ export function IntegrationsPanel({
             ) : (
               <>
                 <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-                  Connect with a Supabase management token so Nexo can inspect your project on your behalf. Your token is encrypted server-side and never shared.
+                  Supabase access is automatically active through your own nexo-app database — no token is ever required or stored. Schema inspection is read-only, and every SQL statement needs your approval first.
                 </p>
                 <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-ink-faint">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                   All SQL runs only after you approve it on an approval card
                 </div>
-                <a
-                  href="https://supabase.com/dashboard/account/tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 hover:underline"
-                >
-                  Create a token on Supabase ↗
-                </a>
+                <div className="mt-3">
+                  <button
+                    onClick={() => void connectSupabase()}
+                    disabled={!userId || supabaseConnecting}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge bg-panel py-2 text-xs font-semibold text-ink transition hover:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {supabaseConnecting ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Connecting…
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="h-3.5 w-3.5" /> Connect Supabase
+                      </>
+                    )}
+                  </button>
+                </div>
               </>
             )}
           </article>
