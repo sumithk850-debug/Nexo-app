@@ -4,8 +4,6 @@ import {
   PROVIDER_CONFIG,
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
-  isCoderModelId,
-  CRAFT_V4_ENGINE_CONFIG,
 } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
@@ -363,17 +361,33 @@ export async function POST(req: NextRequest) {
     // for display but must remain locked. The Lite variant routes through the
     // exact same free Craft V3 engine while carrying a deeper system prompt.
     const coderModel = body.coderModel as string | undefined;
+    const requestedLockedCoderModel =
+      (isCoderMode && (coderModel === "craft-v3" || coderModel === "craft-v4")) ||
+      (!isCoderMode && modelId === "craft-v3");
+
+    // Craft V3 and Craft V4 remain unavailable until the Pro plan is launched.
+    // Enforce the lock on the server as well as in the selector UI so a crafted
+    // request cannot bypass the paid-tier restriction. Craft V3 Lite is the
+    // only selectable coder engine during the current free period.
+    if (requestedLockedCoderModel) {
+      return new Response(
+        JSON.stringify({
+          error: "coder_model_locked",
+          modelId: coderModel,
+          message: "This Craft model is locked until the Nexo Pro plan is available. Craft V3 Lite remains available for free users.",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     // The Lite prompt is ONLY applied when the user explicitly picked the
-    // Lite variant inside Nexo Coder mode. When coderModel is unset or locked,
-    // the active chat model keeps its own identity (Nexio/Spadec/... or the
-    // regular Craft V3 persona in coder mode) — it must never silently
-    // masquerade as Craft V3 Lite for every coder-mode message.
+    // Lite variant inside Nexo Coder mode. Invalid or absent coder values
+    // safely fall back to Lite rather than selecting a paid model.
     const explicitlyUnlockedLite =
       isCoderMode && coderModel === "craft-v3-lite";
-    const activeCoderModel =
-      explicitlyUnlockedLite || (isCoderMode && coderModel && isCoderModelId(coderModel))
-        ? coderModel!
-        : CODER_MODELS[0].id;
+    const activeCoderModel = explicitlyUnlockedLite
+      ? "craft-v3-lite"
+      : CODER_MODELS[0].id;
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const usesCoderBudget = Boolean(isCoderMode || modelId === "craft-v3");
     let coderRemainingTokens: number | undefined;
@@ -412,17 +426,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Coder prompt and engine resolution. Craft V3 Lite keeps its existing
-    // Gemini/Groq route. Craft V4 has a separate 100%-free OpenRouter route
-    // and a dedicated architecture prompt; its client card remains approval/
-    // subscription-gated until the product unlocks it.
-    const baseConfig = activeCoderModel === "craft-v4"
-      ? {
-          ...PROVIDER_CONFIG["craft-v3"],
-          ...CRAFT_V4_ENGINE_CONFIG,
-          systemPrompt: CODER_PROMPT_OVERRIDES["craft-v4"] ?? PROVIDER_CONFIG["craft-v3"].systemPrompt,
-        }
-      : PROVIDER_CONFIG[modelId];
+    // Craft V3 Lite keeps its existing Gemini/Groq route with its dedicated
+    // free-tier prompt. Paid Craft engines are rejected above until Pro access
+    // is explicitly launched.
+    const baseConfig = PROVIDER_CONFIG[modelId];
     const coderOverridePrompt = explicitlyUnlockedLite
       ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
       : undefined;
