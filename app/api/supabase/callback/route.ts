@@ -81,8 +81,25 @@ export async function GET(req: NextRequest) {
       );
 
     if (upsertError) {
-      console.error("[supabase-callback] Failed to store connection:", upsertError.message);
-      return backToApp(req, { supabase: "error", reason: "save_failed" });
+      // Fallback if the unique index on user_id is missing: remove any old
+      // row and insert fresh.
+      console.error("[supabase-callback] Upsert failed, trying delete+insert:", upsertError.message);
+      const { error: deleteError } = await supabase.from("supabase_connections").delete().eq("user_id", userId);
+      if (deleteError) {
+        console.error("[supabase-callback] Delete fallback failed:", deleteError.message);
+        return backToApp(req, { supabase: "error", reason: "save_failed" });
+      }
+      const { error: insertError } = await supabase.from("supabase_connections").insert({
+        user_id: userId,
+        supabase_username: username,
+        access_token: encryptIntegrationToken(accessToken),
+        refresh_token: refreshToken ? encryptIntegrationToken(refreshToken) : null,
+        connected_at: new Date().toISOString(),
+      });
+      if (insertError) {
+        console.error("[supabase-callback] Insert fallback failed:", insertError.message);
+        return backToApp(req, { supabase: "error", reason: "save_failed" });
+      }
     }
 
     return backToApp(req, { supabase: "connected", user: userIdent });

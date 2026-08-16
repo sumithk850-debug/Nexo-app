@@ -72,8 +72,24 @@ export async function GET(req: NextRequest) {
       );
 
     if (upsertError) {
-      console.error("[vercel-callback] Failed to store connection:", upsertError.message);
-      return backToApp(req, { vercel: "error", reason: "save_failed" });
+      // Fallback if the unique index on user_id is missing: remove any old
+      // row and insert fresh.
+      console.error("[vercel-callback] Upsert failed, trying delete+insert:", upsertError.message);
+      const { error: deleteError } = await supabase.from("vercel_connections").delete().eq("user_id", userId);
+      if (deleteError) {
+        console.error("[vercel-callback] Delete fallback failed:", deleteError.message);
+        return backToApp(req, { vercel: "error", reason: "save_failed" });
+      }
+      const { error: insertError } = await supabase.from("vercel_connections").insert({
+        user_id: userId,
+        vercel_username: email,
+        access_token: encryptIntegrationToken(accessToken),
+        connected_at: new Date().toISOString(),
+      });
+      if (insertError) {
+        console.error("[vercel-callback] Insert fallback failed:", insertError.message);
+        return backToApp(req, { vercel: "error", reason: "save_failed" });
+      }
     }
 
     return backToApp(req, { vercel: "connected", user: userIdent });
