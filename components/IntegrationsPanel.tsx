@@ -274,22 +274,13 @@ export function IntegrationsPanel({
 
   // ---- Supabase ----
 
-  async function connectSupabase() {
+  function connectSupabase() {
     if (!userId) return;
     setSupabaseConnecting(true);
-    try {
-      // No token is required — the server resolves access through the
-      // platform's own service-role key for this user's project.
-      const response = await fetch(`/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(supabaseProjectId ?? "apvqebqigqirmvemhnmz")}`);
-      if (response.ok) {
-        setStatus((current) => ({ ...current, supabase: { connected: true, username: "nexo-app" } }));
-        const data = (await response.json()) as { tables?: unknown[] };
-        setSupabaseTables(data.tables ?? []);
-        setSupabaseExpanded(true);
-      }
-    } finally {
-      setSupabaseConnecting(false);
-    }
+    // Supabase OAuth flow: sign in with the user's Supabase account. The
+    // callback stores encrypted per-user tokens, so the panel flips to
+    // connected immediately after returning to the app.
+    window.location.href = `/api/supabase/login?userId=${encodeURIComponent(userId)}`;
   }
 
   async function disconnectSupabase() {
