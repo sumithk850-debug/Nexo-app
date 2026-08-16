@@ -106,6 +106,34 @@ function Toggle({ enabled, onChange, disabled }: { enabled: boolean; onChange: (
   );
 }
 
+function vercelCallbackError(reason: string | null): string {
+  switch (reason) {
+    case "save_failed":
+      return "The connection could not be saved. Please check the Integrations page and try connecting again.";
+    case "token_exchange_failed":
+      return "Vercel did not return a valid access token. Please check your Vercel OAuth app credentials and try again.";
+    case "missing_code":
+      return "The Vercel authorization did not complete. Please try connecting again.";
+    case "not_configured":
+      return "Vercel OAuth credentials are not configured on the server.";
+    default:
+      return "Connecting to Vercel failed. Please try again.";
+  }
+}
+
+function supabaseCallbackError(reason: string | null): string {
+  switch (reason) {
+    case "save_failed":
+      return "The connection could not be saved. Please check the Integrations page and try connecting again.";
+    case "token_exchange_failed":
+      return "Supabase did not return a valid access token. Please try connecting again.";
+    case "missing_code":
+      return "The Supabase authorization did not complete. Please try connecting again.";
+    default:
+      return "Connecting to Supabase failed. Please try again.";
+  }
+}
+
 function ComingSoonBadge() {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
@@ -123,6 +151,8 @@ export function IntegrationsPanel({
 }: IntegrationsPanelProps) {
   const [status, setStatus] = useState<IntegrationStatus>(INITIAL_STATUS);
   const [loading, setLoading] = useState(false);
+  const [connectionMessage, setConnectionMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [vercelDisconnectConfirm, setVercelDisconnectConfirm] = useState(false);
   const [supabaseDisconnectConfirm, setSupabaseDisconnectConfirm] = useState(false);
@@ -166,9 +196,61 @@ export function IntegrationsPanel({
     }
   }, [userId]);
 
+  // Remember the last Supabase project the user browsed so the schema viewer
+  // and SQL console do not depend on a hardcoded project id.
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("nexo:supabaseProjectId") : null;
+    if (saved) setSupabaseProjectId(saved);
+  }, []);
+
   useEffect(() => {
     if (open) void loadStatus();
   }, [open, loadStatus]);
+
+  // Load the saved Supabase project's schema whenever the panel opens, so the
+  // viewer and SQL console are immediately usable (defaults to the nexo-app
+  // project the platform itself uses).
+  useEffect(() => {
+    if (!open || !userId) return;
+    const projectId = supabaseProjectId ?? "apvqebqigqirmvemhnmz";
+    if (projectId) {
+      setSupabaseProjectId(projectId);
+      void loadSupabaseSchema(projectId);
+    }
+  }, [open, userId]);
+
+  useEffect(() => {
+    if (supabaseProjectId) {
+      localStorage.setItem("nexo:supabaseProjectId", supabaseProjectId);
+    }
+  }, [supabaseProjectId]);
+
+  // Handle OAuth callback redirects: ?vercel=connected|error&reason=... and
+  // ?supabase=connected|error&reason=... so the user sees a clear outcome
+  // instead of an ambiguous state.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const vercelState = params.get("vercel");
+    const supabaseState = params.get("supabase");
+    if (vercelState === "connected") {
+      setConnectionMessage({ kind: "success", text: `Vercel connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
+    } else if (vercelState === "error") {
+      setConnectionMessage({ kind: "error", text: vercelCallbackError(params.get("reason")) });
+    } else if (supabaseState === "connected") {
+      setConnectionMessage({ kind: "success", text: `Supabase connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
+    } else if (supabaseState === "error") {
+      setConnectionMessage({ kind: "error", text: supabaseCallbackError(params.get("reason")) });
+    }
+    if (vercelState || supabaseState) {
+      params.delete("vercel");
+      params.delete("supabase");
+      params.delete("user");
+      params.delete("reason");
+      const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, []);
 
   // Refresh Vercel viewer data whenever the connection state changes.
   useEffect(() => {
@@ -312,6 +394,7 @@ export function IntegrationsPanel({
       setSupabaseProjectId(projectId);
       setSupabaseTables(data.tables ?? []);
       setSupabaseColumns([]);
+      setConnectionMessage(null);
     } catch {
       setSupabaseDataError("Could not load schema.");
     } finally {
@@ -406,6 +489,25 @@ export function IntegrationsPanel({
         </header>
 
         <div className="space-y-4 p-5">
+          {connectionMessage && (
+            <div
+              className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs ${
+                connectionMessage.kind === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-300"
+              }`}
+            >
+              <span className="flex-1 leading-relaxed">{connectionMessage.text}</span>
+              <button
+                type="button"
+                onClick={() => setConnectionMessage(null)}
+                className="shrink-0 text-ink-faint hover:text-ink"
+                aria-label="Dismiss message"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
           <p className="text-xs leading-relaxed text-ink-muted">
             Connections are read-only by default. Any repository write, deployment, SQL write, or migration will require explicit approval before it runs.
           </p>
