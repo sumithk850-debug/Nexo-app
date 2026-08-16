@@ -19,3 +19,4 @@
 - [x] Diagnose and fix only the Vercel integration connection or deployment-status issue.
 - [x] Give all five models comprehensive, structured, and approval-safe Supabase and Vercel integration operating instructions.
 - [x] Ensure repository read cards and task reports use verified file context, not model-generated claims or partial responses.
+- [x] Start chars/s timing at the first streamed response token and update the Live Task bar with a rolling live speed.

@@ -122,33 +122,16 @@ export default function ChatPage() {
   const [secretSaveError, setSecretSaveError] = useState<string | null>(null);
   const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
 
-  // Typing speed tracking (chars/sec during streaming)
-  const typingSpeedRef = useRef<number>(0);
-  const typingSpeedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevContentLengthRef = useRef<number>(0);
+  // Typing speed tracking starts at the first provider text chunk, not at
+  // request start. A short rolling window makes the badge responsive while
+  // avoiding the long provider queue/wait time in the speed calculation.
+  const [typingSpeed, setTypingSpeed] = useState(0);
+  const firstTokenAtRef = useRef<number | null>(null);
+  const speedSamplesRef = useRef<Array<{ at: number; chars: number }>>([]);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
   const activeAssistantIdRef = useRef<string | null>(null);
   const streamStartedAtRef = useRef<number | null>(null);
   const streamingLockRef = useRef(false);
-
-  useEffect(() => {
-    if (isStreaming) {
-      prevContentLengthRef.current = 0;
-      typingSpeedTimerRef.current = setInterval(() => {
-        const lastMsg = messages[messages.length - 1];
-        const currentLen = lastMsg?.role === "assistant" ? lastMsg.content.length : 0;
-        const delta = currentLen - prevContentLengthRef.current;
-        typingSpeedRef.current = delta;
-        prevContentLengthRef.current = currentLen;
-      }, 1000);
-    } else {
-      if (typingSpeedTimerRef.current) clearInterval(typingSpeedTimerRef.current);
-      typingSpeedRef.current = 0;
-    }
-    return () => {
-      if (typingSpeedTimerRef.current) clearInterval(typingSpeedTimerRef.current);
-    };
-  }, [isStreaming, messages]);
 
   useEffect(() => {
     if (!isStreaming || streamStartedAtRef.current === null) {
@@ -164,8 +147,29 @@ export default function ChatPage() {
     return () => clearInterval(timer);
   }, [isStreaming]);
 
+  function recordStreamText(text: string) {
+    if (!text) return;
+    const now = Date.now();
+    if (firstTokenAtRef.current === null) firstTokenAtRef.current = now;
+
+    speedSamplesRef.current.push({ at: now, chars: text.length });
+    const windowStart = now - 2_000;
+    speedSamplesRef.current = speedSamplesRef.current.filter((sample) => sample.at >= windowStart);
+    const charsInWindow = speedSamplesRef.current.reduce((total, sample) => total + sample.chars, 0);
+    const firstSampleAt = speedSamplesRef.current[0]?.at ?? now;
+    const elapsed = Math.max((now - firstSampleAt) / 1_000, 0.25);
+    setTypingSpeed(charsInWindow / elapsed);
+  }
+
+  function resetTypingSpeed() {
+    firstTokenAtRef.current = null;
+    speedSamplesRef.current = [];
+    setTypingSpeed(0);
+  }
+
   function startStreamingTurn(assistantId: string) {
     const controller = new AbortController();
+    resetTypingSpeed();
     streamAbortControllerRef.current = controller;
     activeAssistantIdRef.current = assistantId;
     streamStartedAtRef.current = Date.now();
@@ -180,6 +184,7 @@ export default function ChatPage() {
     activeAssistantIdRef.current = null;
     streamStartedAtRef.current = null;
     streamingLockRef.current = false;
+    resetTypingSpeed();
     setIsStreaming(false);
   }
 
@@ -736,7 +741,9 @@ export default function ChatPage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
+        const streamedText = decoder.decode(value, { stream: true });
+        accumulated += streamedText;
+        recordStreamText(streamedText);
         const displayContent = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
@@ -1227,7 +1234,7 @@ export default function ChatPage() {
               streaming={isStreaming}
               repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               searching={activitySearching?.action ?? null}
-              charsPerSecond={typingSpeedRef.current}
+              charsPerSecond={typingSpeed}
             />
 
             <ChatInput
