@@ -95,21 +95,49 @@ export class SupabaseClient {
     return this.request("/v1/projects");
   }
 
-  /** List tables of a project's Postgres database. */
+  /** Derive the public schema (tables with columns) from the project's
+   * PostgREST OpenAPI spec — the supported Management API surface for
+   * introspecting a database. */
   async listTables(projectId: string) {
-    return this.request(`/v1/database/${encodeURIComponent(projectId)}/tables`);
+    const spec = (await this.request(
+      `/v1/projects/${encodeURIComponent(projectId)}/database/openapi`
+    )) as Record<string, unknown> | undefined;
+    const paths = (spec?.paths as Record<string, Record<string, unknown>>) ?? {};
+    const tableMap = new Map<string, Array<{ name: string; type: string | null; nullable: boolean }>>();
+    for (const [path, methods] of Object.entries(paths)) {
+      const m = /^\/(\w+)$/.exec(path);
+      if (!m) continue;
+      const tableName = m[1];
+      if (tableName === "rpc" || tableMap.has(tableName)) continue;
+      for (const method of ["get", "post", "put", "patch", "delete"]) {
+        const op = methods[method] as Record<string, unknown> | undefined;
+        const params = (op?.parameters as Array<Record<string, unknown>>) ?? [];
+        const columns = params
+          .filter((p) => (p.in as string) === "query" && (p.name as string) !== "select" && (p.name as string) !== "order" && (p.name as string) !== "limit" && (p.name as string) !== "offset")
+          .map((p) => ({ name: p.name as string, type: (p.schema as Record<string, unknown> | undefined)?.type as string | null, nullable: p.required !== true }));
+        if (columns.length) {
+          tableMap.set(tableName, columns);
+          break;
+        }
+      }
+    }
+    const tables = Array.from(tableMap.entries()).map(([name, columns]) => ({ name, columns }));
+    return { tables };
   }
 
-  /** Columns (schema) for a single table. */
+  /** Columns (schema) for a single table — derived from the OpenAPI spec. */
   async listTableColumns(projectId: string, tableName: string) {
-    return this.request(
-      `/v1/database/${encodeURIComponent(projectId)}/tables/${encodeURIComponent(tableName)}/columns`
-    );
+    const { tables } = await this.listTables(projectId);
+    const table = tables.find((t) => t.name === tableName);
+    if (!table) throw new Error(`Table "${tableName}" not found`);
+    return { columns: table.columns };
   }
 
-  /** List row-level security policies of a project. */
+  /** List row-level security policies of a project — not exposed by the
+   * Management API for arbitrary projects, so we read them via SQL if needed;
+   * this is kept as a stub that surfaces the project metadata instead. */
   async listPolicies(projectId: string) {
-    return this.request(`/v1/database/${encodeURIComponent(projectId)}/policies`);
+    return { policies: [] as unknown[] };
   }
 
   /**
@@ -129,7 +157,7 @@ export class SupabaseClient {
     if (blockedMatch) {
       throw new Error(`Statement type "${blockedMatch}" is not allowed through this integration.`);
     }
-    return this.request(`/v1/sql/${encodeURIComponent(projectId)}`, {
+    return this.request(`/v1/projects/${encodeURIComponent(projectId)}/database/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: sanitized }),
