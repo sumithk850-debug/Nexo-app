@@ -17,3 +17,4 @@
 - [x] Audit the complete Nexo repository for production build, TypeScript, lint, dependency, and configuration issues.
 - [x] Fix only the audited Next.js/PostCSS security issues, TypeScript/ESLint compatibility warning, and two React Hook dependency warnings.
 - [x] Diagnose and fix only the Vercel integration connection or deployment-status issue.
+- [x] Give all five models comprehensive, structured, and approval-safe Supabase and Vercel integration operating instructions.
