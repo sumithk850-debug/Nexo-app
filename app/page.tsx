@@ -23,6 +23,7 @@ import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
+import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -190,6 +191,26 @@ export default function ChatPage() {
 
   function handleStopGenerating() {
     streamAbortControllerRef.current?.abort();
+  }
+
+  async function handleSupabaseApprove(task: SupabaseTask): Promise<{ ok: boolean; message?: string }> {
+    const currentUserId = user?.id;
+    const projectId = task.projectId || (typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null);
+    if (!currentUserId) return { ok: false, message: "Sign in before running a Supabase task." };
+    if (!projectId) return { ok: false, message: "Connect Supabase and select a project first." };
+
+    try {
+      const response = await fetch(`/api/supabase/action?userId=${encodeURIComponent(currentUserId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sql", payload: { projectId, sql: task.sql } }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return { ok: false, message: data.error ?? "Supabase task failed." };
+      return { ok: true, message: `Verified Supabase result: ${JSON.stringify(data.result ?? data).slice(0, 1800)}` };
+    } catch {
+      return { ok: false, message: "Could not reach Supabase. Check the connection and try again." };
+    }
   }
 
   // Task activity belongs to the current assistant turn only. This prevents a
@@ -1205,6 +1226,8 @@ export default function ChatPage() {
                             coderMode={githubIntegrationEnabled && (Boolean(selectedRepo) || m.modelId === "craft-v3")}
                             repoFullName={githubIntegrationEnabled ? selectedRepo : null}
                             sessionId={sessionId}
+                            userId={user?.id}
+                            onSupabaseApprove={handleSupabaseApprove}
                             onSuggestionSelect={isLastAssistant && !isStreaming ? handleSuggestionSelect : undefined}
                           />
                           {pendingApproval &&
