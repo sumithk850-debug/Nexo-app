@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { resolveSupabaseAccessToken } from "@/lib/supabaseClient.server";
 
 export const runtime = "nodejs";
 
@@ -82,18 +83,18 @@ async function checkVercelConnection(userId: string) {
 }
 
 async function checkSupabaseConnection(userId: string) {
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("supabase_connections")
-    .select("supabase_username, access_token")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!data?.access_token) return { connected: false, username: null as string | null };
+  let token: string | null = null;
+  try {
+    // A stored per-user token takes precedence; otherwise the platform's own
+    // service-role key (the owner's nexo-app project) is used, so the
+    // Supabase card is Connected out of the box without any manual step.
+    token = await resolveSupabaseAccessToken(userId);
+  } catch {
+    return { connected: false, username: null as string | null };
+  }
+  if (!token) return { connected: false, username: null as string | null };
 
   try {
-    const { decryptIntegrationToken } = await import("@/lib/integrationToken.server");
-    const token = decryptIntegrationToken(data.access_token);
     const res = await fetch("https://api.supabase.com/v1/projects", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -101,7 +102,7 @@ async function checkSupabaseConnection(userId: string) {
     const projects = (await res.json()) as Array<{ id: string; name?: string }> | undefined;
     return {
       connected: true,
-      username: (projects?.[0]?.name as string | null) ?? data.supabase_username ?? null,
+      username: (projects?.[0]?.name as string | null) ?? "nexo-app",
     };
   } catch {
     return { connected: false, username: null };
