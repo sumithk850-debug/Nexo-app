@@ -95,48 +95,45 @@ export class SupabaseClient {
     return this.request("/v1/projects");
   }
 
-  /** Derive the public schema (tables with columns) from the project's
-   * PostgREST OpenAPI spec — the supported Management API surface for
-   * introspecting a database. */
+  /** Schema introspection is read-only by definition, so it is implemented
+   * as a safe information_schema query through the approved SQL channel
+   * (the Management API openapi/database endpoints do not surface tables for
+   * service tokens). */
+  private async introspect(projectId: string, sql: string) {
+    const result = await this.request(`/v1/projects/${encodeURIComponent(projectId)}/database/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    return result;
+  }
+
+  /** List public tables with their columns via information_schema. */
   async listTables(projectId: string) {
-    const spec = (await this.request(
-      `/v1/projects/${encodeURIComponent(projectId)}/database/openapi`
-    )) as Record<string, unknown> | undefined;
-    const paths = (spec?.paths as Record<string, Record<string, unknown>>) ?? {};
-    const tableMap = new Map<string, Array<{ name: string; type: string | null; nullable: boolean }>>();
-    for (const [path, methods] of Object.entries(paths)) {
-      const m = /^\/(\w+)$/.exec(path);
-      if (!m) continue;
-      const tableName = m[1];
-      if (tableName === "rpc" || tableMap.has(tableName)) continue;
-      for (const method of ["get", "post", "put", "patch", "delete"]) {
-        const op = methods[method] as Record<string, unknown> | undefined;
-        const params = (op?.parameters as Array<Record<string, unknown>>) ?? [];
-        const columns = params
-          .filter((p) => (p.in as string) === "query" && (p.name as string) !== "select" && (p.name as string) !== "order" && (p.name as string) !== "limit" && (p.name as string) !== "offset")
-          .map((p) => ({ name: p.name as string, type: (p.schema as Record<string, unknown> | undefined)?.type as string | null, nullable: p.required !== true }));
-        if (columns.length) {
-          tableMap.set(tableName, columns);
-          break;
-        }
-      }
-    }
-    return Array.from(tableMap.entries()).map(([name, columns]) => ({ name, columns }));
+    const rows = (await this.introspect(
+      projectId,
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
+    )) as Array<{ table_name: string }>;
+    return rows.map((r) => ({ name: r.table_name, columns: [] as Array<{ name: string; type: string | null; nullable: boolean }> }));
   }
 
-  /** Columns (schema) for a single table — derived from the OpenAPI spec. */
+  /** Columns (schema) for a single public table via information_schema. */
   async listTableColumns(projectId: string, tableName: string) {
-    const tables = await this.listTables(projectId);
-    const table = tables.find((t) => t.name === tableName);
-    if (!table) throw new Error(`Table "${tableName}" not found`);
-    return table.columns;
+    const rows = (await this.introspect(
+      projectId,
+      `SELECT column_name, udt_name AS type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName.replace(/'/g, "''")}' ORDER BY ordinal_position`
+    )) as Array<{ column_name: string; type: string | null; is_nullable: string }>;
+    if (!rows.length) throw new Error(`Table "${tableName}" not found`);
+    return rows.map((r) => ({ name: r.column_name, type: r.type, nullable: r.is_nullable === "YES" }));
   }
 
-  /** List row-level security policies of a project — not exposed by the
-   * Management API for arbitrary projects, so we read them via SQL if needed;
-   * this is kept as a stub that surfaces the project metadata instead. */
+  /** Row-level security policies for public tables, read via SQL. */
   async listPolicies(projectId: string) {
-    return { policies: [] as unknown[] };
+    const rows = (await this.introspect(
+      projectId,
+      `SELECT schemaname, tablename, policyname, cmd, roles, qual, with_check FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename, policyname`
+    )) as unknown;
+    return { policies: rows ?? [] };
   }
 
   /**
