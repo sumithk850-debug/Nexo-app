@@ -121,16 +121,15 @@ export class SupabaseClient {
         }
       }
     }
-    const tables = Array.from(tableMap.entries()).map(([name, columns]) => ({ name, columns }));
-    return { tables };
+    return Array.from(tableMap.entries()).map(([name, columns]) => ({ name, columns }));
   }
 
   /** Columns (schema) for a single table — derived from the OpenAPI spec. */
   async listTableColumns(projectId: string, tableName: string) {
-    const { tables } = await this.listTables(projectId);
+    const tables = await this.listTables(projectId);
     const table = tables.find((t) => t.name === tableName);
     if (!table) throw new Error(`Table "${tableName}" not found`);
-    return { columns: table.columns };
+    return table.columns;
   }
 
   /** List row-level security policies of a project — not exposed by the
