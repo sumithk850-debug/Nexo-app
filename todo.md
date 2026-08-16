@@ -22,3 +22,4 @@
 - [x] Start chars/s timing at the first streamed response token and update the Live Task bar with a rolling live speed.
 - [x] Ensure all five models support verified GitHub read/edit/create workflows and Supabase table schema operations with dedicated provider logos and live task cards.
 - [x] Complete local validation and push verified Supabase task cards and provider branding for all five models to GitHub main.
+- [x] Design an independent Craft V4 system prompt, backend engine routing path, capability boundaries, and fallback strategy.
