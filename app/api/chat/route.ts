@@ -5,6 +5,7 @@ import {
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
   isCoderModelId,
+  CRAFT_V4_ENGINE_CONFIG,
 } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
@@ -411,9 +412,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Coder prompt override: Craft V3 Lite runs on the same free Craft engine
-    // (modelId "craft-v3") but carries its own deeper system prompt.
-    const baseConfig = PROVIDER_CONFIG[modelId];
+    // Coder prompt and engine resolution. Craft V3 Lite keeps its existing
+    // Gemini/Groq route. Craft V4 has a separate 100%-free OpenRouter route
+    // and a dedicated architecture prompt; its client card remains approval/
+    // subscription-gated until the product unlocks it.
+    const baseConfig = activeCoderModel === "craft-v4"
+      ? {
+          ...PROVIDER_CONFIG["craft-v3"],
+          ...CRAFT_V4_ENGINE_CONFIG,
+          systemPrompt: CODER_PROMPT_OVERRIDES["craft-v4"] ?? PROVIDER_CONFIG["craft-v3"].systemPrompt,
+        }
+      : PROVIDER_CONFIG[modelId];
     const coderOverridePrompt = explicitlyUnlockedLite
       ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
       : undefined;
@@ -538,7 +547,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Code Review Mode: deep code analysis instructions for Craft V3
-    if (codeReviewEnabled && modelId === "craft-v3") {
+    if (codeReviewEnabled && (modelId === "craft-v3" || activeCoderModel === "craft-v4")) {
       systemPrompt += `\n\nCODE REVIEW MODE IS ACTIVE. For any code the user shares or asks about, provide a thorough code review including:\n- Code quality assessment (cleanliness, readability, maintainability)\n- Bug detection and potential issues\n- Performance optimization suggestions\n- Security vulnerability analysis\n- Best practices and improvement recommendations\n- Architecture and design pattern suggestions\nStructure your review with clear sections and use code examples where helpful.`;
     }
 

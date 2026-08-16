@@ -184,17 +184,17 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
             if (event.target === event.currentTarget) closeUpgradePopup();
           }}
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="nexo-pro-upgrade-title"
-            aria-describedby="nexo-pro-upgrade-description"
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-cyan/25 bg-[#101828] shadow-[0_24px_70px_rgba(0,0,0,0.65)] animate-fade-up"
-          >
-            <div className="flex items-start justify-between border-b border-edge/70 px-5 pb-4 pt-5">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="nexo-pro-upgrade-title"
+              aria-describedby="nexo-pro-upgrade-description"
+              className="w-full max-w-sm overflow-hidden rounded-2xl border border-cyan/25 bg-panel text-ink shadow-[0_24px_70px_rgba(0,0,0,0.65)] animate-fade-up"
+            >
+              <div className="flex items-start justify-between border-b border-edge/70 px-5 pb-4 pt-5">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/20 bg-amber-400/10">
-                  <Crown className="h-5 w-5 text-amber-300" />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15">
+                  <Crown className="h-5 w-5 text-amber-500 dark:text-amber-300" />
                 </span>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan">Unlock Nexo Pro</p>
@@ -214,13 +214,13 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
             </div>
 
             <div className="space-y-4 px-5 py-5">
-              <p id="nexo-pro-upgrade-description" className="text-sm leading-6 text-ink-muted">
+              <p id="nexo-pro-upgrade-description" className="text-sm leading-6 text-ink">
                 {upgradeModel.id === "craft-v4"
                   ? "A next-generation coding engine for planning and coordinating larger software builds."
                   : "Elite coding intelligence for deeper repository work and demanding engineering tasks."}
               </p>
 
-              <div className="rounded-xl border border-edge/80 bg-black/15 px-3.5 py-3">
+              <div className="rounded-xl border border-edge/80 bg-edge/30 px-3.5 py-3">
                 <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-ink-muted">Included with Pro</p>
                 <ul className="space-y-2">
                   {upgradeBenefits.map((benefit) => (
@@ -232,13 +232,13 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                 </ul>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border border-edge/70 bg-panel/50 px-3.5 py-3 text-xs">
+              <div className="flex items-center justify-between rounded-xl border border-edge/70 bg-edge/20 px-3.5 py-3 text-xs">
                 <div>
                   <p className="font-semibold text-ink">Current engine</p>
                   <p className="mt-0.5 text-ink-muted">Craft V3 Lite · Free</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-amber-300">Required plan</p>
+                  <p className="font-semibold text-amber-600 dark:text-amber-300">Required plan</p>
                   <p className="mt-0.5 text-ink-muted">Nexo Pro</p>
                 </div>
               </div>

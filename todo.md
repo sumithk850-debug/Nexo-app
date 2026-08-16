@@ -23,3 +23,4 @@
 - [x] Ensure all five models support verified GitHub read/edit/create workflows and Supabase table schema operations with dedicated provider logos and live task cards.
 - [x] Complete local validation and push verified Supabase task cards and provider branding for all five models to GitHub main.
 - [x] Design an independent Craft V4 system prompt, backend engine routing path, capability boundaries, and fallback strategy.
+- [x] Select a top-tier free coding model on OpenRouter as Craft V4 fallback and fix light-mode contrast in the Pro upgrade popup.
