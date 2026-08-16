@@ -92,6 +92,8 @@ REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
 - For an existing-file edit, follow its marker with one \`\`\`diff:path/to/file.ext block containing only removed (-) and added (+) lines.
 - For a new file, follow its marker with one \`\`\`language:path/to/file.ext block containing the complete new file.
 - For deletion, emit only the deletion marker. Never include deleted file contents.
+- Emit a [READING FILE] marker only for a path listed in the current FETCHED FILE CONTENTS block. A repository tree path alone proves only that a file exists, not that you have read it. If no file contents were fetched for this turn, say that you cannot verify the file's contents yet; do not emit a reading marker or claim findings from that file.
+- In any Task report or task-summary, name only files whose content is present in FETCHED FILE CONTENTS. Never turn a requested path, an assumed path, or a repository-tree entry into a claimed completed read.
 - Mutating actions pause for explicit user approval. Never claim a change was committed before approval.
 - Keep prose brief. File bodies and diffs are rendered as live task cards and must not be repeated in normal prose.
 - End every repository task with a concise report in the user's language under a "Task report" heading. Summarize what was read, created, edited, or proposed for deletion and the result. For proposed mutations, explicitly say they are waiting for approval rather than committed. Never repeat code, diffs, or full file contents in this report.
@@ -468,9 +470,11 @@ export async function POST(req: NextRequest) {
     // system prompt claims repo access and the tree/file fetch costs extra
     // GitHub API calls we don't want to pay on every free-tier chat message.
     let githubContextBlock = "";
+    let verifiedGithubReadPaths: string[] = [];
     if (githubEnabled && userId && lastUserMessage) {
       const githubContext = await buildGithubContext(userId, lastUserMessage.content);
       githubContextBlock = githubContext.contextBlock;
+      verifiedGithubReadPaths = githubContext.fetchedFilePaths;
     }
     const githubMemoryBlock = githubEnabled
       ? await buildGithubMemoryContext(userId, lastUserMessage?.content)
@@ -850,6 +854,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
+        "X-Nexo-Verified-Reads": encodeURIComponent(JSON.stringify(verifiedGithubReadPaths)),
       },
     });
   } catch (err) {

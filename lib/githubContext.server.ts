@@ -26,6 +26,8 @@ export interface GithubContextResult {
   connected: boolean;
   repoFullName: string | null;
   contextBlock: string; // ready to append to the system prompt, empty if nothing to add
+  /** Paths whose current content was actually fetched for this chat turn. */
+  fetchedFilePaths: string[];
 }
 
 function getSupabaseAdmin() {
@@ -147,12 +149,12 @@ export async function buildGithubContext(
   latestUserMessage: string
 ): Promise<GithubContextResult> {
   if (!userId) {
-    return { connected: false, repoFullName: null, contextBlock: "" };
+    return { connected: false, repoFullName: null, contextBlock: "", fetchedFilePaths: [] };
   }
 
   const connection = await getConnection(userId);
   if (!connection || !connection.selected_repo) {
-    return { connected: !!connection, repoFullName: null, contextBlock: "" };
+    return { connected: !!connection, repoFullName: null, contextBlock: "", fetchedFilePaths: [] };
   }
 
   const repoFullName = connection.selected_repo;
@@ -164,6 +166,7 @@ export async function buildGithubContext(
       connected: true,
       repoFullName,
       contextBlock: `\n\nThe user has repository "${repoFullName}" selected as active, but its saved secret could not be used. Ask the user to reconnect GitHub in Integrations.`,
+      fetchedFilePaths: [],
     };
   }
 
@@ -175,6 +178,7 @@ export async function buildGithubContext(
       connected: true,
       repoFullName,
       contextBlock: `\n\nThe user has repository "${repoFullName}" selected as active, but it could not be read right now (permissions or connectivity issue). Let the user know you couldn't access repo contents this turn, rather than assuming or inventing file contents.`,
+      fetchedFilePaths: [],
     };
   }
 
@@ -182,6 +186,7 @@ export async function buildGithubContext(
   const referencedPaths = extractReferencedPaths(latestUserMessage, treePaths);
 
   let fileContentsBlock = "";
+  let fetchedFilePaths: string[] = [];
   if (referencedPaths.length > 0) {
     const fetchedFiles = await Promise.all(
       referencedPaths.map(async (path) => ({
@@ -191,6 +196,7 @@ export async function buildGithubContext(
     );
     const usableFiles = fetchedFiles.filter((f) => f.content !== null);
     if (usableFiles.length > 0) {
+      fetchedFilePaths = usableFiles.map((file) => file.path);
       fileContentsBlock = usableFiles
         .map((f) => `--- FILE: ${f.path} ---\n${f.content}`)
         .join("\n\n");
@@ -215,5 +221,5 @@ ${treeSummary}
       : `\n\nNo specific file was fetched for this message. If the user asks about a particular file's contents and you need to see it, ask them to name the exact file path, or tell them you'll need it referenced by name so it can be fetched.`
   }`;
 
-  return { connected: true, repoFullName, contextBlock };
+  return { connected: true, repoFullName, contextBlock, fetchedFilePaths };
 }

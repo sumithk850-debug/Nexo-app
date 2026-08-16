@@ -43,6 +43,45 @@ interface PendingApproval {
   status: "pending" | "approving" | "approved" | "rejected" | "error";
 }
 
+function readVerifiedPaths(response: Response): string[] {
+  const raw = response.headers.get("X-Nexo-Verified-Reads");
+  if (!raw) return [];
+  try {
+    const paths = JSON.parse(decodeURIComponent(raw));
+    return Array.isArray(paths)
+      ? paths.filter((path): path is string => typeof path === "string" && path.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeRepositoryReadClaims(content: string, verifiedPaths: string[]): string {
+  const verified = new Set(verifiedPaths);
+  const withoutUnverifiedMarkers = content.replace(
+    /^\[READING FILE\]\s*([^\n]+)$/gim,
+    (marker, rawPath: string) => {
+      const path = rawPath.trim();
+      return verified.has(path)
+        ? marker
+        : `Repository read not verified for \`${path}\`. No file findings are shown for it.`;
+    }
+  );
+
+  // A model-generated summary is allowed to describe changes, but its read
+  // inventory must be grounded in files the server actually fetched this turn.
+  return withoutUnverifiedMarkers.replace(/```task-summary\n([\s\S]*?)```/gi, (_block, details: string) => {
+    const normalizedDetails = details
+      .split("\n")
+      .map((line) => line.trimStart().toLowerCase().startsWith("files read:")
+        ? `files read: ${verifiedPaths.join(", ")}`
+        : line
+      )
+      .join("\n");
+    return `\`\`\`task-summary\n${normalizedDetails}\n\`\`\``;
+  });
+}
+
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -683,6 +722,14 @@ export default function ChatPage() {
 
       if (!res.body) throw new Error("No response stream");
 
+      const verifiedReadPaths = readVerifiedPaths(res);
+      if (verifiedReadPaths.length > 0) {
+        accumulated = `${verifiedReadPaths.map((path) => `[READING FILE] ${path}`).join("\n")}\n\n`;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+        );
+      }
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
 
@@ -690,17 +737,20 @@ export default function ChatPage() {
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
+        const displayContent = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
         setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+          prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
       }
+
+      accumulated = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
 
       // A provider can occasionally end immediately after emitting a file-status
       // marker. Never leave the user with a spinning/empty repository task: add
       // a compact, honest report that asks them to retry for the actual findings.
       const parsedTask = parseCraftResponse(accumulated);
       const readActions = parsedTask.fileActions.filter((action) => action.type === "reading");
-      if (readActions.length > 0 && !parsedTask.summary) {
+      if (verifiedReadPaths.length > 0 && readActions.length > 0 && !parsedTask.summary) {
         const paths = [...new Set(readActions.map((action) => action.filePath))].join(", ");
         accumulated += `\n\n\`\`\`task-summary\nstatus: partial\nfiles read: ${paths}\nfiles changed:\nfiles deleted:\ndetails: The provider ended before it returned the file findings. Please retry this read request.\n\`\`\``;
         setMessages((prev) =>
