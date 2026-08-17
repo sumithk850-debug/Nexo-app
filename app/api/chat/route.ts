@@ -536,7 +536,12 @@ export async function POST(req: NextRequest) {
     }
 
     const latestUserText = lastUserMessage?.content ?? "";
-    const isSupabaseQuestion = /supabase|database|schema|table|project|projects|sql|ඩේටා|දත්ත|ටේබල්|ප්‍රොජෙක්ට්/i.test(latestUserText);
+    const recentConversationText = messages.slice(-4).map((message) => message.content).join("\n");
+    const hasExplicitSupabaseIntent = /supabase|database|schema|table|sql|ඩේටා|දත්ත|ටේබල්/i.test(latestUserText);
+    const isSupabaseProjectFollowUp =
+      /project|projects|ප්‍රොජෙක්ට්/i.test(latestUserText) &&
+      /supabase|database|schema|table|sql|ඩේටා|දත්ත|ටේබල්/i.test(recentConversationText);
+    const isSupabaseQuestion = hasExplicitSupabaseIntent || isSupabaseProjectFollowUp;
     let verifiedSupabaseProjects = "";
     if (isSupabaseQuestion && userId) {
       try {
