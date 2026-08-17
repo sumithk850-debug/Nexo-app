@@ -250,7 +250,15 @@ export function IntegrationsPanel({
     const params = new URLSearchParams(window.location.search);
     const vercelState = params.get("vercel");
     const supabaseState = params.get("supabase");
-    if (vercelState === "connected") {
+    const githubState = params.get("github");
+    const githubUpgrade = params.get("github_upgrade");
+    if (githubState === "connected") {
+      setConnectionMessage({ kind: "success", text: `GitHub connected successfully${params.get("mode") === "app" ? " with App installation permissions" : ""}.` });
+    } else if (githubState === "error") {
+      setConnectionMessage({ kind: "error", text: `GitHub connection failed: ${params.get("reason") ?? "unknown error"}` });
+    } else if (githubUpgrade === "pending") {
+      setConnectionMessage({ kind: "success", text: "GitHub App upgrade link ready. Configure GITHUB_APP_SLUG in environment when deploying your GitHub App." });
+    } else if (vercelState === "connected") {
       setConnectionMessage({ kind: "success", text: `Vercel connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
     } else if (vercelState === "error") {
       setConnectionMessage({ kind: "error", text: vercelCallbackError(params.get("reason")) });
@@ -259,9 +267,13 @@ export function IntegrationsPanel({
     } else if (supabaseState === "error") {
       setConnectionMessage({ kind: "error", text: supabaseCallbackError(params.get("reason")) });
     }
-    if (vercelState || supabaseState) {
+    if (vercelState || supabaseState || githubState || githubUpgrade) {
       params.delete("vercel");
       params.delete("supabase");
+      params.delete("github");
+      params.delete("github_upgrade");
+      params.delete("mode");
+      params.delete("setup");
       params.delete("user");
       params.delete("reason");
       const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
@@ -576,6 +588,22 @@ export function IntegrationsPanel({
               <Toggle enabled={githubEnabled} onChange={onGithubEnabledChange} disabled={!status.github.connected} />
             </div>
 
+            {status.github.connected && !status.github.canWrite && (
+              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-amber-300">Read-only connection active</div>
+                  <a
+                    href={`/api/github/app-install?userId=${encodeURIComponent(userId ?? "")}`}
+                    className="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-void transition hover:bg-amber-400"
+                  >
+                    Enable Read & Write Access
+                  </a>
+                </div>
+                <p className="mt-1 text-[11px] text-amber-200/80">
+                  Upgrade your GitHub connection to install the Nexo App and grant repository write permissions for commits and file edits.
+                </p>
+              </div>
+            )}
             {!status.github.connected ? (
               personalTokenMode ? (
                 <div className="mt-3 rounded-xl border border-cyan/20 bg-cyan/5 p-3">

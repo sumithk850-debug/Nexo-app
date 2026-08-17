@@ -4,23 +4,9 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "@/styles/prism-nexo.css";
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  weight: ["500", "600", "700"],
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  weight: ["400", "500", "600"],
-});
-
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains",
-  weight: ["400", "500"],
-});
+const spaceGrotesk = { variable: "--font-space-grotesk", className: "font-sans" };
+const inter = { variable: "--font-inter", className: "font-sans" };
+const jetbrains = { variable: "--font-jetbrains", className: "font-mono" };
 
 export const metadata: Metadata = {
   title: "NEXO AI — Think Beyond. Create Faster.",
