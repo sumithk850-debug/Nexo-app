@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   Database,
@@ -57,6 +57,12 @@ interface VercelDeployment {
   isProduction: boolean;
   projectId: string;
   ready: boolean | null;
+}
+
+interface SupabaseProject {
+  id: string;
+  name: string;
+  region: string | null;
 }
 
 interface ApprovalState {
@@ -172,6 +178,7 @@ export function IntegrationsPanel({
 
   // Supabase live data
   const [supabaseProjectId, setSupabaseProjectId] = useState<string | null>(null);
+  const [supabaseProjects, setSupabaseProjects] = useState<SupabaseProject[]>([]);
   const [supabaseTables, setSupabaseTables] = useState<unknown[]>([]);
   const [supabaseColumns, setSupabaseColumns] = useState<unknown[]>([]);
   const [supabaseDataLoading, setSupabaseDataLoading] = useState(false);
@@ -228,23 +235,6 @@ export function IntegrationsPanel({
   useEffect(() => {
     if (open) void loadStatus();
   }, [open, loadStatus]);
-
-  // Load the saved Supabase project's schema whenever the panel opens, so the
-  // viewer and SQL console are immediately usable (defaults to the nexo-app
-  // project the platform itself uses). A ref keeps the effect fresh when the
-  // user switches projects inside the panel.
-  const latestLoadSchema = useRef(loadSupabaseSchema);
-  useEffect(() => {
-    latestLoadSchema.current = loadSupabaseSchema;
-  });
-  useEffect(() => {
-    if (!open || !userId) return;
-    const projectId = supabaseProjectId ?? "apvqebqigqirmvemhnmz";
-    if (projectId) {
-      setSupabaseProjectId(projectId);
-      void latestLoadSchema.current(projectId);
-    }
-  }, [open, userId, supabaseProjectId]);
 
   useEffect(() => {
     if (supabaseProjectId) {
@@ -374,6 +364,8 @@ export function IntegrationsPanel({
     if (!userId) return;
     await fetch(`/api/supabase/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
     setSupabaseExpanded(false);
+    setSupabaseProjects([]);
+    setSupabaseProjectId(null);
     setSupabaseTables([]);
     setSupabaseColumns([]);
     setSupabaseSqlResult(null);
@@ -381,7 +373,7 @@ export function IntegrationsPanel({
     await loadStatus();
   }
 
-  async function loadSupabaseSchema(projectId: string) {
+  const loadSupabaseSchema = useCallback(async (projectId: string) => {
     if (!userId) return;
     setSupabaseDataLoading(true);
     setSupabaseDataError(null);
@@ -405,7 +397,45 @@ export function IntegrationsPanel({
     } finally {
       setSupabaseDataLoading(false);
     }
-  }
+  }, [userId]);
+
+  const loadSupabaseProjects = useCallback(async () => {
+    if (!userId) return;
+    setSupabaseDataLoading(true);
+    setSupabaseDataError(null);
+    try {
+      const response = await fetch(`/api/supabase/projects?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) {
+        setSupabaseDataError(data.error ?? "Could not load Supabase projects.");
+        return;
+      }
+      const projects = (data.projects ?? []) as SupabaseProject[];
+      setSupabaseProjects(projects);
+      const savedProjectId = typeof window !== "undefined" ? localStorage.getItem("nexo:supabaseProjectId") : null;
+      const selectedProjectId = projects.some((project) => project.id === savedProjectId)
+        ? savedProjectId
+        : projects[0]?.id ?? null;
+      if (selectedProjectId) {
+        setSupabaseProjectId(selectedProjectId);
+        await loadSupabaseSchema(selectedProjectId);
+      } else {
+        setSupabaseProjectId(null);
+        setSupabaseTables([]);
+      }
+    } catch {
+      setSupabaseDataError("Could not load Supabase projects.");
+    } finally {
+      setSupabaseDataLoading(false);
+    }
+  }, [userId, loadSupabaseSchema]);
+
+  // Resolve the selected project from the connected account. A project ID is
+  // never guessed or substituted with a platform default.
+  useEffect(() => {
+    if (!open || !userId) return;
+    void loadSupabaseProjects();
+  }, [open, userId, loadSupabaseProjects]);
 
   async function loadTableColumns(projectId: string, tableName: string) {
     if (!userId) return;
@@ -807,6 +837,37 @@ export function IntegrationsPanel({
 
                 {supabaseExpanded && (
                   <div className="mt-3 space-y-3">
+                    <section className="rounded-xl border border-edge bg-panel/60 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-semibold text-ink">Verified project</h4>
+                        <button
+                          type="button"
+                          onClick={() => void loadSupabaseProjects()}
+                          className="text-[10px] font-semibold text-emerald-400 hover:text-emerald-300"
+                        >
+                          Refresh projects
+                        </button>
+                      </div>
+                      <select
+                        value={supabaseProjectId ?? ""}
+                        onChange={(event) => {
+                          const projectId = event.target.value;
+                          if (projectId) void loadSupabaseSchema(projectId);
+                        }}
+                        disabled={supabaseProjects.length === 0 || supabaseDataLoading}
+                        className="mt-2 w-full rounded-lg border border-edge bg-void/60 px-2.5 py-2 text-xs text-ink outline-none transition focus:border-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {supabaseProjects.length === 0 ? (
+                          <option value="">No verified project available</option>
+                        ) : (
+                          supabaseProjects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}{project.region ? ` · ${project.region}` : ""}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </section>
                     {supabaseDataLoading && (
                       <div className="flex items-center justify-center gap-2 py-3 text-xs text-ink-muted">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading schema…
@@ -837,7 +898,7 @@ export function IntegrationsPanel({
                             <button
                               key={`${table.table_schema ?? "public"}.${table.name}`}
                               type="button"
-                              onClick={() => void loadTableColumns(supabaseProjectId ?? "apvqebqigqirmvemhnmz", table.name)}
+                              onClick={() => supabaseProjectId ? void loadTableColumns(supabaseProjectId, table.name) : undefined}
                               className="truncate rounded-lg border border-edge/70 bg-void/40 px-2.5 py-1.5 text-left text-[11px] font-medium text-ink-faint transition hover:border-emerald-500/40 hover:text-ink"
                               title={`${table.table_schema ?? "public"}.${table.name}`}
                             >
@@ -883,8 +944,12 @@ export function IntegrationsPanel({
                       <div className="mt-2 flex justify-end">
                         <button
                           type="button"
-                          disabled={!supabaseSql.trim()}
-                          onClick={() => void confirmSupabaseSql(supabaseProjectId ?? "apvqebqigqirmvemhnmz", "nexo-app", supabaseSql)}
+                          disabled={!supabaseSql.trim() || !supabaseProjectId}
+                          onClick={() => {
+                            if (!supabaseProjectId) return;
+                            const projectName = supabaseProjects.find((project) => project.id === supabaseProjectId)?.name ?? "Selected project";
+                            void confirmSupabaseSql(supabaseProjectId, projectName, supabaseSql);
+                          }}
                           className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           Run SQL

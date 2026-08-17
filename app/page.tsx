@@ -197,7 +197,9 @@ export default function ChatPage() {
     const currentUserId = user?.id;
     const projectId = task.projectId || (typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null);
     if (!currentUserId) return { ok: false, message: "Sign in before running a Supabase task." };
-    if (!projectId) return { ok: false, message: "Connect Supabase and select a project first." };
+    if (!projectId || ["unknown", "null", "n/a"].includes(projectId.toLowerCase())) {
+      return { ok: false, message: "Connect Supabase and select a verified project first." };
+    }
 
     try {
       const response = await fetch(`/api/supabase/action?userId=${encodeURIComponent(currentUserId)}`, {

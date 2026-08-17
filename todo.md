@@ -26,3 +26,4 @@
 - [x] Select a top-tier free coding model on OpenRouter as Craft V4 fallback and fix light-mode contrast in the Pro upgrade popup.
 - [x] Enforce Craft V3 and Craft V4 locked state server-side so only Craft V3 Lite can be selected until the Pro plan is available.
 - [x] Enable up to 10 file attachments per message supporting images, PDFs, text, and code files, with assistant read-intent messaging and live reading task cards.
+- [x] Fix Supabase project/list/read and approval-card flows so only verified data is shown and malformed raw task blocks are rejected.

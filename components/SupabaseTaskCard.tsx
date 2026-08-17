@@ -27,7 +27,8 @@ export function SupabaseTaskCard({
   const [approvalState, setApprovalState] = useState<"idle" | "busy" | "success" | "error">("idle");
   const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
   const isReadOnly = task.operation === "inspect" || task.operation === "query";
-  const canApprove = Boolean(userId && task.projectId && task.sql && onApprove);
+  const hasVerifiedProject = Boolean(task.projectId && !["unknown", "null", "n/a"].includes(task.projectId.toLowerCase()));
+  const canApprove = Boolean(userId && hasVerifiedProject && task.sql && onApprove);
   const label = OPERATION_LABELS[task.operation];
 
   async function approve() {
@@ -51,7 +52,7 @@ export function SupabaseTaskCard({
       <div className="space-y-2 px-3 py-2.5">
         <div className="flex items-center gap-2 text-xs text-ink">
           {streaming ? <Loader2 className="h-3 w-3 animate-spin text-emerald-300" /> : <Check className="h-3 w-3 text-emerald-300" />}
-          <span className="font-semibold">{streaming ? label : isReadOnly ? `${label} proposed` : `${label} approval required`}</span>
+          <span className="font-semibold">{streaming ? label : isReadOnly ? `${label} read plan` : `${label} approval required`}</span>
         </div>
         <div className="grid grid-cols-1 gap-1 text-[11px] sm:grid-cols-2">
           <span className="truncate text-ink-muted">Project: <strong className="font-mono text-ink">{task.projectId ?? "Not selected"}</strong></span>
@@ -73,7 +74,7 @@ export function SupabaseTaskCard({
             >
               Approve Supabase change
             </button>
-            {!canApprove && <span className="text-[10px] text-ink-faint">Connect Supabase and select a project first.</span>}
+            {!canApprove && <span className="text-[10px] text-ink-faint">Connect Supabase and select a verified project first.</span>}
           </div>
         )}
         {approvalState === "busy" && (

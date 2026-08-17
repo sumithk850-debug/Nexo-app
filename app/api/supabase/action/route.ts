@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const projects = await client.listProjects() as Array<{ id?: string }>;
+    if (!projects.some((project) => project.id === projectId)) {
+      return new Response(JSON.stringify({ error: "The selected Supabase project is not available to this connection" }), { status: 403 });
+    }
     const result = await client.executeSql(projectId, sql);
     return new Response(
       JSON.stringify({ success: true, action: "sql", result }),
