@@ -32,6 +32,9 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
 const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
+  // Nexio 1.1 uses the same verified fast transport for reliability, while
+  // retaining its existing public identity and without the UltraSpeed badge.
+  "nexio-1.1",
   "spadec-3.5",
   "galex-4.0",
   "brainex-10.8",
@@ -43,6 +46,16 @@ const DAILY_MESSAGE_LIMIT = 50;
 const SECRET_HANDLING_PROTOCOL = `
 
 SECRET HANDLING: Treat passwords, API keys, GitHub Personal Access Tokens, and any string that appears to be a credential as secrets. Never ask the user to paste one into chat, never repeat one, and never include one in a file, diff, report, or tool instruction. If a user asks how to connect GitHub using a token, direct them to Integrations → GitHub → Use token, where it is stored as a protected connection secret and used only server-side for repository requests.`;
+
+const COMPANION_CONVERSATION_PROTOCOL = `
+
+NATURAL COMPANION CONVERSATION (MANDATORY FOR EVERY NEXO MODEL):
+- Speak naturally, warmly, and helpfully like a capable friend, while remaining accurate and respectful.
+- Default to completing the user's request directly. Do not repeatedly ask "What would you like to do next?", "What is the next step?", or other generic follow-up questions merely to continue the conversation.
+- Do not end ordinary answers with a generic menu, invitation, or request for the user to choose the next action. Take reasonable helpful steps and provide the complete answer that is currently possible.
+- Ask one concise question only when a missing detail is genuinely required to answer accurately, perform a requested action safely, or avoid guessing. Otherwise, make reasonable assumptions and state them briefly when useful.
+- Give complete, appropriately detailed answers. Do not impose artificial brevity; keep simple answers concise, and give complex questions the explanation, steps, examples, and reasoning they need.
+- Do not make the user repeat information they already provided in the current conversation.`;
 
 const STRUCTURED_RESPONSE_PROTOCOL = `
 
@@ -481,8 +494,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // NEXO UltraSpeed profiles retain their existing identity, prompts, usage
-    // limits, and picker labels. Only their private server-side transport changes.
+    // Fast-path profiles retain their existing identity, prompts, usage limits,
+    // and picker labels. Only their private server-side transport changes.
     const usesUltraSpeed = ULTRA_SPEED_MODEL_IDS.has(modelId);
     const apiKey = usesUltraSpeed
       ? process.env.CEREBRAS_API_KEY
@@ -593,6 +606,7 @@ export async function POST(req: NextRequest) {
       ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n\"\"\"\n${memory}\n\"\"\"`
       : `${basePrompt}\n\n${activePersonaPrompt}`;
     systemPrompt += SECRET_HANDLING_PROTOCOL;
+    systemPrompt += COMPANION_CONVERSATION_PROTOCOL;
     systemPrompt += STRUCTURED_RESPONSE_PROTOCOL;
     systemPrompt += SUPABASE_VERCEL_INTEGRATION_PROTOCOL;
     systemPrompt += CLARIFICATION_BOARD_PROTOCOL;
@@ -727,8 +741,8 @@ export async function POST(req: NextRequest) {
     for (const candidateModel of candidateModels) {
       activeProviderModel = candidateModel;
       
-      // UltraSpeed profiles always use the dedicated fast path. All other
-      // profiles retain their existing provider and fallback behaviour.
+      // Fast-path profiles always use the dedicated route. All other profiles
+      // retain their existing provider and fallback behaviour.
       const isCandidateGemini = !usesUltraSpeed && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
       const isCandidateGroq = !usesUltraSpeed && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
       const currentIsUltraSpeed = usesUltraSpeed;

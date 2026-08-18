@@ -26,7 +26,6 @@ function generateSuggestions(content: string): string[] {
   }
 
   if (/step|steps|first|then|next/i.test(text)) {
-    if (suggestions.length < 4) suggestions.push("What's the next step?");
     if (suggestions.length < 4) suggestions.push("Show me more details");
   }
 
