@@ -30,6 +30,14 @@ interface IncomingMessage {
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
+const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
+  "spadec-3.5",
+  "galex-4.0",
+  "brainex-10.8",
+  "craft-v3",
+]);
+const ULTRA_SPEED_MODEL = "gpt-oss-120b";
 const DAILY_MESSAGE_LIMIT = 50;
 
 const SECRET_HANDLING_PROTOCOL = `
@@ -473,17 +481,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const apiKey = config.provider === "gemini"
-      ? process.env.GEMINI_API_KEY
-      : process.env.OPENROUTER_API_KEY;
+    // NEXO UltraSpeed profiles retain their existing identity, prompts, usage
+    // limits, and picker labels. Only their private server-side transport changes.
+    const usesUltraSpeed = ULTRA_SPEED_MODEL_IDS.has(modelId);
+    const apiKey = usesUltraSpeed
+      ? process.env.CEREBRAS_API_KEY
+      : config.provider === "gemini"
+        ? process.env.GEMINI_API_KEY
+        : process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      const keyName = config.provider === "gemini" ? "GEMINI_API_KEY" : "OPENROUTER_API_KEY";
       return new Response(
         JSON.stringify({
-          error: `Missing ${keyName}. Set it in your environment variables.`,
+          error: "The NEXO intelligence service is temporarily unavailable. Please try again shortly.",
         }),
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -707,19 +719,25 @@ export async function POST(req: NextRequest) {
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
     let activeProviderIsGemini = isGemini;
-    const candidateModels = [config.model, ...(config.fallbackModels ?? [])];
+    const candidateModels = usesUltraSpeed
+      ? [ULTRA_SPEED_MODEL]
+      : [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
       activeProviderModel = candidateModel;
       
-      // Dynamic upstream URL: switch to Groq or OpenRouter depending on model prefix
-      const isCandidateGemini = candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
-      const isCandidateGroq = candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1");
+      // UltraSpeed profiles always use the dedicated fast path. All other
+      // profiles retain their existing provider and fallback behaviour.
+      const isCandidateGemini = !usesUltraSpeed && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
+      const isCandidateGroq = !usesUltraSpeed && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
+      const currentIsUltraSpeed = usesUltraSpeed;
       
-      const currentUpstreamUrl = isCandidateGemini
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
-        : (isCandidateGroq && process.env.GROQ_API_KEY) ? GROQ_ENDPOINT : OPENROUTER_ENDPOINT;
+      const currentUpstreamUrl = currentIsUltraSpeed
+        ? CEREBRAS_ENDPOINT
+        : isCandidateGemini
+          ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
+          : (isCandidateGroq && process.env.GROQ_API_KEY) ? GROQ_ENDPOINT : OPENROUTER_ENDPOINT;
 
       const currentIsGemini = isCandidateGemini;
       const currentIsGroq = isCandidateGroq && !!process.env.GROQ_API_KEY;
@@ -732,17 +750,22 @@ export async function POST(req: NextRequest) {
                 "Content-Type": "application/json",
                 "x-goog-api-key": process.env.GEMINI_API_KEY || "",
               }
-            : currentIsGroq
-            ? {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${process.env.GROQ_API_KEY || ""}`,
-              }
-            : {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
-                "HTTP-Referer": "https://nexo-app-delta.vercel.app",
-                "X-Title": "NEXO AI",
-              };
+            : currentIsUltraSpeed
+              ? {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${process.env.CEREBRAS_API_KEY || ""}`,
+                }
+              : currentIsGroq
+                ? {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.GROQ_API_KEY || ""}`,
+                  }
+                : {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
+                    "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+                    "X-Title": "NEXO AI",
+                  };
 
           const currentBody = currentIsGemini
             ? {
@@ -763,7 +786,7 @@ export async function POST(req: NextRequest) {
                 stream: true,
                 temperature: 1.0,
                 top_p: 1.0,
-                max_tokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+                max_tokens: currentIsUltraSpeed ? outputTokenLimit : MODEL_TOKEN_LIMITS[modelId] ?? 8192,
                 messages: [
                   { role: "system", content: systemPrompt },
                   ...messages.map((m) => ({ role: m.role, content: m.content })),

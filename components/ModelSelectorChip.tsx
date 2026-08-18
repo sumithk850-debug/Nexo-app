@@ -2,7 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
-import { ChevronDown, Lock, Check } from "lucide-react";
+import { ChevronDown, Lock, Check, Zap } from "lucide-react";
+
+const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
+  "spadec-3.5",
+  "galex-4.0",
+  "brainex-10.8",
+  "craft-v3",
+]);
 
 export function ModelSelectorChip({
   selected,
@@ -34,11 +41,21 @@ export function ModelSelectorChip({
         className="flex items-center gap-1.5 rounded-full border border-edge bg-panel px-3 py-1.5 text-xs font-medium text-ink transition hover:border-cyan/40"
       >
         {activeModel?.name ?? "Select model"}
+        {activeModel && ULTRA_SPEED_MODEL_IDS.has(activeModel.id) && (
+          <span className="hidden items-center gap-0.5 rounded-full bg-cyan/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-cyan sm:inline-flex">
+            <Zap className="h-2.5 w-2.5" aria-hidden="true" />
+            UltraSpeed
+          </span>
+        )}
         <ChevronDown className="h-3.5 w-3.5 text-ink-muted" />
       </button>
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-2 w-72 rounded-xl border border-edge bg-panel-raised p-1.5 shadow-2xl">
+          <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan">
+            <Zap className="h-3 w-3" aria-hidden="true" />
+            Nexo UltraSpeed
+          </div>
           {NEXO_MODELS.map((model) => {
             const isLocked = !unlockedTiers.includes(model.tier);
             const isSelected = model.id === selected;
@@ -56,9 +73,16 @@ export function ModelSelectorChip({
                 } ${isLocked ? "cursor-not-allowed opacity-50" : ""}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate font-display text-sm font-semibold text-ink">
-                    {model.name}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-display text-sm font-semibold text-ink">
+                      {model.name}
+                    </p>
+                    {ULTRA_SPEED_MODEL_IDS.has(model.id) && (
+                      <span className="rounded border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-cyan">
+                        UltraSpeed
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-ink-muted">
                     {model.tagline}
                   </p>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, X, Rocket } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const APP_VERSION = "3.2.0";
+const APP_VERSION = "4.0.0";
 const DISMISS_KEY_PREFIX = "nexo_dismissed_announcement_";
 
 interface Announcement {
@@ -14,7 +14,7 @@ interface Announcement {
   version: string;
 }
 
-function isVersionNewer(remoteVersion: string, localVersion: string): boolean {
+function isVersionCurrentOrNewer(remoteVersion: string, localVersion: string): boolean {
   const parse = (v: string) =>
     v.split(".").map((n) => parseInt(n, 10) || 0);
   const remote = parse(remoteVersion);
@@ -25,7 +25,7 @@ function isVersionNewer(remoteVersion: string, localVersion: string): boolean {
     if (r > l) return true;
     if (r < l) return false;
   }
-  return false;
+  return true;
 }
 
 export function AnnouncementModal() {
@@ -43,7 +43,7 @@ export function AnnouncementModal() {
         .limit(1)
         .maybeSingle();
 
-      if (data && data.version && isVersionNewer(data.version, APP_VERSION)) {
+      if (data && data.version && isVersionCurrentOrNewer(data.version, APP_VERSION)) {
         setAnnouncement(data);
         const wasDismissed = localStorage.getItem(DISMISS_KEY_PREFIX + data.id);
         setDismissed(!!wasDismissed);
@@ -100,7 +100,7 @@ export function AnnouncementModal() {
             </div>
             <div>
               <h3 className="font-display text-base font-bold text-ink">
-                Nexo AI New Update Available!
+                {announcement?.title ?? "Nexo AI Update"}
               </h3>
               {announcement.version && (
                 <span className="font-mono text-xs text-cyan">

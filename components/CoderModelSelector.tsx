@@ -10,7 +10,7 @@ interface CoderModelSelectorProps {
 }
 
 // Coder sub-model selector — only renders inside Nexo Coder Agent mode.
-// Craft V3 Lite runs on the same free Craft routes with a deeper prompt.
+// Craft V3 Lite is the active UltraSpeed coding profile with a deeper prompt.
 // Craft V3 and Craft V4 are visually locked (paid tiers).
 export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorProps) {
   const [open, setOpen] = useState(false);
@@ -70,6 +70,10 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
           <Cpu className="h-3.5 w-3.5 text-cyan" />
         </span>
         <span className="max-w-20 truncate text-ink">{activeInfo.name}</span>
+        <span className="hidden items-center gap-0.5 rounded bg-cyan/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-cyan sm:inline-flex">
+          <Zap className="h-2.5 w-2.5" aria-hidden="true" />
+          UltraSpeed
+        </span>
         <span
           className={`rounded px-1.5 py-0.5 text-[9px] font-black tracking-wide ${
             activeInfo.badge === "LITE" ? "bg-cyan/15 text-cyan" : "bg-amber-500/15 text-amber-400"
@@ -91,9 +95,15 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-edge bg-panel shadow-[0_10px_40px_rgba(0,0,0,0.5)] animate-fade-up">
           <div className="border-b border-edge/50 px-3.5 py-2.5">
-            <p className="text-[10px] font-black uppercase tracking-widest text-ink-muted">
-              Coding Engine
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-ink-muted">
+                Nexo Coder
+              </p>
+              <span className="inline-flex items-center gap-1 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan">
+                <Zap className="h-2.5 w-2.5" aria-hidden="true" />
+                UltraSpeed
+              </span>
+            </div>
           </div>
           <div className="p-1.5">
             {CODER_MODELS.map((m) => {
@@ -150,10 +160,10 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                     </span>
                     <span className="mt-0.5 block truncate text-[10px] text-ink-muted">
                       {m.id === "craft-v3-lite"
-                        ? "Deep-engine prompt · Free tier"
+                        ? "UltraSpeed coding · Free tier"
                         : m.id === "craft-v3"
-                          ? "Elite 550B engine · Paid upgrade"
-                          : "Next-gen architecture engine · Paid upgrade"}
+                          ? "Advanced coding capability · Paid upgrade"
+                          : "Next-generation architecture · Paid upgrade"}
                     </span>
                   </span>
                   {m.locked ? (
@@ -234,7 +244,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
 
               <div className="flex items-center justify-between rounded-xl border border-edge/70 bg-edge/20 px-3.5 py-3 text-xs">
                 <div>
-                  <p className="font-semibold text-ink">Current engine</p>
+                  <p className="font-semibold text-ink">Current capability</p>
                   <p className="mt-0.5 text-ink-muted">Craft V3 Lite · Free</p>
                 </div>
                 <div className="text-right">
