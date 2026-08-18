@@ -26,11 +26,17 @@ const screenshotStylePlainText = [
   "3. 🛠️ Supabase දත්ත පරීක්ෂාව (Database Query)",
 ].join("\n");
 
-const fallbackCards = parseClarificationBlocks(screenshotStylePlainText);
-assert.equal(fallbackCards.length, 1, "legacy plain option text must be converted into one clickable board");
-assert.equal(fallbackCards[0]?.options.length, 3);
-assert.equal(stripClarificationBlocks(screenshotStylePlainText), "කරුණාකර ඔබට අවශ්‍ය දේ අනුව මට කියන්න:");
+assert.equal(
+  parseClarificationBlocks(screenshotStylePlainText).length,
+  0,
+  "generic option menus must remain normal chat content rather than an interactive card",
+);
+assert.equal(
+  stripClarificationBlocks(screenshotStylePlainText),
+  screenshotStylePlainText,
+  "generic option menus must not be hidden from the transcript",
+);
 
 assert.equal(parseClarificationBlocks("1. Normal implementation step\n2. Another normal step").length, 0);
 
-console.log("Clarification board local checks passed: structured, fallback, and normal-Markdown assertions.");
+console.log("Clarification card checks passed: explicit cards render, ordinary lists remain normal Markdown.");

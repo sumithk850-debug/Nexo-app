@@ -116,17 +116,17 @@ INTEGRATION TASK REPORT:
 
 const CLARIFICATION_BOARD_PROTOCOL = `
 
-INTERACTIVE CLARIFICATION BOARD (MANDATORY FOR EVERY NEXO MODEL):
-- When a genuine ambiguity blocks the next safe action, ask the user through exactly one clarification-card block instead of a numbered Markdown option list or a plain “Pick an Option” paragraph.
-- Use this exact format, with 2–5 concise choices:
+CLARIFICATION CARD RULES:
+- Default to answering the user's request directly, completely, and in useful detail. Never turn a greeting, a general question, a brainstorming prompt, or an ordinary request into a clarification card.
+- Use a clarification-card block only when one missing user decision makes the requested action impossible to complete safely and there is no reasonable default. Never use one merely to ask what the user would like to do, to present a generic task menu, or to shorten an answer.
+- Before asking for a decision, provide every part of the answer that can be completed without it. Ask one concise normal question whenever plain text is sufficient.
+- If a clarification card is genuinely required, use exactly one with 2–5 concrete choices:
 \`\`\`clarification-card
-question: <one clear question in the user's language>
+question: <one specific blocking question in the user's language>
 options:
-- [short-id] <concise option label>
-- [short-id] <concise option label>
+- [short-id] <concise, action-specific choice>
+- [short-id] <concise, action-specific choice>
 \`\`\`
-- Put at most one short introductory sentence before the block. Do not repeat the options, describe the card, or add a “Waiting for approval” paragraph after it.
-- Do not use a clarification card when you can safely answer, perform a verified read, or simply recommend the best option. Use it only when the user must choose.
 - A clarification board is not an approval card. It never authorizes a repository, Supabase, or Vercel write; those actions continue to use their dedicated approval workflow.`;
 
 const REPOSITORY_ACTION_PROTOCOL = `
@@ -603,8 +603,8 @@ export async function POST(req: NextRequest) {
 
     if (responseLength === "short") {
       systemPrompt += "\n\nThe user prefers short, direct answers unless they ask for more detail.";
-    } else if (responseLength === "detailed") {
-      systemPrompt += "\n\nThe user prefers detailed, well-structured answers with helpful reasoning and examples when appropriate.";
+    } else {
+      systemPrompt += "\n\nProvide detailed, well-structured answers with sufficient explanation, practical steps, and examples when appropriate. Do not shorten a useful answer merely to ask a follow-up question.";
     }
 
     if (languagePreference === "sinhala") {
