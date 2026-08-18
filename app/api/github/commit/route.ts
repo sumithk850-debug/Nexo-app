@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { resolveGitHubCredential } from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, installation_id, selected_repo")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
@@ -76,11 +76,11 @@ export async function POST(req: NextRequest) {
 
   let token: string;
   try {
-    token = decryptGithubToken(connection.access_token);
-  } catch {
+    token = (await resolveGitHubCredential(connection, "write")).token;
+  } catch (error) {
     return new Response(
-      JSON.stringify({ error: "Saved GitHub secret could not be used. Reconnect GitHub in Integrations." }),
-      { status: 400 }
+      JSON.stringify({ error: error instanceof Error ? error.message : "GitHub write access could not be verified." }),
+      { status: 403 }
     );
   }
   const repo = connection.selected_repo; // "owner/repo"

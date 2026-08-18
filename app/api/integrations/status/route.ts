@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptIntegrationToken } from "@/lib/integrationToken.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
+import { getGitHubWriteCapability } from "@/lib/githubApp.server";
 
 export const runtime = "nodejs";
 
@@ -28,15 +29,16 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from("github_connections")
-      .select("github_username, access_token, selected_repo")
+      .select("github_username, access_token, installation_id, selected_repo")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (data) {
+      const writeCapability = await getGitHubWriteCapability(data);
       github = {
         connected: true,
         username: data.github_username ?? null,
-        canWrite: Boolean(data.access_token),
+        canWrite: writeCapability.canWrite,
         selectedRepo: data.selected_repo ?? null,
       };
     }

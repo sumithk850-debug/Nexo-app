@@ -257,8 +257,6 @@ export function IntegrationsPanel({
       setConnectionMessage({ kind: "success", text: `GitHub connected successfully${params.get("mode") === "app" ? " with App installation permissions" : ""}.` });
     } else if (githubState === "error") {
       setConnectionMessage({ kind: "error", text: `GitHub connection failed: ${params.get("reason") ?? "unknown error"}` });
-    } else if (githubUpgrade === "pending") {
-      setConnectionMessage({ kind: "success", text: "GitHub App upgrade link ready. Configure GITHUB_APP_SLUG in environment when deploying your GitHub App." });
     } else if (vercelState === "connected") {
       setConnectionMessage({ kind: "success", text: `Vercel connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
     } else if (vercelState === "error") {
@@ -299,6 +297,14 @@ export function IntegrationsPanel({
   function connectGithub() {
     if (!userId) return;
     void beginOAuth("/api/github/login").catch((error) => console.error("[github] OAuth start failed:", error));
+  }
+
+  function upgradeGithubWriteAccess() {
+    if (!userId) return;
+    setConnectionMessage(null);
+    void beginOAuth("/api/github/app-install").catch((error) => {
+      setConnectionMessage({ kind: "error", text: error instanceof Error ? error.message : "GitHub App upgrade could not start." });
+    });
   }
 
   // ---- Vercel ----
@@ -607,7 +613,7 @@ export function IntegrationsPanel({
                   <div className="text-xs font-semibold text-amber-300">Read-only connection active</div>
                   <button
                     type="button"
-                    onClick={() => void beginOAuth("/api/github/app-install").catch((error) => console.error("[github] App upgrade start failed:", error))}
+                    onClick={upgradeGithubWriteAccess}
                     className="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-void transition hover:bg-amber-400"
                   >
                     Enable Read & Write Access

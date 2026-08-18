@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { resolveGitHubCredential } from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, installation_id, selected_repo")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = decryptGithubToken(connection.access_token);
+    const token = (await resolveGitHubCredential(connection, "read")).token;
     const res = await fetch(
       `https://api.github.com/repos/${connection.selected_repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`,
       {

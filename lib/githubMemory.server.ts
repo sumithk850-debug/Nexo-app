@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { resolveGitHubCredential } from "@/lib/githubApp.server";
 
 const MEMORY_ROOT = ".nexo-memory";
 const INDEX_PATH = `${MEMORY_ROOT}/index.json`;
@@ -96,15 +96,16 @@ async function getConnection(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, installation_id, selected_repo")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!connection?.access_token || !connection.selected_repo) return null;
+  if (!connection?.selected_repo) return null;
   try {
+    const credential = await resolveGitHubCredential(connection, "read");
     return {
       repo: connection.selected_repo as string,
-      token: decryptGithubToken(connection.access_token as string),
+      token: credential.token,
     };
   } catch {
     return null;

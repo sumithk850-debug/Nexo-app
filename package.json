@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test:supabase-dispatcher": "rm -rf .tmp-supabase-dispatcher-test && tsc scripts/verify-supabase-dispatcher.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-supabase-dispatcher-test && node .tmp-supabase-dispatcher-test/scripts/verify-supabase-dispatcher.js",
     "test:security": "rm -rf .tmp-security-test && tsc scripts/verify-security-hardening.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-security-test && node .tmp-security-test/scripts/verify-security-hardening.js",
-    "test:clarification": "rm -rf .tmp-clarification-test && tsc scripts/verify-clarification-cards.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-clarification-test && node .tmp-clarification-test/scripts/verify-clarification-cards.js"
+    "test:clarification": "rm -rf .tmp-clarification-test && tsc scripts/verify-clarification-cards.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-clarification-test && node .tmp-clarification-test/scripts/verify-clarification-cards.js",
+    "test:github-upgrade": "rm -rf .tmp-github-upgrade-test && tsc scripts/verify-github-upgrade.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-upgrade-test && node .tmp-github-upgrade-test/scripts/verify-github-upgrade.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

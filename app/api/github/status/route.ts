@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { getGitHubWriteCapability } from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -23,32 +23,19 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("github_connections")
-    .select("github_username, access_token")
+    .select("github_username, access_token, installation_id")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
-  let canWrite = false;
-  if (data?.access_token) {
-    try {
-      const token = decryptGithubToken(data.access_token);
-      const scopesRes = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-      const scopes = scopesRes.headers.get("x-oauth-scopes") ?? "";
-      canWrite = scopes.split(",").map((scope) => scope.trim()).some((scope) => scope === "repo" || scope === "public_repo");
-    } catch {
-      canWrite = false;
-    }
-  }
+  const writeCapability = data ? await getGitHubWriteCapability(data) : { canWrite: false, source: null, configurationMissing: false };
 
   return new Response(
     JSON.stringify({
       connected: !!data,
       githubUsername: data?.github_username ?? null,
-      canWrite,
+      canWrite: writeCapability.canWrite,
+      writeSource: writeCapability.source,
+      appConfigurationMissing: writeCapability.configurationMissing,
     }),
     { status: 200 }
   );
