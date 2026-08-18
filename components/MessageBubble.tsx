@@ -9,8 +9,10 @@ import { getPublicModel } from "@/lib/models";
 import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
 import { parseSupabaseTaskBlocks, stripSupabaseTaskBlocks, type SupabaseTask } from "@/lib/supabaseTaskParser";
+import { parseSupabaseReadBlocks, stripSupabaseReadBlocks } from "@/lib/supabaseReadParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
+import { SupabaseReadCard } from "./SupabaseReadCard";
 import { SummaryCard } from "./SummaryCard";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
@@ -126,8 +128,8 @@ const markdownComponents = {
 };
 
 function normalizeMarkdownForDisplay(content: string) {
-  const withoutSupabaseTasks = stripSupabaseTaskBlocks(content);
-  return withoutSupabaseTasks
+  const withoutSupabaseCards = stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content));
+  return withoutSupabaseCards
     .split(/(```[\s\S]*?```)/g)
     .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
     .join("");
@@ -180,6 +182,8 @@ export function MessageBubble({
   const [draft, setDraft] = useState(message.content);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
+  const supabaseReadCards = parseSupabaseReadBlocks(message.content);
+  const displayContent = stripSupabaseReadBlocks(message.content);
 
   useEffect(() => {
     return () => {
@@ -340,7 +344,8 @@ export function MessageBubble({
             segments remain in the transcript. */}
         {coderMode ? (
           <div className="space-y-2">
-            {parseCraftSegments(message.content).map((seg, i) =>
+            {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
+            {parseCraftSegments(displayContent).map((seg, i) =>
               seg.kind === "text" ? (
                 seg.text.trim() ? (
                   <div key={i} className="prose-nexo text-sm text-ink">
@@ -403,8 +408,9 @@ export function MessageBubble({
           </div>
         ) : (
           <div className="prose-nexo text-sm text-ink">
+            {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {normalizeMarkdownForDisplay(message.content)}
+              {normalizeMarkdownForDisplay(displayContent)}
             </ReactMarkdown>
             {supabaseTasks.map((task) => (
               <SupabaseTaskCard

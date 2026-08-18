@@ -24,6 +24,7 @@ import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } fr
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
+import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -81,6 +82,23 @@ function normalizeRepositoryReadClaims(content: string, verifiedPaths: string[])
       .join("\n");
     return `\`\`\`task-summary\n${normalizedDetails}\n\`\`\``;
   });
+}
+
+function inferSupabaseSchemaRead(text: string) {
+  const mentionsSupabase = /supabase|database|schema|table|tables|sql|ඩේටා|දත්ත|ටේබල්/i.test(text);
+  const wantsSchema = /schema|table|tables|list.*table|show.*table|inspect.*database|ලැයිස්තු|ලැයිස්තුව|ටේබල්/i.test(text);
+  if (!mentionsSupabase || !wantsSchema) return null;
+
+  const explicitProjectId = text.match(/\b[a-z0-9]{20}\b/i)?.[0] ?? null;
+  const selectedProjectId = typeof window === "undefined"
+    ? null
+    : window.localStorage.getItem("nexo:supabaseProjectId");
+  const projectId = explicitProjectId ?? selectedProjectId;
+  return { projectId };
+}
+
+function liveReadCard(card: Omit<SupabaseReadCardData, "id">) {
+  return createSupabaseReadBlock(card);
 }
 
 export default function ChatPage() {
@@ -212,6 +230,83 @@ export default function ChatPage() {
       return { ok: true, message: `Verified Supabase result: ${JSON.stringify(data.result ?? data).slice(0, 1800)}` };
     } catch {
       return { ok: false, message: "Could not reach Supabase. Check the connection and try again." };
+    }
+  }
+
+  async function executeVerifiedSupabaseSchemaRead(projectId: string | null): Promise<{
+    card: string;
+    promptContext: string;
+  }> {
+    const currentUserId = user?.id;
+    if (!currentUserId) {
+      return {
+        card: liveReadCard({
+          state: "needs_project",
+          kind: "schema",
+          title: "Sign in to inspect Supabase",
+          message: "A signed-in Nexo account is required before a verified Supabase read can run.",
+        }),
+        promptContext: "No Supabase read ran because the user is not signed in.",
+      };
+    }
+    if (!projectId) {
+      return {
+        card: liveReadCard({
+          state: "needs_project",
+          kind: "schema",
+          title: "Select a verified Supabase project",
+          message: "Choose a project in Integrations, or include its project ID in your request. No database query was sent.",
+        }),
+        promptContext: "No Supabase read ran because no verified project was selected.",
+      };
+    }
+
+    try {
+      const response = await fetch(
+        `/api/supabase/schema?userId=${encodeURIComponent(currentUserId)}&projectId=${encodeURIComponent(projectId)}`
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const isConnectionIssue = response.status === 404 || response.status === 403;
+        return {
+          card: liveReadCard({
+            state: isConnectionIssue ? "needs_project" : "error",
+            kind: "schema",
+            projectId,
+            title: isConnectionIssue ? "Supabase project is not available" : "Supabase read failed",
+            message: data.error ?? "The verified schema request did not return a result. No table data is being claimed.",
+          }),
+          promptContext: `Supabase schema read failed: ${data.error ?? "unknown error"}. Do not claim that any query is waiting or completed.`,
+        };
+      }
+
+      const tableNames = Array.isArray(data.tables)
+        ? data.tables.map((table: { name?: string }) => table?.name).filter((name: unknown): name is string => typeof name === "string")
+        : [];
+      const policyCount = Array.isArray(data.policies?.policies) ? data.policies.policies.length : 0;
+      return {
+        card: liveReadCard({
+          state: "success",
+          kind: "schema",
+          projectId,
+          title: "Verified Supabase schema result",
+          message: `${tableNames.length} public table${tableNames.length === 1 ? "" : "s"} returned from Supabase just now.`,
+          tableNames,
+          policyCount,
+        }),
+        promptContext: `VERIFIED SUPABASE SCHEMA RESULT — project ${projectId}. Public tables returned: ${tableNames.length ? tableNames.join(", ") : "none"}. RLS policies returned: ${policyCount}. This result is complete for this read; do not say you are waiting for Supabase.`,
+      };
+    } catch {
+      return {
+        card: liveReadCard({
+          state: "error",
+          kind: "schema",
+          projectId,
+          title: "Could not reach Supabase",
+          message: "The verified schema request could not be completed. Check the integration connection and try again.",
+        }),
+        promptContext: "Supabase schema read could not reach the service. Do not claim that a query is still running or waiting.",
+      };
     }
   }
 
@@ -652,7 +747,8 @@ export default function ChatPage() {
     assistantId: string,
     override?: { modelId: NexoModelId; isCoder: boolean },
     uploadedImages?: { base64Image: string }[],
-    providedController?: AbortController
+    providedController?: AbortController,
+    initialContent = ""
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -663,7 +759,7 @@ export default function ChatPage() {
       (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
     );
     const controller = providedController ?? streamAbortControllerRef.current ?? startStreamingTurn(assistantId);
-    let accumulated = "";
+    let accumulated = initialContent;
     try {
       // Forward the signed-in user's Supabase access token only to the same
       // first-party chat route. This allows the server-side settings read to
@@ -954,13 +1050,24 @@ export default function ChatPage() {
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
-    const conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
+    let conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
     setPendingApproval(null);
 
     // Initial assistant reply with read intent and live task card if files are attached
-    const initialAssistantContent = hasAttachments
+    const fileReadIntent = hasAttachments
       ? `මම මේ file(s) කියවන්නම්...\n\n\`[READING FILE] ${prepared.sourceNames.join(", ")}\``
       : "";
+    const supabaseSchemaRead = inferSupabaseSchemaRead(text);
+    const supabaseLoadingCard = supabaseSchemaRead
+      ? liveReadCard({
+          state: "loading",
+          kind: "schema",
+          projectId: supabaseSchemaRead.projectId ?? undefined,
+          title: "Reading Supabase schema",
+          message: "Nexo is running a verified read-only schema request now. No SQL write will be performed.",
+        })
+      : "";
+    let initialAssistantContent = [fileReadIntent, supabaseLoadingCard].filter(Boolean).join("\n\n");
 
     setMessages([
       ...nextMessages,
@@ -974,6 +1081,21 @@ export default function ChatPage() {
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
+
+    if (supabaseSchemaRead) {
+      const verifiedRead = await executeVerifiedSupabaseSchemaRead(supabaseSchemaRead.projectId);
+      initialAssistantContent = [fileReadIntent, verifiedRead.card].filter(Boolean).join("\n\n");
+      conversationForApi = [
+        ...messages,
+        {
+          ...userMsg,
+          content: `${enrichedPrompt}\n\n[Verified Supabase read executed by Nexo]\n${verifiedRead.promptContext}`,
+        },
+      ];
+      setMessages((prev) => prev.map((message) => (
+        message.id === assistantId ? { ...message, content: initialAssistantContent } : message
+      )));
+    }
 
     if (chatId) {
       const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & read: ${prepared.sourceNames.join(", ")}]` : ""}`;
@@ -995,7 +1117,7 @@ export default function ChatPage() {
       );
     }
 
-    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller);
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent);
   }
 
   function handleNewChat() {

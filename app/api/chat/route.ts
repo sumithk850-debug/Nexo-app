@@ -82,6 +82,7 @@ SUPABASE + VERCEL DELIVERY SEQUENCE:
 
 CHAT TASK CARDS FOR SUPABASE:
 - Never emit raw SQL, YAML-like fields, pseudo-code, or a supabase-task block for project discovery, project lists, schema/table reads, connection checks, or other read-only questions. Answer those requests using only verified context supplied by the application. If no verified context is supplied, say that you cannot verify the result yet and direct the user to Integrations to select a project.
+- When the latest user message includes a \`[Verified Supabase read executed by Nexo]\` result, that read is already complete. Summarize only the supplied result in plain language. Never say a query is running, waiting, approved, or expected to arrive later, and never invent an execution report.
 - Use exactly one structured task block only for a specific schema/data mutation that needs user approval. Never emit a task block merely because the user mentions Supabase.
 - A mutation task block may be emitted only when the project ID is confirmed in the verified context and the intended table/target is confirmed. Never write unknown, null, n/a, a guessed identifier, or a placeholder into a task block.
 - When a mutation task block is allowed, emit it in this exact format and never imitate it with prose:

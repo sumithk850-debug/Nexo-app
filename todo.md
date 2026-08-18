@@ -28,3 +28,4 @@
 - [x] Enable up to 10 file attachments per message supporting images, PDFs, text, and code files, with assistant read-intent messaging and live reading task cards.
 - [x] Implement backward-compatible GitHub App installation upgrade flow so existing OAuth users and new users can grant Read & Write access and select repositories.
 - [x] Implement Claude-style structured clarification cards for all 7 models to resolve ambiguous requests with selectable options and custom text answers.
+- [x] Execute Supabase read requests through verified backend calls and replace model-generated waiting prose with live result, error, or clarification cards.
