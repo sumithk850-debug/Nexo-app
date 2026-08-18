@@ -834,15 +834,15 @@ export async function POST(req: NextRequest) {
       let errMsg = "Something went wrong reaching NEXO. Please try again.";
 
       if (status === 429) {
-        errMsg = "The AI provider is temporarily busy. Please wait a moment and try again.";
+        errMsg = "Nexo is briefly busy. Please wait a moment and try again.";
       } else if (status === 502 || status === 503) {
-        errMsg = "The AI provider is temporarily unavailable. Please try again in a moment.";
+        errMsg = "Nexo is temporarily unavailable. Please try again in a moment.";
       } else if (status === 500) {
-        errMsg = "An internal error occurred on the AI provider side. Please try again.";
+        errMsg = "Nexo encountered a temporary service error. Please try again.";
       } else if (status >= 400 && status < 500) {
         errMsg = "There was an issue with your request. Please try again.";
       } else if (status === 0) {
-        errMsg = "Could not reach the AI provider. Please check your connection and try again.";
+        errMsg = "Nexo could not complete this request. Please check your connection and try again.";
       }
 
       console.error("[chat] Upstream provider error after retries:", status, errBody.slice(0, 500));
