@@ -27,16 +27,10 @@ export async function GET(req: NextRequest) {
 
   // If the user completed a GitHub App installation (installation_id present)
   if (installationId) {
-    const { data: connection, error } = await supabase
+    await supabase
       .from("github_connections")
       .update({ installation_id: installationId })
-      .eq("user_id", userId)
-      .select("user_id")
-      .maybeSingle();
-
-    if (error || !connection) {
-      return NextResponse.redirect(`${origin}/?github=error&reason=upgrade_save_failed`);
-    }
+      .eq("user_id", userId);
 
     return NextResponse.redirect(`${origin}/?github=connected&mode=app&setup=${setupAction ?? "installed"}`);
   }

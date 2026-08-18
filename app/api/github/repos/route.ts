@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { resolveGitHubCredential } from "@/lib/githubApp.server";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, installation_id, selected_repo")
+    .select("access_token, selected_repo")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
@@ -33,13 +33,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const credential = await resolveGitHubCredential(connection, "read");
-    const endpoint = credential.source === "installation"
-      ? "https://api.github.com/installation/repositories?per_page=100"
-      : "https://api.github.com/user/repos?sort=updated&per_page=50";
-    const res = await fetch(endpoint, {
+    const token = decryptGithubToken(connection.access_token);
+    const res = await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
       headers: {
-        Authorization: `Bearer ${credential.token}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
     });
@@ -48,11 +45,7 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Failed to fetch repos from GitHub" }), { status: 502 });
     }
 
-    const payload = await res.json();
-    const repos = Array.isArray(payload) ? payload : payload.repositories;
-    if (!Array.isArray(repos)) {
-      return new Response(JSON.stringify({ error: "GitHub returned an invalid repository list" }), { status: 502 });
-    }
+    const repos = await res.json();
     const simplified = repos.map((r: any) => ({
       id: r.id,
       name: r.name,
@@ -89,26 +82,6 @@ export async function POST(req: NextRequest) {
   if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
-  const { data: connection } = await supabase
-    .from("github_connections")
-    .select("access_token, installation_id")
-    .eq("user_id", verified.user.id)
-    .maybeSingle();
-  if (!connection) {
-    return new Response(JSON.stringify({ error: "GitHub not connected" }), { status: 404 });
-  }
-  try {
-    const credential = await resolveGitHubCredential(connection, "read");
-    const repoCheck = await fetch(`https://api.github.com/repos/${repoFullName}`, {
-      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${credential.token}` },
-      cache: "no-store",
-    });
-    if (!repoCheck.ok) {
-      return new Response(JSON.stringify({ error: "This repository is not available to the connected GitHub account or App." }), { status: 403 });
-    }
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "GitHub repository access could not be verified." }), { status: 403 });
-  }
   const { error } = await supabase
     .from("github_connections")
     .update({ selected_repo: repoFullName })

@@ -5,15 +5,14 @@
 // system prompt. Never import this into a "use client" file.
 
 import { createClient } from "@supabase/supabase-js";
-import { resolveGitHubCredential } from "@/lib/githubApp.server";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 
 const GITHUB_API = "https://api.github.com";
 const MAX_FILE_BYTES = 40_000; // guard against dumping huge files into the prompt
 const MAX_FILES_PER_REQUEST = 4;
 
 interface GithubConnection {
-  access_token: string | null;
-  installation_id: string | number | null;
+  access_token: string;
   selected_repo: string | null;
   github_username: string | null;
 }
@@ -42,7 +41,7 @@ async function getConnection(userId: string): Promise<GithubConnection | null> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("github_connections")
-    .select("access_token, installation_id, selected_repo, github_username")
+    .select("access_token, selected_repo, github_username")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -161,7 +160,7 @@ export async function buildGithubContext(
   const repoFullName = connection.selected_repo;
   let accessToken: string;
   try {
-    accessToken = (await resolveGitHubCredential(connection, "read")).token;
+    accessToken = decryptGithubToken(connection.access_token);
   } catch {
     return {
       connected: true,

@@ -42,4 +42,3 @@
 - [x] Harden public URL reading against redirect-chain and DNS-resolved private-network SSRF targets.
 - [x] Expand environment-template guidance and deterministic regression coverage for audit fixes.
 - [x] Restore reliable structured clarification boards for all models, including raw-option fallback conversion, option selection, mobile layout, and regression validation.
-- [x] Audit and repair the existing OAuth-only GitHub user upgrade path so the Read & Write GitHub App installation persists correctly without breaking legacy read access or new-user setup.
