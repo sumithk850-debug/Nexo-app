@@ -63,7 +63,7 @@ export function ApprovalCard({
   actions: FileAction[];
   commitMessage: string;
   repoFullName: string | null;
-  onApprove: (mode: "direct" | "pr") => void;
+  onApprove: (mode: "direct" | "pr", branchName?: string) => void;
   onReject: () => void;
   status: "pending" | "approving" | "approved" | "rejected" | "error";
   errorDetail?: string | null;
@@ -88,7 +88,7 @@ export function ApprovalCard({
   if (proposalActions.length === 0) return null;
 
   const handleApprove = () => {
-    onApprove(selectedMode);
+    onApprove(selectedMode, selectedMode === "pr" ? branchName.trim() : undefined);
   };
 
   return (

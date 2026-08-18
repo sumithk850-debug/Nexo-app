@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import {
+  createInstallationAccessToken,
+  githubApiHeaders,
+  isGitHubAppConfigured,
+} from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -12,58 +16,60 @@ function getSupabaseAdmin() {
   );
 }
 
+async function installationCanWrite(installationId: string, selectedRepo: string | null): Promise<boolean> {
+  if (!isGitHubAppConfigured()) return false;
+  try {
+    const { token } = await createInstallationAccessToken(installationId);
+    if (!selectedRepo) return true;
+    const response = await fetch(`https://api.github.com/repos/${selectedRepo}`, {
+      headers: githubApiHeaders(token),
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const repo = (await response.json()) as { permissions?: { push?: boolean } };
+    return repo.permissions?.push !== false;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
-  if (!userId) {
-    return new Response(JSON.stringify({ connected: false }), { status: 200 });
-  }
+  if (!userId) return Response.json({ connected: false });
+
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("github_connections")
-    .select("github_username, access_token")
+    .select("github_username, selected_repo, installation_id")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
-  let canWrite = false;
-  if (data?.access_token) {
-    try {
-      const token = decryptGithubToken(data.access_token);
-      const scopesRes = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-      const scopes = scopesRes.headers.get("x-oauth-scopes") ?? "";
-      canWrite = scopes.split(",").map((scope) => scope.trim()).some((scope) => scope === "repo" || scope === "public_repo");
-    } catch {
-      canWrite = false;
-    }
-  }
+  const canWrite = data?.installation_id
+    ? await installationCanWrite(data.installation_id, data.selected_repo ?? null)
+    : false;
 
-  return new Response(
-    JSON.stringify({
-      connected: !!data,
-      githubUsername: data?.github_username ?? null,
-      canWrite,
-    }),
-    { status: 200 }
-  );
+  return Response.json({
+    connected: Boolean(data),
+    githubUsername: data?.github_username ?? null,
+    canWrite,
+  });
 }
 
 export async function DELETE(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
-  if (!userId) {
-    return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
-  }
+  if (!userId) return Response.json({ error: "Missing userId" }, { status: 400 });
+
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
-  const supabase = getSupabaseAdmin();
-  await supabase.from("github_connections").delete().eq("user_id", verified.user.id);
+  const { error } = await getSupabaseAdmin()
+    .from("github_connections")
+    .delete()
+    .eq("user_id", verified.user.id);
+  if (error) return Response.json({ error: "GitHub could not be disconnected." }, { status: 500 });
 
-  return new Response(JSON.stringify({ success: true }), { status: 200 });
+  return Response.json({ success: true });
 }

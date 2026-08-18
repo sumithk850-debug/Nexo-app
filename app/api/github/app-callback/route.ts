@@ -4,6 +4,8 @@ import { verifyOAuthState } from "@/lib/oauthState.server";
 
 export const runtime = "nodejs";
 
+const UPGRADE_STATE_COOKIE = "nexo_github_upgrade_state";
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,35 +13,42 @@ function getSupabaseAdmin() {
   );
 }
 
+function backToApp(req: NextRequest, params: Record<string, string>) {
+  const url = new URL("/", req.nextUrl.origin);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  const response = NextResponse.redirect(url);
+  response.cookies.set({ name: UPGRADE_STATE_COOKIE, value: "", path: "/api/github/app-callback", maxAge: 0 });
+  return response;
+}
+
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code");
   const installationId = req.nextUrl.searchParams.get("installation_id");
   const setupAction = req.nextUrl.searchParams.get("setup_action");
-  const userId = verifyOAuthState(req.nextUrl.searchParams.get("state"), "github");
+  const signedState = req.nextUrl.searchParams.get("state") ?? req.cookies.get(UPGRADE_STATE_COOKIE)?.value ?? null;
+  const userId = verifyOAuthState(signedState, "github");
 
-  const origin = req.nextUrl.origin;
-
-  if (!userId) {
-    return NextResponse.redirect(`${origin}/?github=error&reason=invalid_state`);
+  if (!userId) return backToApp(req, { github: "error", reason: "invalid_upgrade_state" });
+  if (!installationId || !/^\d+$/.test(installationId)) {
+    return backToApp(req, { github: "error", reason: "missing_installation" });
   }
 
-  const supabase = getSupabaseAdmin();
-
-  // If the user completed a GitHub App installation (installation_id present)
-  if (installationId) {
-    await supabase
-      .from("github_connections")
-      .update({ installation_id: installationId })
-      .eq("user_id", userId);
-
-    return NextResponse.redirect(`${origin}/?github=connected&mode=app&setup=${setupAction ?? "installed"}`);
+  // GitHub can call the setup URL after an installation is updated or suspended.
+  // Only a completed installation is a usable write upgrade.
+  if (setupAction === "suspend") {
+    return backToApp(req, { github: "error", reason: "installation_suspended" });
   }
 
-  // If code is returned, handle standard OAuth callback fallback
-  if (!code) {
-    return NextResponse.redirect(`${origin}/?github=error&reason=no_code`);
+  const { data, error } = await getSupabaseAdmin()
+    .from("github_connections")
+    .update({ installation_id: installationId })
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("[github-app-callback] Could not save installation", error?.message);
+    return backToApp(req, { github: "error", reason: "installation_save_failed" });
   }
 
-  // Standard OAuth callback logic if needed
-  return NextResponse.redirect(`${origin}/?github=connected&mode=oauth`);
+  return backToApp(req, { github: "connected", mode: "app" });
 }

@@ -1,9 +1,31 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import {
+  createInstallationAccessToken,
+  githubApiHeaders,
+  isGitHubAppConfigured,
+} from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
+
+const MAX_FILES_PER_COMMIT = 50;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+type ChangeKind = "editing" | "creating" | "deleting";
+
+interface CommitFile {
+  filePath: string;
+  content: string;
+  type: ChangeKind;
+}
+
+interface GitTreeEntry {
+  path: string;
+  mode: string;
+  type: string;
+  sha: string;
+}
 
 function getSupabaseAdmin() {
   return createClient(
@@ -12,352 +34,323 @@ function getSupabaseAdmin() {
   );
 }
 
-interface CommitFile {
-  filePath: string;
-  content: string;
-  type: "editing" | "creating" | "deleting";
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 }
 
-function ghHeaders(token: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json",
-  };
-}
-
-async function ghFetch(url: string, init: { method?: string; headers?: Record<string, string>; body?: string }) {
-  const res = await fetch(url, init);
-  const body = await res.text().catch(() => "");
-  return { status: res.status, body: body ? body : "" };
-}
-
-// POST /api/github/commit — apply approved file changes to the user's
-// selected repo via the GitHub Git Data API (atomic multi-file commit).
-// Supports two modes: "direct" (commit to main) and "pr" (create branch + PR).
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return new Response(JSON.stringify({ error: "Invalid commit request" }), { status: 400 });
+function safeGitHubMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string") return parsed.message.slice(0, 240);
+  } catch {
+    // Use the generic message below when the provider response is not JSON.
   }
-  const {
-    userId,
-    files,
-    commitMessage,
-    mode = "direct",
-    branchName,
-  } = body as {
-    userId: string;
-    files: CommitFile[];
-    commitMessage: string;
+  return "GitHub rejected this request.";
+}
+
+async function githubRequest(url: string, init: RequestInit = {}) {
+  const response = await fetch(url, { ...init, cache: "no-store" });
+  const text = await response.text().catch(() => "");
+  return { response, text };
+}
+
+function normalizeRepo(fullName: string): { owner: string; repo: string } | null {
+  const parts = fullName.split("/");
+  if (parts.length !== 2 || !parts[0] || !parts[1] || /\s/.test(fullName)) return null;
+  return { owner: parts[0], repo: parts[1] };
+}
+
+function isSafePath(path: string): boolean {
+  return (
+    Boolean(path) &&
+    !path.startsWith("/") &&
+    !path.includes("\\") &&
+    !path.includes("\0") &&
+    path.split("/").every((part) => Boolean(part) && part !== "." && part !== "..")
+  );
+}
+
+function isSafeBranchName(branchName: string): boolean {
+  return (
+    Boolean(branchName) &&
+    branchName.length <= 240 &&
+    !branchName.startsWith("/") &&
+    !branchName.endsWith("/") &&
+    !branchName.includes("..") &&
+    !branchName.includes("//") &&
+    !/[~^:?*\\[\s]/.test(branchName) &&
+    !branchName.endsWith(".lock")
+  );
+}
+
+/**
+ * POST /api/github/commit
+ *
+ * This endpoint is reachable only after the user approves the repository change
+ * proposal in the client. It uses a short-lived GitHub App installation token,
+ * never a browser-supplied token, and makes one atomic multi-file commit using
+ * GitHub's Git Data API.
+ */
+export async function POST(req: NextRequest) {
+  const requestBody = await req.json().catch(() => null);
+  if (!requestBody || typeof requestBody !== "object") {
+    return json({ error: "Invalid commit request." }, 400);
+  }
+
+  const { userId, files, commitMessage, mode = "direct", branchName, approvalGranted } = requestBody as {
+    userId?: string;
+    files?: CommitFile[];
+    commitMessage?: string;
     mode?: "direct" | "pr";
     branchName?: string;
+    approvalGranted?: boolean;
   };
 
-  if (!userId || !files || files.length === 0) {
-    return new Response(JSON.stringify({ error: "Missing userId or files" }), { status: 400 });
+  if (approvalGranted !== true) {
+    return json({ error: "Repository changes require an explicit approval before they can be committed." }, 403);
   }
+  if (!userId || !Array.isArray(files) || files.length === 0 || files.length > MAX_FILES_PER_COMMIT) {
+    return json({ error: `Provide between 1 and ${MAX_FILES_PER_COMMIT} files to commit.` }, 400);
+  }
+  if (mode !== "direct" && mode !== "pr") {
+    return json({ error: "Unsupported commit mode." }, 400);
+  }
+  if (mode === "pr" && (!branchName || !isSafeBranchName(branchName))) {
+    return json({ error: "Provide a valid branch name for a pull request." }, 400);
+  }
+
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
+  const validationResults: Array<{ filePath: string; success: boolean; error?: string }> = [];
+  const uniquePaths = new Set<string>();
+  for (const file of files) {
+    const filePath = typeof file?.filePath === "string" ? file.filePath.trim() : "";
+    const content = typeof file?.content === "string" ? file.content : "";
+    if (!isSafePath(filePath)) {
+      validationResults.push({ filePath, success: false, error: "The file path is not allowed." });
+    } else if (uniquePaths.has(filePath)) {
+      validationResults.push({ filePath, success: false, error: "The same file was proposed more than once." });
+    } else if (file.type !== "editing" && file.type !== "creating" && file.type !== "deleting") {
+      validationResults.push({ filePath, success: false, error: "The file change type is not supported." });
+    } else if (file.type !== "deleting" && Buffer.byteLength(content, "utf8") > MAX_FILE_BYTES) {
+      validationResults.push({ filePath, success: false, error: "The proposed file is too large to commit safely." });
+    }
+    uniquePaths.add(filePath);
+  }
+  if (validationResults.length > 0) return json({ success: false, results: validationResults }, 400);
+
   const supabase = getSupabaseAdmin();
-  const { data: connection } = await supabase
+  const { data: connection, error: connectionError } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("selected_repo, installation_id")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
-  if (!connection || !connection.selected_repo) {
-    return new Response(
-      JSON.stringify({ error: "No GitHub repo selected. Choose one in Settings first." }),
-      { status: 400 }
+  if (connectionError || !connection?.selected_repo) {
+    return json({ error: "No GitHub repository is selected. Choose one in Settings before approving changes." }, 400);
+  }
+  if (!connection.installation_id || !isGitHubAppConfigured()) {
+    return json(
+      {
+        error: "Read & Write Access is not enabled for this connection. Install the Nexo GitHub App and grant Repository contents write access before approving changes.",
+        needsWriteAccess: true,
+      },
+      409
     );
   }
 
-  let token: string;
+  const repository = normalizeRepo(connection.selected_repo);
+  if (!repository) {
+    return json({ error: "The selected GitHub repository is invalid. Select it again in Settings." }, 400);
+  }
+
+  let installationToken: string;
   try {
-    token = decryptGithubToken(connection.access_token);
-  } catch {
-    return new Response(
-      JSON.stringify({ error: "Saved GitHub secret could not be used. Reconnect GitHub in Integrations." }),
-      { status: 400 }
-    );
-  }
-  const repo = connection.selected_repo; // "owner/repo"
-  const [owner, repoName] = repo.split("/");
-  const api = (path: string) => `https://api.github.com/repos/${owner}/${repoName}/${path}`;
-
-  const results: { filePath: string; success: boolean; error?: string }[] = [];
-
-  // ─── STEP 1: Get the base commit (SHA + tree SHA) from main branch ───
-  let baseCommitSha: string;
-  let baseTreeSha: string;
-
-  const branchRes = await ghFetch(api("branches/main"), {
-    method: "GET",
-    headers: ghHeaders(token),
-  });
-
-  if (branchRes.status !== 200) {
-    return new Response(
-      JSON.stringify({
-        error: `Failed to fetch main branch: ${branchRes.body.slice(0, 200)}`,
-      }),
-      { status: 400 }
+    installationToken = (await createInstallationAccessToken(connection.installation_id)).token;
+  } catch (error) {
+    return json(
+      {
+        error: error instanceof Error ? error.message : "GitHub write access could not be verified.",
+        needsWriteAccess: true,
+      },
+      409
     );
   }
 
-  const branchData = JSON.parse(branchRes.body);
-  baseCommitSha = branchData.commit.sha;
-  baseTreeSha = branchData.commit.commit.tree.sha;
+  const api = (path: string) => `https://api.github.com/repos/${repository.owner}/${repository.repo}/${path}`;
+  const headers = githubApiHeaders(installationToken, true);
 
-  // ─── STEP 2: Get base tree (recursive) to check existing files ───
-  const treeRes = await ghFetch(api(`git/trees/${baseTreeSha}?recursive=1`), {
-    method: "GET",
-    headers: ghHeaders(token),
-  });
-
-  if (treeRes.status !== 200) {
-    return new Response(
-      JSON.stringify({ error: `Failed to fetch base tree: ${treeRes.body.slice(0, 200)}` }),
-      { status: 400 }
-    );
+  // Resolve the repository's configured default branch. Never assume "main".
+  const repositoryResponse = await githubRequest(api(""), { headers });
+  if (!repositoryResponse.response.ok) {
+    return json({ error: `Could not read the selected repository: ${safeGitHubMessage(repositoryResponse.text)}` }, 400);
+  }
+  const repositoryData = JSON.parse(repositoryResponse.text) as { default_branch?: string; permissions?: { push?: boolean } };
+  const defaultBranch = repositoryData.default_branch;
+  if (!defaultBranch) return json({ error: "GitHub did not provide a default branch for this repository." }, 400);
+  if (mode === "pr" && branchName === defaultBranch) {
+    return json({ error: "A pull request branch must be different from the repository default branch." }, 400);
+  }
+  if (repositoryData.permissions?.push === false) {
+    return json({ error: "The installed GitHub App does not have write access to the selected repository.", needsWriteAccess: true }, 403);
   }
 
-  const baseTree = JSON.parse(treeRes.body);
-  const baseTreeEntries: Record<string, string> = {};
-  for (const entry of baseTree.tree) {
-    if (entry.type === "blob") {
-      baseTreeEntries[entry.path] = entry.sha;
-    }
+  const encodedDefaultBranch = encodeURIComponent(defaultBranch);
+  const refResponse = await githubRequest(api(`git/ref/heads/${encodedDefaultBranch}`), { headers });
+  if (!refResponse.response.ok) {
+    return json({ error: `Could not read the default branch: ${safeGitHubMessage(refResponse.text)}` }, 400);
   }
+  const refData = JSON.parse(refResponse.text) as { object?: { sha?: string } };
+  const baseCommitSha = refData.object?.sha;
+  if (!baseCommitSha) return json({ error: "GitHub did not provide the default branch commit." }, 400);
 
-  // ─── STEP 3: Validate diffs & build file operations ───
-  const treeChanges: {
-    path: string;
-    mode: "100644" | "100755";
-    type: "blob";
-    content?: string;
-    sha?: string;
-  }[] = [];
-
-  // For "editing" files, we need to fetch current content and apply diff
-  // For validation, we check that the file exists before editing/deleting
-  for (const file of files) {
-    if (file.type === "editing" || file.type === "deleting") {
-      // Verify file exists in repo
-      if (!(file.filePath in baseTreeEntries)) {
-        results.push({
-          filePath: file.filePath,
-          success: false,
-          error: `File does not exist in the repository (stale diff): ${file.filePath}`,
-        });
-        continue;
-      }
-    }
-
-    if (file.type === "creating") {
-      // Verify file doesn't already exist (to avoid overwriting)
-      if (file.filePath in baseTreeEntries) {
-        results.push({
-          filePath: file.filePath,
-          success: false,
-          error: `File already exists in the repository: ${file.filePath}`,
-        });
-        continue;
-      }
-    }
+  const baseCommitResponse = await githubRequest(api(`git/commits/${baseCommitSha}`), { headers });
+  if (!baseCommitResponse.response.ok) {
+    return json({ error: `Could not read the base commit: ${safeGitHubMessage(baseCommitResponse.text)}` }, 400);
   }
+  const baseCommitData = JSON.parse(baseCommitResponse.text) as { tree?: { sha?: string } };
+  const baseTreeSha = baseCommitData.tree?.sha;
+  if (!baseTreeSha) return json({ error: "GitHub did not provide the base repository tree." }, 400);
 
-  // If any validation failed, abort the entire commit
-  if (results.some((r) => !r.success)) {
-    return new Response(JSON.stringify({ success: false, results }), { status: 400 });
+  // A recursive tree lets Nexo verify the approved diff against the current
+  // repository state and preserve the original executable mode when editing.
+  const treeResponse = await githubRequest(api(`git/trees/${baseTreeSha}?recursive=1`), { headers });
+  if (!treeResponse.response.ok) {
+    return json({ error: `Could not read the repository tree: ${safeGitHubMessage(treeResponse.text)}` }, 400);
   }
-
-  // ─── STEP 4: Create blobs for new/modified files ───
-  const createdBlobs: Record<string, string> = {}; // filePath → blob SHA
+  const treeData = JSON.parse(treeResponse.text) as { truncated?: boolean; tree?: GitTreeEntry[] };
+  if (treeData.truncated || !Array.isArray(treeData.tree)) {
+    return json({ error: "The repository tree is too large to verify safely. Narrow the approved change set and try again." }, 409);
+  }
+  const existingEntries = new Map(treeData.tree.filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry]));
 
   for (const file of files) {
-    if (file.type === "deleting") {
-      // Deleted files are omitted from the new tree (Git handles this)
-      continue;
+    const existing = existingEntries.get(file.filePath);
+    if ((file.type === "editing" || file.type === "deleting") && !existing) {
+      validationResults.push({ filePath: file.filePath, success: false, error: "The file no longer exists in the selected repository." });
     }
+    if (file.type === "creating" && existing) {
+      validationResults.push({ filePath: file.filePath, success: false, error: "The file already exists in the selected repository." });
+    }
+  }
+  if (validationResults.length > 0) return json({ success: false, results: validationResults }, 409);
 
-    // Create blob
-    const blobRes = await ghFetch(api("git/blobs"), {
+  const blobs = new Map<string, string>();
+  for (const file of files) {
+    if (file.type === "deleting") continue;
+    const blobResponse = await githubRequest(api("git/blobs"), {
       method: "POST",
-      headers: ghHeaders(token),
-      body: JSON.stringify({
-        content: file.content,
-        encoding: "utf-8",
-      }),
+      headers,
+      body: JSON.stringify({ content: file.content, encoding: "utf-8" }),
     });
-
-    if (blobRes.status !== 201) {
-      results.push({
-        filePath: file.filePath,
-        success: false,
-        error: `Failed to create blob for ${file.filePath}: ${blobRes.body.slice(0, 200)}`,
-      });
-      continue;
-    }
-
-    const blobData = JSON.parse(blobRes.body);
-    createdBlobs[file.filePath] = blobData.sha;
-    results.push({ filePath: file.filePath, success: true });
-  }
-
-  // Check if all blobs were created successfully
-  if (results.some((r) => !r.success)) {
-    return new Response(JSON.stringify({ success: false, results }), { status: 400 });
-  }
-
-  // ─── STEP 5: Build new tree ───
-  // Start with all base entries, remove deleted files, add new/modified blobs
-  const newTreeEntries: { path: string; mode: string; type: string; sha: string }[] = [];
-
-  // Copy base entries (excluding deleted files)
-  const deletedPaths = new Set(files.filter((f) => f.type === "deleting").map((f) => f.filePath));
-  for (const [path, sha] of Object.entries(baseTreeEntries)) {
-    if (!deletedPaths.has(path)) {
-      newTreeEntries.push({ path, mode: "100644", type: "blob", sha });
-    }
-  }
-
-  // Add new/modified blobs
-  for (const [path, blobSha] of Object.entries(createdBlobs)) {
-    newTreeEntries.push({ path, mode: "100644", type: "blob", sha: blobSha });
-  }
-
-  const newTreeRes = await ghFetch(api("git/trees"), {
-    method: "POST",
-    headers: ghHeaders(token),
-    body: JSON.stringify({
-      base_tree: baseTreeSha,
-      tree: newTreeEntries,
-    }),
-  });
-
-  if (newTreeRes.status !== 201) {
-    return new Response(
-      JSON.stringify({ error: `Failed to create tree: ${newTreeRes.body.slice(0, 200)}` }),
-      { status: 400 }
-    );
-  }
-
-  const newTree = JSON.parse(newTreeRes.body);
-  const newTreeSha = newTree.sha;
-
-  // ─── STEP 6: Create commit ───
-  const commitMsg = commitMessage || `feat: multi-file update via NEXO Craft V3 (${files.length} files)`;
-
-  let targetBranch = "main";
-  let targetBranchSha = baseCommitSha;
-
-  if (mode === "pr" && branchName) {
-    // Create new branch from main
-    const createRefRes = await ghFetch(api("git/refs"), {
-      method: "POST",
-      headers: ghHeaders(token),
-      body: JSON.stringify({
-        ref: `refs/heads/${branchName}`,
-        sha: baseCommitSha,
-      }),
-    });
-
-    if (createRefRes.status !== 201) {
-      return new Response(
-        JSON.stringify({
-          error: `Failed to create branch: ${createRefRes.body.slice(0, 200)}`,
-        }),
-        { status: 400 }
+    if (!blobResponse.response.ok) {
+      return json(
+        {
+          success: false,
+          results: [{ filePath: file.filePath, success: false, error: `GitHub could not prepare this file: ${safeGitHubMessage(blobResponse.text)}` }],
+        },
+        400
       );
     }
-
-    targetBranch = branchName;
-    // Don't update targetBranchSha yet — we'll update the ref after commit
+    const blobData = JSON.parse(blobResponse.text) as { sha?: string };
+    if (!blobData.sha) return json({ error: `GitHub did not return a file reference for ${file.filePath}.` }, 400);
+    blobs.set(file.filePath, blobData.sha);
   }
 
-  const newCommitRes = await ghFetch(api("git/commits"), {
+  const changes = files.map((file) => {
+    const existing = existingEntries.get(file.filePath);
+    if (file.type === "deleting") {
+      return { path: file.filePath, mode: existing?.mode ?? "100644", type: "blob", sha: null };
+    }
+    return {
+      path: file.filePath,
+      mode: existing?.mode ?? "100644",
+      type: "blob",
+      sha: blobs.get(file.filePath),
+    };
+  });
+
+  const newTreeResponse = await githubRequest(api("git/trees"), {
     method: "POST",
-    headers: ghHeaders(token),
-    body: JSON.stringify({
-      message: commitMsg,
-      tree: newTreeSha,
-      parents: mode === "pr" ? [baseCommitSha] : [baseCommitSha],
-    }),
+    headers,
+    body: JSON.stringify({ base_tree: baseTreeSha, tree: changes }),
   });
-
-  if (newCommitRes.status !== 201) {
-    return new Response(
-      JSON.stringify({ error: `Failed to create commit: ${newCommitRes.body.slice(0, 200)}` }),
-      { status: 400 }
-    );
+  if (!newTreeResponse.response.ok) {
+    return json({ error: `GitHub could not build the approved file tree: ${safeGitHubMessage(newTreeResponse.text)}` }, 400);
   }
+  const newTree = JSON.parse(newTreeResponse.text) as { sha?: string };
+  if (!newTree.sha) return json({ error: "GitHub did not return the approved file tree." }, 400);
 
-  const newCommit = JSON.parse(newCommitRes.body);
-  const newCommitSha = newCommit.sha;
-
-  // ─── STEP 7: Update branch ref ───
-  const updateRefRes = await ghFetch(api(`git/refs/heads/${targetBranch}`), {
-    method: "PATCH",
-    headers: ghHeaders(token),
-    body: JSON.stringify({
-      sha: newCommitSha,
-      force: false,
-    }),
+  const message = typeof commitMessage === "string" && commitMessage.trim()
+    ? commitMessage.trim().slice(0, 500)
+    : `chore: approved Nexo repository update (${files.length} files)`;
+  const newCommitResponse = await githubRequest(api("git/commits"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message, tree: newTree.sha, parents: [baseCommitSha] }),
   });
-
-  if (updateRefRes.status !== 200) {
-    return new Response(
-      JSON.stringify({
-        error: `Failed to update branch ${targetBranch}: ${updateRefRes.body.slice(0, 200)}`,
-      }),
-      { status: 400 }
-    );
+  if (!newCommitResponse.response.ok) {
+    return json({ error: `GitHub could not create the approved commit: ${safeGitHubMessage(newCommitResponse.text)}` }, 400);
   }
+  const newCommit = JSON.parse(newCommitResponse.text) as { sha?: string };
+  if (!newCommit.sha) return json({ error: "GitHub did not return the approved commit." }, 400);
 
-  // ─── STEP 8: If PR mode, create Pull Request ───
-  let prUrl: string | null = null;
+  let targetBranch = defaultBranch;
   let prHtmlUrl: string | null = null;
+  let prWarning: string | null = null;
 
-  if (mode === "pr" && branchName) {
-    const prRes = await ghFetch(api("pulls"), {
+  if (mode === "pr") {
+    targetBranch = branchName!;
+    const newRefResponse = await githubRequest(api("git/refs"), {
       method: "POST",
-      headers: ghHeaders(token),
+      headers,
+      body: JSON.stringify({ ref: `refs/heads/${targetBranch}`, sha: newCommit.sha }),
+    });
+    if (!newRefResponse.response.ok) {
+      return json({ error: `The approved commit was created, but GitHub could not create the pull-request branch: ${safeGitHubMessage(newRefResponse.text)}` }, 409);
+    }
+
+    const pullRequestResponse = await githubRequest(api("pulls"), {
+      method: "POST",
+      headers,
       body: JSON.stringify({
-        title: commitMsg,
-        head: branchName,
-        base: "main",
-        body: `This PR was created by NEXO AI (Craft V3) with the following changes:\n\n${files
-          .map((f) => `- **${f.type}**: \`${f.filePath}\``)
-          .join("\n")}\n\nPlease review before merging.`,
+        title: message,
+        head: targetBranch,
+        base: defaultBranch,
+        body: "This pull request was created from an approved Nexo repository change. Please review before merging.",
       }),
     });
-
-    if (prRes.status === 201) {
-      const prData = JSON.parse(prRes.body);
-      prUrl = prData.url;
-      prHtmlUrl = prData.html_url;
+    if (pullRequestResponse.response.ok) {
+      const pullRequest = JSON.parse(pullRequestResponse.text) as { html_url?: string };
+      prHtmlUrl = pullRequest.html_url ?? null;
+    } else {
+      prWarning = `The branch was created, but GitHub could not open the pull request: ${safeGitHubMessage(pullRequestResponse.text)}`;
     }
-    // If PR creation fails, we still return the commit — PR can be created manually
+  } else {
+    const updateRefResponse = await githubRequest(api(`git/refs/heads/${encodedDefaultBranch}`), {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ sha: newCommit.sha, force: false }),
+    });
+    if (!updateRefResponse.response.ok) {
+      return json({ error: `The approved commit was created, but GitHub could not update ${defaultBranch}: ${safeGitHubMessage(updateRefResponse.text)}` }, 409);
+    }
   }
 
-  const commitHtmlUrl = `https://github.com/${owner}/${repoName}/commit/${newCommitSha}`;
-  const compareUrl = `https://github.com/${owner}/${repoName}/compare/${baseCommitSha}...${newCommitSha}`;
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      results,
-      commitSha: newCommitSha,
-      commitUrl: commitHtmlUrl,
-      compareUrl,
-      branch: targetBranch,
-      prUrl,
-      prHtmlUrl,
-      mode,
-    }),
-    { status: 200 }
-  );
+  const commitUrl = `https://github.com/${repository.owner}/${repository.repo}/commit/${newCommit.sha}`;
+  return json({
+    success: true,
+    results: files.map((file) => ({ filePath: file.filePath, success: true })),
+    commitSha: newCommit.sha,
+    commitUrl,
+    compareUrl: `https://github.com/${repository.owner}/${repository.repo}/compare/${baseCommitSha}...${newCommit.sha}`,
+    branch: targetBranch,
+    prHtmlUrl,
+    prWarning,
+    mode,
+  });
 }
