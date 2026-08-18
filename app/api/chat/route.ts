@@ -41,6 +41,7 @@ const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
   "craft-v3",
 ]);
 const ULTRA_SPEED_MODEL = "gpt-oss-120b";
+const ULTRA_SPEED_FALLBACK_MODEL = "openai/gpt-oss-120b";
 const DAILY_MESSAGE_LIMIT = 50;
 
 const SECRET_HANDLING_PROTOCOL = `
@@ -734,7 +735,10 @@ export async function POST(req: NextRequest) {
     let lastProviderError: unknown = null;
     let activeProviderIsGemini = isGemini;
     const candidateModels = usesUltraSpeed
-      ? [ULTRA_SPEED_MODEL]
+      ? [
+          ULTRA_SPEED_MODEL,
+          ...(process.env.GROQ_API_KEY ? [ULTRA_SPEED_FALLBACK_MODEL] : []),
+        ]
       : [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
@@ -743,9 +747,9 @@ export async function POST(req: NextRequest) {
       
       // Fast-path profiles always use the dedicated route. All other profiles
       // retain their existing provider and fallback behaviour.
-      const isCandidateGemini = !usesUltraSpeed && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
-      const isCandidateGroq = !usesUltraSpeed && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
-      const currentIsUltraSpeed = usesUltraSpeed;
+      const currentIsUltraSpeed = usesUltraSpeed && candidateModel === ULTRA_SPEED_MODEL;
+      const isCandidateGemini = !currentIsUltraSpeed && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
+      const isCandidateGroq = !currentIsUltraSpeed && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
       
       const currentUpstreamUrl = currentIsUltraSpeed
         ? CEREBRAS_ENDPOINT
