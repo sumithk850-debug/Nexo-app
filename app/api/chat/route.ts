@@ -465,9 +465,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Craft V3 Lite keeps its existing Gemini/Groq route with its dedicated
-    // free-tier prompt. Paid Craft engines are rejected above until Pro access
-    // is explicitly launched.
+    // Craft V3 Lite keeps its dedicated free-tier prompt while using the
+    // Nexo UltraSpeed transport. Paid Craft engines are rejected above until
+    // Pro access is explicitly launched.
     const baseConfig = PROVIDER_CONFIG[modelId];
     const coderOverridePrompt = explicitlyUnlockedLite
       ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
