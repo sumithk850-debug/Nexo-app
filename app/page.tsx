@@ -253,6 +253,12 @@ export default function ChatPage() {
     const columns = Array.isArray(data?.columns)
       ? data.columns as Array<{ name: string; type: string | null; nullable: boolean }>
       : undefined;
+    const projects = Array.isArray(data?.projects)
+      ? (data.projects as Array<{ id?: string; name?: string; region?: string | null }>)
+        .filter((project): project is { id: string; name: string; region?: string | null } => typeof project.id === "string" && typeof project.name === "string")
+        .slice(0, 25)
+        .map((project) => ({ id: project.id, name: project.name, region: project.region ?? null }))
+      : undefined;
     const policyCount = typeof data?.policyCount === "number" ? data.policyCount : undefined;
 
     return liveReadCard({
@@ -263,16 +269,18 @@ export default function ChatPage() {
       message,
       tableNames: tables,
       columns,
+      projects,
       policyCount,
     });
   }
 
-  async function executeSupabaseReadTool(intent: SupabaseReadToolIntent): Promise<{ card: string; promptContext: string }> {
+  async function executeSupabaseReadTool(intent: SupabaseReadToolIntent): Promise<{ card: string; promptContext: string; ok: boolean }> {
     const currentUserId = user?.id;
     if (!currentUserId) {
       return {
         card: supabaseToolCard(intent, "needs_project", "Sign in and connect Supabase before Nexo can run a verified read."),
         promptContext: "The Supabase tool did not run because there is no signed-in user connection.",
+        ok: false,
       };
     }
 
@@ -288,6 +296,7 @@ export default function ChatPage() {
         return {
           card: supabaseToolCard(intent, needsConnection ? "needs_project" : "error", data.error ?? "The live Supabase read did not return a result."),
           promptContext: `Supabase tool ${intent.tool} failed: ${data.error ?? "unknown error"}. Do not claim the request is waiting or complete.`,
+          ok: false,
         };
       }
 
@@ -302,11 +311,13 @@ export default function ChatPage() {
       return {
         card: supabaseToolCard(intent, "success", summary, data),
         promptContext: `VERIFIED SUPABASE TOOL RESULT for ${intent.tool}: ${safeResult}. This tool has completed. Explain only this result; do not claim that a call is still running or waiting.`,
+        ok: true,
       };
     } catch {
       return {
         card: supabaseToolCard(intent, "error", "Nexo could not reach the Supabase tool endpoint. No result is being claimed."),
         promptContext: `Supabase tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
+        ok: false,
       };
     }
   }

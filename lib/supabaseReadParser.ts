@@ -10,6 +10,7 @@ export interface SupabaseReadCardData {
   tableNames?: string[];
   policyCount?: number;
   columns?: Array<{ name: string; type: string | null; nullable: boolean }>;
+  projects?: Array<{ id: string; name: string; region: string | null }>;
 }
 
 const READ_BLOCK_PATTERN = /```supabase-live-read\s*\n([\s\S]*?)```/gi;
@@ -47,6 +48,9 @@ export function parseSupabaseReadBlocks(content: string): SupabaseReadCardData[]
     const tableNames = jsonField<string[]>(body, "tables")?.filter((table) => typeof table === "string");
     const columns = jsonField<Array<{ name: string; type: string | null; nullable: boolean }>>(body, "columns")
       ?.filter((column) => Boolean(column?.name));
+    const projects = jsonField<Array<{ id: string; name: string; region: string | null }>>(body, "projects")
+      ?.filter((project) => typeof project?.id === "string" && typeof project?.name === "string")
+      .slice(0, 25);
     const rawPolicyCount = Number(field(body, "policy_count"));
 
     cards.push({
@@ -58,6 +62,7 @@ export function parseSupabaseReadBlocks(content: string): SupabaseReadCardData[]
       message,
       tableNames,
       columns,
+      projects,
       policyCount: Number.isFinite(rawPolicyCount) ? rawPolicyCount : undefined,
     });
   }
@@ -79,6 +84,7 @@ export function createSupabaseReadBlock(card: Omit<SupabaseReadCardData, "id">) 
     `message: ${card.message}`,
     `tables: ${JSON.stringify(card.tableNames ?? [])}`,
     `columns: ${JSON.stringify(card.columns ?? [])}`,
+    `projects: ${JSON.stringify(card.projects ?? [])}`,
     `policy_count: ${card.policyCount ?? 0}`,
     "```",
   ].join("\n");

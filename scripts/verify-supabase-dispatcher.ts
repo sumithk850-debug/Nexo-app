@@ -13,22 +13,16 @@ const projectId = "abcdefghijklmnopqrst";
 
 const validRequest = `I will inspect the connected project.
 
-\`\`\`supabase-tool
-tool: list_tables
-project_id: ${projectId}
-\`\`\``;
+<supabase-tool>{"action":"list_tables","project_id":"${projectId}"}</supabase-tool>`;
 const validIntent = parseSupabaseReadToolIntents(validRequest);
 assert.equal(validIntent.length, 1, "a verified list_tables tool request should parse");
 assert.deepEqual(validIntent[0], { tool: "list_tables", projectId });
 assert.equal(stripSupabaseReadToolBlocks(validRequest), "I will inspect the connected project.");
 
-const safeRows = parseSupabaseReadToolIntents(`\`\`\`supabase-tool
-tool: read_rows
-project_id: ${projectId}
-table: profiles
-columns: ["id", "display_name", "email; DROP TABLE users"]
-limit: 999
-\`\`\``);
+const projectList = parseSupabaseReadToolIntents(`<supabase-tool>{"action":"list_projects"}</supabase-tool>`);
+assert.deepEqual(projectList, [{ tool: "list_projects" }], "a project-list tag should enter the verified dispatcher");
+
+const safeRows = parseSupabaseReadToolIntents(`<supabase-tool>{"action":"read_rows","project_id":"${projectId}","table":"profiles","columns":["id","display_name","email; DROP TABLE users"],"limit":999}</supabase-tool>`);
 assert.equal(safeRows.length, 1, "a bounded safe row-read tool request should parse");
 assert.deepEqual(safeRows[0], {
   tool: "read_rows",
@@ -38,17 +32,10 @@ assert.deepEqual(safeRows[0], {
   limit: 25,
 });
 
-const rejectedWrite = parseSupabaseReadToolIntents(`\`\`\`supabase-tool
-tool: delete
-project_id: ${projectId}
-table: profiles
-\`\`\``);
+const rejectedWrite = parseSupabaseReadToolIntents(`<supabase-tool>{"action":"delete","project_id":"${projectId}","table":"profiles"}</supabase-tool>`);
 assert.equal(rejectedWrite.length, 0, "write tools must not enter the automatic read dispatcher");
 
-const rejectedPlaceholder = parseSupabaseReadToolIntents(`\`\`\`supabase-tool
-tool: list_tables
-project_id: unknown
-\`\`\``);
+const rejectedPlaceholder = parseSupabaseReadToolIntents(`<supabase-tool>{"action":"list_tables","project_id":"unknown"}</supabase-tool>`);
 assert.equal(rejectedPlaceholder.length, 0, "placeholder project IDs must be rejected before a network call");
 
 const liveCard = createSupabaseReadBlock({
@@ -65,6 +52,18 @@ assert.equal(parsedCards[0]?.state, "success");
 assert.deepEqual(parsedCards[0]?.tableNames, ["profiles", "messages"]);
 assert.equal(stripSupabaseReadBlocks(liveCard), "", "transport blocks must not leak into normal assistant prose");
 
+const projectsCard = createSupabaseReadBlock({
+  state: "success",
+  kind: "projects",
+  title: "Verified Supabase projects",
+  message: "2 connected project(s) returned.",
+  projects: [
+    { id: projectId, name: "Nexo", region: "ap-southeast-1" },
+    { id: "zyxwvutsrqponmlkjihg", name: "Sandbox", region: null },
+  ],
+});
+assert.deepEqual(parseSupabaseReadBlocks(projectsCard)[0]?.projects?.map((project) => project.name), ["Nexo", "Sandbox"], "verified project data must survive the live-card transport");
+
 const errorCard = createSupabaseReadBlock({
   state: "error",
   kind: "schema",
@@ -74,4 +73,4 @@ const errorCard = createSupabaseReadBlock({
 });
 assert.equal(parseSupabaseReadBlocks(errorCard)[0]?.state, "error", "a truthful error state should remain distinct from a success card");
 
-console.log("Supabase dispatcher local checks passed: 6 assertions groups.");
+console.log("Supabase dispatcher local checks passed: 8 assertions groups.");

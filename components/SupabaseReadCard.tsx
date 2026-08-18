@@ -47,6 +47,25 @@ export function SupabaseReadCard({ card }: { card: SupabaseReadCardData }) {
           {typeof card.policyCount === "number" && <p className="mt-2 text-[11px] text-ink-faint">RLS policies returned: {card.policyCount}</p>}
         </div>
       )}
+      {isSuccess && card.kind === "projects" && card.projects && (
+        <div className="border-t border-current/15 bg-void/25 px-4 py-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
+            <Database className="h-3.5 w-3.5" /> Connected projects ({card.projects.length})
+          </div>
+          {card.projects.length > 0 ? (
+            <div className="space-y-1.5">
+              {card.projects.map((project) => (
+                <div key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-edge bg-panel px-2.5 py-2">
+                  <span className="min-w-0 truncate text-xs font-semibold text-ink" title={project.name}>{project.name}</span>
+                  <span className="font-mono text-[10px] text-ink-faint">{project.region ?? "region unavailable"}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-muted">No connected Supabase projects were returned.</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

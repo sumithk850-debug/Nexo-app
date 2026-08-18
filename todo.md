@@ -32,3 +32,4 @@
 - [x] Replace keyword-only Supabase schema reads with a complete server-side allowlisted tool-calling dispatcher that executes verified live reads and gates all writes behind approval.
 - [x] Add and run local deterministic Supabase dispatcher tests covering read-tool parsing, rejection, live-card protocol, and write blocking.
 - [x] Replace scripted file-read acknowledgements with model-driven attachment-aware replies and short-lived truthful processing/completion states.
+- [x] Unify Supabase `list_projects` under one structured tool protocol with verified result/error cards that never terminate the chat stream.

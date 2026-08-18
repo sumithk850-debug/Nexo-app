@@ -15,23 +15,22 @@ export interface SupabaseReadToolIntent {
   limit?: number;
 }
 
-const TOOL_BLOCK_PATTERN = /```supabase-tool\s*\n([\s\S]*?)```/gi;
+const TOOL_BLOCK_PATTERN = /<supabase-tool>\s*([\s\S]*?)\s*<\/supabase-tool>/gi;
 
-function field(body: string, name: string) {
-  return body.match(new RegExp(`^${name}:\\s*(.*)$`, "im"))?.[1]?.trim() ?? "";
-}
+type RawToolIntent = {
+  action?: unknown;
+  tool?: unknown;
+  project_id?: unknown;
+  projectId?: unknown;
+  table?: unknown;
+  columns?: unknown;
+  limit?: unknown;
+};
 
-function readColumns(body: string) {
-  const raw = field(body, "columns");
-  if (!raw) return undefined;
-  try {
-    const columns = JSON.parse(raw);
-    return Array.isArray(columns)
-      ? columns.filter((column): column is string => typeof column === "string" && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)).slice(0, 12)
-      : undefined;
-  } catch {
-    return undefined;
-  }
+function readSafeColumns(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw.filter((column): column is string => typeof column === "string" && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)).slice(0, 12)
+    : undefined;
 }
 
 export function parseSupabaseReadToolIntents(content: string): SupabaseReadToolIntent[] {
@@ -39,12 +38,20 @@ export function parseSupabaseReadToolIntents(content: string): SupabaseReadToolI
   let match: RegExpExecArray | null;
 
   while ((match = TOOL_BLOCK_PATTERN.exec(content)) !== null) {
-    const body = match[1];
-    const tool = field(body, "tool") as SupabaseReadToolName;
-    const projectId = field(body, "project_id");
-    const table = field(body, "table");
-    const rawLimit = field(body, "limit");
-    const requestedLimit = rawLimit ? Number(rawLimit) : undefined;
+    let raw: RawToolIntent;
+    try {
+      raw = JSON.parse(match[1]) as RawToolIntent;
+    } catch {
+      continue;
+    }
+    const tool = (typeof raw.action === "string" ? raw.action : raw.tool) as SupabaseReadToolName;
+    const projectId = typeof raw.project_id === "string"
+      ? raw.project_id.trim()
+      : typeof raw.projectId === "string"
+        ? raw.projectId.trim()
+        : "";
+    const table = typeof raw.table === "string" ? raw.table.trim() : "";
+    const requestedLimit = typeof raw.limit === "number" || typeof raw.limit === "string" ? Number(raw.limit) : undefined;
 
     if (!SUPABASE_READ_TOOL_NAMES.includes(tool)) continue;
     if (tool !== "list_projects" && (!projectId || ["unknown", "null", "n/a", "none"].includes(projectId.toLowerCase()))) continue;
@@ -53,9 +60,9 @@ export function parseSupabaseReadToolIntents(content: string): SupabaseReadToolI
 
     intents.push({
       tool,
-      projectId: projectId || undefined,
+      ...(projectId ? { projectId } : {}),
       ...(table ? { table } : {}),
-      ...(readColumns(body) ? { columns: readColumns(body) } : {}),
+      ...(readSafeColumns(raw.columns) ? { columns: readSafeColumns(raw.columns) } : {}),
       ...(typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
         ? { limit: Math.max(1, Math.min(Math.floor(requestedLimit), 25)) }
         : {}),
