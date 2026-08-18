@@ -12,10 +12,33 @@ export interface ClarificationCardData {
 }
 
 const CLARIFICATION_BLOCK_PATTERN = /```clarification-card\s*\n([\s\S]*?)```/gi;
+const PLAIN_BOARD_HEADING = /(?:pick|choose|select)\s+(?:an?\s+)?option|option\s*(?:board|choices?)|විකල්ප(?:යක්|යන්)?\s*(?:තෝරන්න|තෝරන්නෙ|තෝරාගන්න)|ඔප්ෂන්\s*(?:තෝරන්න|තෝරාගන්න)/i;
+const NUMBERED_OPTION = /^\s*(?:\d+[.)]|[-*])\s+(.+)$/;
 
 function parseHeaderValue(line: string, key: string) {
-  const match = line.match(new RegExp(`^${key}\\s*:\\s*(.*)$`, "i"));
+  const match = line.match(new RegExp(`^${key}\\s*:\\s*(.*)$`, "im"));
   return match?.[1]?.trim() ?? "";
+}
+
+function parsePlainOptionBoard(content: string): ClarificationCardData[] {
+  const lines = content.replace(/\r/g, "").split("\n");
+  const headingIndex = lines.findIndex((line) => PLAIN_BOARD_HEADING.test(line));
+  if (headingIndex < 0) return [];
+
+  const options: ClarificationOption[] = [];
+  for (let index = headingIndex + 1; index < lines.length; index += 1) {
+    const match = lines[index].match(NUMBERED_OPTION);
+    if (!match) continue;
+    const label = match[1].replace(/^[-–—\s]+/, "").trim();
+    if (label.length >= 3 && label.length <= 180) {
+      options.push({ id: `option-${options.length + 1}`, label });
+    }
+  }
+  if (options.length < 2 || options.length > 6) return [];
+
+  const question = [...lines.slice(0, headingIndex)].reverse().find((line) => line.trim().length > 0)?.trim()
+    || "Which option should I use to continue?";
+  return [{ id: "clarification-fallback-1", question, options, allowCustomInput: true }];
 }
 
 export function parseClarificationBlocks(content: string): ClarificationCardData[] {
@@ -65,9 +88,13 @@ export function parseClarificationBlocks(content: string): ClarificationCardData
     });
   }
 
-  return cards;
+  return cards.length > 0 ? cards : parsePlainOptionBoard(content);
 }
 
 export function stripClarificationBlocks(content: string) {
-  return content.replace(CLARIFICATION_BLOCK_PATTERN, "").replace(/\n{3,}/g, "\n\n").trim();
+  const structured = content.replace(CLARIFICATION_BLOCK_PATTERN, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (structured !== content.trim() || parsePlainOptionBoard(content).length === 0) return structured;
+  const lines = content.replace(/\r/g, "").split("\n");
+  const headingIndex = lines.findIndex((line) => PLAIN_BOARD_HEADING.test(line));
+  return lines.slice(0, Math.max(headingIndex, 0)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }

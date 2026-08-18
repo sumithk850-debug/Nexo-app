@@ -41,3 +41,4 @@
 - [x] Remove misleading global Supabase service-token fallback from per-user connection status and tool execution paths.
 - [x] Harden public URL reading against redirect-chain and DNS-resolved private-network SSRF targets.
 - [x] Expand environment-template guidance and deterministic regression coverage for audit fixes.
+- [x] Restore reliable structured clarification boards for all models, including raw-option fallback conversion, option selection, mobile layout, and regression validation.

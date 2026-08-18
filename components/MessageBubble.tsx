@@ -11,6 +11,7 @@ import { parseCraftSegments } from "@/lib/craftParser";
 import { parseSupabaseTaskBlocks, stripSupabaseTaskBlocks, type SupabaseTask } from "@/lib/supabaseTaskParser";
 import { parseSupabaseReadBlocks, stripSupabaseReadBlocks } from "@/lib/supabaseReadParser";
 import { stripSupabaseReadToolBlocks } from "@/lib/supabaseToolParser";
+import { parseClarificationBlocks, stripClarificationBlocks } from "@/lib/clarificationParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SupabaseReadCard } from "./SupabaseReadCard";
@@ -38,6 +39,7 @@ import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
+import { ClarificationCard } from "./ClarificationCard";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -184,7 +186,8 @@ export function MessageBubble({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
-  const displayContent = stripSupabaseReadBlocks(message.content);
+  const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
+  const displayContent = stripClarificationBlocks(stripSupabaseReadBlocks(message.content));
 
   useEffect(() => {
     return () => {
@@ -346,6 +349,16 @@ export function MessageBubble({
         {coderMode ? (
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
+            {clarificationCards.map((card) => (
+              <ClarificationCard
+                key={card.id}
+                card={card}
+                onSelect={(selectedId, customText) => {
+                  const selected = card.options.find((option) => option.id === selectedId)?.label;
+                  onSuggestionSelect?.(customText || selected || selectedId);
+                }}
+              />
+            ))}
             {parseCraftSegments(displayContent).map((seg, i) =>
               seg.kind === "text" ? (
                 seg.text.trim() ? (
@@ -410,6 +423,16 @@ export function MessageBubble({
         ) : (
           <div className="prose-nexo text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
+            {clarificationCards.map((card) => (
+              <ClarificationCard
+                key={card.id}
+                card={card}
+                onSelect={(selectedId, customText) => {
+                  const selected = card.options.find((option) => option.id === selectedId)?.label;
+                  onSuggestionSelect?.(customText || selected || selectedId);
+                }}
+              />
+            ))}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {normalizeMarkdownForDisplay(displayContent)}
             </ReactMarkdown>
