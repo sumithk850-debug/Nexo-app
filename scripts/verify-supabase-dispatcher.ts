@@ -8,8 +8,25 @@ import {
   parseSupabaseReadBlocks,
   stripSupabaseReadBlocks,
 } from "../lib/supabaseReadParser";
+import { deriveSupabaseReadIntent } from "../lib/supabaseReadIntent";
 
 const projectId = "abcdefghijklmnopqrst";
+
+assert.deepEqual(
+  deriveSupabaseReadIntent("Show my connected Supabase projects", "", null),
+  { tool: "list_projects" },
+  "project discovery must use the verified tool path without a selected project",
+);
+assert.deepEqual(
+  deriveSupabaseReadIntent("Please show the columns in the conversations table", "", projectId),
+  { tool: "describe_table", projectId, table: "conversations" },
+  "a selected table schema read must enter the verified describe_table tool path",
+);
+assert.equal(
+  deriveSupabaseReadIntent("Delete the conversations table from Supabase", "", projectId),
+  undefined,
+  "a mutation must not enter the automatic read dispatcher or create a false read card",
+);
 
 const validRequest = `I will inspect the connected project.
 
@@ -73,4 +90,4 @@ const errorCard = createSupabaseReadBlock({
 });
 assert.equal(parseSupabaseReadBlocks(errorCard)[0]?.state, "error", "a truthful error state should remain distinct from a success card");
 
-console.log("Supabase dispatcher local checks passed: 8 assertions groups.");
+console.log("Supabase dispatcher local checks passed: 11 assertions groups.");

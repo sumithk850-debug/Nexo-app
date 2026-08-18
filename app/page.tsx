@@ -799,6 +799,9 @@ export default function ChatPage() {
           // Coder sub-model selection: only honored server-side while in
           // Nexo Coder mode; the Lite engine's deeper prompt is applied there.
           coderModel: effectiveCoder ? coderModel : undefined,
+          // Read-only Supabase tools need the user-selected project. The backend
+          // still verifies it against this user's connected account before use.
+          supabaseProjectId: typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null,
           uploadedImages,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,

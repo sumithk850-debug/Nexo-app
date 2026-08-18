@@ -9,6 +9,7 @@ import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.se
 import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
 import type { NexoModelId } from "@/lib/models";
+import { deriveSupabaseReadIntent } from "@/lib/supabaseReadIntent";
 import {
   checkCoderTokenAvailability,
   estimateTokens,
@@ -100,7 +101,8 @@ sql:
 - If the project or table is not confirmed, ask one concise clarification question instead of emitting code or a task card. After an approved task returns, summarize the exact verified result and any remaining risk.
 
 INTEGRATION TASK REPORT:
-- End an integration task with a concise "Integration report" section that states: target, inspections completed, approved actions executed or still awaiting approval, verification result, and the next safe step.
+- For a verified read-only result, provide only a concise interpretation of the returned data. Never add “Waiting for approval”, “Approved actions: none”, “Awaiting query execution”, or an approval instruction to a read-only response.
+- For a mutation proposal or an approved mutation result, end with a concise "Integration report" section that states: target, inspections completed, approved actions executed or still awaiting approval, verification result, and the next safe step.
 - Match the user's language naturally. Explain technical terms briefly when the user appears unfamiliar with them, without oversimplifying the safety boundary.`;
 
 const REPOSITORY_ACTION_PROTOCOL = `
@@ -545,7 +547,14 @@ export async function POST(req: NextRequest) {
       /project|projects|ප්‍ර[ො]?ජෙක්ට්/i.test(latestUserText) &&
       /supabase|database|schema|table|sql|ඩේටා|දත්ත|ටේබල්/i.test(recentConversationText);
     const isSupabaseQuestion = hasExplicitSupabaseIntent || isSupabaseProjectFollowUp;
-    const requestsProjectList = isSupabaseQuestion && /(?:\b(?:list|show|view|display|active|connected|available)\b[\s\S]{0,40}\bprojects?\b|\bprojects?\s+(?:list|available)\b|(?:ප්‍ර[ො]?ජෙක්ට්|project)[\s\S]{0,24}(?:ලැයිස්තුව|බලන්න|පෙන්වන්න)|(?:සම්බන්ධිත|සක්‍රිය)[\s\S]{0,24}ප්‍ර[ො]?ජෙක්ට්)/i.test(latestUserText);
+    const requestedSupabaseProjectId = typeof body.supabaseProjectId === "string"
+      ? body.supabaseProjectId.trim()
+      : "";
+    const deterministicSupabaseReadIntent = deriveSupabaseReadIntent(
+      latestUserText,
+      recentConversationText,
+      requestedSupabaseProjectId,
+    );
 
     let systemPrompt = memory
       ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n\"\"\"\n${memory}\n\"\"\"`
@@ -603,8 +612,13 @@ export async function POST(req: NextRequest) {
     // Project discovery must always take the same structured path. Bypassing
     // provider prose prevents a Markdown response from skipping the frontend's
     // verified tool dispatcher and live result/error card lifecycle.
-    if (requestsProjectList) {
-      return new Response('<supabase-tool>{"action":"list_projects"}</supabase-tool>', {
+    if (deterministicSupabaseReadIntent) {
+      const payload = {
+        action: deterministicSupabaseReadIntent.tool,
+        ...(deterministicSupabaseReadIntent.projectId ? { project_id: deterministicSupabaseReadIntent.projectId } : {}),
+        ...(deterministicSupabaseReadIntent.table ? { table: deterministicSupabaseReadIntent.table } : {}),
+      };
+      return new Response(`<supabase-tool>${JSON.stringify(payload)}</supabase-tool>`, {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }

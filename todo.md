@@ -33,3 +33,4 @@
 - [x] Add and run local deterministic Supabase dispatcher tests covering read-tool parsing, rejection, live-card protocol, and write blocking.
 - [x] Replace scripted file-read acknowledgements with model-driven attachment-aware replies and short-lived truthful processing/completion states.
 - [x] Unify Supabase `list_projects` under one structured tool protocol with verified result/error cards that never terminate the chat stream.
+- [ ] Prevent read-only Supabase requests from emitting false approval prose and verify deployed authenticated `describe_table` card execution end to end.
