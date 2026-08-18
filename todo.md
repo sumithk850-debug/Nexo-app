@@ -29,3 +29,4 @@
 - [x] Implement backward-compatible GitHub App installation upgrade flow so existing OAuth users and new users can grant Read & Write access and select repositories.
 - [x] Implement Claude-style structured clarification cards for all 7 models to resolve ambiguous requests with selectable options and custom text answers.
 - [x] Execute Supabase read requests through verified backend calls and replace model-generated waiting prose with live result, error, or clarification cards.
+- [x] Replace keyword-only Supabase schema reads with a complete server-side allowlisted tool-calling dispatcher that executes verified live reads and gates all writes behind approval.

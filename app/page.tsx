@@ -25,6 +25,7 @@ import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
+import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -82,19 +83,6 @@ function normalizeRepositoryReadClaims(content: string, verifiedPaths: string[])
       .join("\n");
     return `\`\`\`task-summary\n${normalizedDetails}\n\`\`\``;
   });
-}
-
-function inferSupabaseSchemaRead(text: string) {
-  const mentionsSupabase = /supabase|database|schema|table|tables|sql|ඩේටා|දත්ත|ටේබල්/i.test(text);
-  const wantsSchema = /schema|table|tables|list.*table|show.*table|inspect.*database|ලැයිස්තු|ලැයිස්තුව|ටේබල්/i.test(text);
-  if (!mentionsSupabase || !wantsSchema) return null;
-
-  const explicitProjectId = text.match(/\b[a-z0-9]{20}\b/i)?.[0] ?? null;
-  const selectedProjectId = typeof window === "undefined"
-    ? null
-    : window.localStorage.getItem("nexo:supabaseProjectId");
-  const projectId = explicitProjectId ?? selectedProjectId;
-  return { projectId };
 }
 
 function liveReadCard(card: Omit<SupabaseReadCardData, "id">) {
@@ -233,79 +221,84 @@ export default function ChatPage() {
     }
   }
 
-  async function executeVerifiedSupabaseSchemaRead(projectId: string | null): Promise<{
-    card: string;
-    promptContext: string;
-  }> {
+  function supabaseToolCard(intent: SupabaseReadToolIntent, state: SupabaseReadCardData["state"], message: string, data?: Record<string, unknown>) {
+    const kind = intent.tool === "list_projects"
+      ? "projects"
+      : intent.tool === "describe_table"
+        ? "columns"
+        : "schema";
+    const titleByTool: Record<SupabaseReadToolIntent["tool"], string> = {
+      list_projects: "Reading connected Supabase projects",
+      list_tables: "Reading Supabase tables",
+      describe_table: `Reading ${intent.table ?? "table"} details`,
+      read_rows: `Reading ${intent.table ?? "table"} rows`,
+    };
+    const successTitleByTool: Record<SupabaseReadToolIntent["tool"], string> = {
+      list_projects: "Verified Supabase projects",
+      list_tables: "Verified Supabase table result",
+      describe_table: "Verified table detail result",
+      read_rows: "Verified Supabase row result",
+    };
+    const tables = Array.isArray(data?.tables)
+      ? (data.tables as Array<{ name?: string }>).map((table) => table.name).filter((name): name is string => typeof name === "string")
+      : undefined;
+    const columns = Array.isArray(data?.columns)
+      ? data.columns as Array<{ name: string; type: string | null; nullable: boolean }>
+      : undefined;
+    const policyCount = typeof data?.policyCount === "number" ? data.policyCount : undefined;
+
+    return liveReadCard({
+      state,
+      kind,
+      projectId: intent.projectId,
+      title: state === "success" ? successTitleByTool[intent.tool] : titleByTool[intent.tool],
+      message,
+      tableNames: tables,
+      columns,
+      policyCount,
+    });
+  }
+
+  async function executeSupabaseReadTool(intent: SupabaseReadToolIntent): Promise<{ card: string; promptContext: string }> {
     const currentUserId = user?.id;
     if (!currentUserId) {
       return {
-        card: liveReadCard({
-          state: "needs_project",
-          kind: "schema",
-          title: "Sign in to inspect Supabase",
-          message: "A signed-in Nexo account is required before a verified Supabase read can run.",
-        }),
-        promptContext: "No Supabase read ran because the user is not signed in.",
-      };
-    }
-    if (!projectId) {
-      return {
-        card: liveReadCard({
-          state: "needs_project",
-          kind: "schema",
-          title: "Select a verified Supabase project",
-          message: "Choose a project in Integrations, or include its project ID in your request. No database query was sent.",
-        }),
-        promptContext: "No Supabase read ran because no verified project was selected.",
+        card: supabaseToolCard(intent, "needs_project", "Sign in and connect Supabase before Nexo can run a verified read."),
+        promptContext: "The Supabase tool did not run because there is no signed-in user connection.",
       };
     }
 
     try {
-      const response = await fetch(
-        `/api/supabase/schema?userId=${encodeURIComponent(currentUserId)}&projectId=${encodeURIComponent(projectId)}`
-      );
+      const response = await fetch(`/api/supabase/tool?userId=${encodeURIComponent(currentUserId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(intent),
+      });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const isConnectionIssue = response.status === 404 || response.status === 403;
+        const needsConnection = response.status === 403 || response.status === 404;
         return {
-          card: liveReadCard({
-            state: isConnectionIssue ? "needs_project" : "error",
-            kind: "schema",
-            projectId,
-            title: isConnectionIssue ? "Supabase project is not available" : "Supabase read failed",
-            message: data.error ?? "The verified schema request did not return a result. No table data is being claimed.",
-          }),
-          promptContext: `Supabase schema read failed: ${data.error ?? "unknown error"}. Do not claim that any query is waiting or completed.`,
+          card: supabaseToolCard(intent, needsConnection ? "needs_project" : "error", data.error ?? "The live Supabase read did not return a result."),
+          promptContext: `Supabase tool ${intent.tool} failed: ${data.error ?? "unknown error"}. Do not claim the request is waiting or complete.`,
         };
       }
 
-      const tableNames = Array.isArray(data.tables)
-        ? data.tables.map((table: { name?: string }) => table?.name).filter((name: unknown): name is string => typeof name === "string")
-        : [];
-      const policyCount = Array.isArray(data.policies?.policies) ? data.policies.policies.length : 0;
+      const summary = intent.tool === "list_projects"
+        ? `${Array.isArray(data.projects) ? data.projects.length : 0} connected project(s) returned.`
+        : intent.tool === "list_tables"
+          ? `${Array.isArray(data.tables) ? data.tables.length : 0} public table(s) returned.`
+          : intent.tool === "describe_table"
+            ? `${Array.isArray(data.columns) ? data.columns.length : 0} column(s) returned for ${intent.table}.`
+            : `${Array.isArray(data.rows) ? data.rows.length : 0} redacted row(s) returned from ${intent.table}.`;
+      const safeResult = JSON.stringify(data).slice(0, 8000);
       return {
-        card: liveReadCard({
-          state: "success",
-          kind: "schema",
-          projectId,
-          title: "Verified Supabase schema result",
-          message: `${tableNames.length} public table${tableNames.length === 1 ? "" : "s"} returned from Supabase just now.`,
-          tableNames,
-          policyCount,
-        }),
-        promptContext: `VERIFIED SUPABASE SCHEMA RESULT — project ${projectId}. Public tables returned: ${tableNames.length ? tableNames.join(", ") : "none"}. RLS policies returned: ${policyCount}. This result is complete for this read; do not say you are waiting for Supabase.`,
+        card: supabaseToolCard(intent, "success", summary, data),
+        promptContext: `VERIFIED SUPABASE TOOL RESULT for ${intent.tool}: ${safeResult}. This tool has completed. Explain only this result; do not claim that a call is still running or waiting.`,
       };
     } catch {
       return {
-        card: liveReadCard({
-          state: "error",
-          kind: "schema",
-          projectId,
-          title: "Could not reach Supabase",
-          message: "The verified schema request could not be completed. Check the integration connection and try again.",
-        }),
-        promptContext: "Supabase schema read could not reach the service. Do not claim that a query is still running or waiting.",
+        card: supabaseToolCard(intent, "error", "Nexo could not reach the Supabase tool endpoint. No result is being claimed."),
+        promptContext: `Supabase tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
       };
     }
   }
@@ -748,7 +741,8 @@ export default function ChatPage() {
     override?: { modelId: NexoModelId; isCoder: boolean },
     uploadedImages?: { base64Image: string }[],
     providedController?: AbortController,
-    initialContent = ""
+    initialContent = "",
+    supabaseToolDepth = 0
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -881,6 +875,38 @@ export default function ChatPage() {
         accumulated += `\n\n\`\`\`task-summary\nstatus: partial\nfiles read: ${paths}\nfiles changed:\nfiles deleted:\ndetails: The provider ended before it returned the file findings. Please retry this read request.\n\`\`\``;
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+        );
+      }
+
+      const supabaseToolIntent = supabaseToolDepth === 0
+        ? parseSupabaseReadToolIntents(accumulated)[0]
+        : undefined;
+      if (supabaseToolIntent) {
+        const toolRequestText = stripSupabaseReadToolBlocks(accumulated).trim();
+        const loadingCard = supabaseToolCard(
+          supabaseToolIntent,
+          "loading",
+          "Nexo is validating the connection and running this read-only Supabase tool now."
+        );
+        setMessages((prev) => prev.map((message) => (
+          message.id === assistantId ? { ...message, content: loadingCard } : message
+        )));
+
+        const verifiedTool = await executeSupabaseReadTool(supabaseToolIntent);
+        const continuedConversation: ChatMessage[] = [
+          ...conversationSoFar,
+          { id: `supabase-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Nexo requested a verified Supabase read tool." },
+          { id: `supabase-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Supabase read executed by Nexo]\n${verifiedTool.promptContext}` },
+        ];
+        return streamResponse(
+          chatId,
+          continuedConversation,
+          assistantId,
+          override,
+          uploadedImages,
+          controller,
+          verifiedTool.card,
+          supabaseToolDepth + 1
         );
       }
 
@@ -1050,24 +1076,14 @@ export default function ChatPage() {
     const assistantId = crypto.randomUUID();
 
     const nextMessages = [...messages, userMsg];
-    let conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
+    const conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
     setPendingApproval(null);
 
     // Initial assistant reply with read intent and live task card if files are attached
     const fileReadIntent = hasAttachments
       ? `මම මේ file(s) කියවන්නම්...\n\n\`[READING FILE] ${prepared.sourceNames.join(", ")}\``
       : "";
-    const supabaseSchemaRead = inferSupabaseSchemaRead(text);
-    const supabaseLoadingCard = supabaseSchemaRead
-      ? liveReadCard({
-          state: "loading",
-          kind: "schema",
-          projectId: supabaseSchemaRead.projectId ?? undefined,
-          title: "Reading Supabase schema",
-          message: "Nexo is running a verified read-only schema request now. No SQL write will be performed.",
-        })
-      : "";
-    let initialAssistantContent = [fileReadIntent, supabaseLoadingCard].filter(Boolean).join("\n\n");
+    const initialAssistantContent = fileReadIntent;
 
     setMessages([
       ...nextMessages,
@@ -1081,21 +1097,6 @@ export default function ChatPage() {
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
-
-    if (supabaseSchemaRead) {
-      const verifiedRead = await executeVerifiedSupabaseSchemaRead(supabaseSchemaRead.projectId);
-      initialAssistantContent = [fileReadIntent, verifiedRead.card].filter(Boolean).join("\n\n");
-      conversationForApi = [
-        ...messages,
-        {
-          ...userMsg,
-          content: `${enrichedPrompt}\n\n[Verified Supabase read executed by Nexo]\n${verifiedRead.promptContext}`,
-        },
-      ];
-      setMessages((prev) => prev.map((message) => (
-        message.id === assistantId ? { ...message, content: initialAssistantContent } : message
-      )));
-    }
 
     if (chatId) {
       const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & read: ${prepared.sourceNames.join(", ")}]` : ""}`;

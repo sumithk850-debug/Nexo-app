@@ -136,6 +136,20 @@ export class SupabaseClient {
     return { policies: rows ?? [] };
   }
 
+  /** Safely read a small, explicitly bounded table sample. Sensitive columns
+   * are redacted before this data ever leaves the server-side tool route. */
+  async readRows(projectId: string, tableName: string, columns: string[] = [], limit = 20) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+      throw new Error("Invalid table name");
+    }
+    const safeColumns = columns
+      .filter((column) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column))
+      .slice(0, 12);
+    const selected = safeColumns.length > 0 ? safeColumns.map((column) => `"${column}"`).join(", ") : "*";
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 25));
+    return this.introspect(projectId, `SELECT ${selected} FROM public."${tableName}" LIMIT ${safeLimit}`);
+  }
+
   /**
    * Execute raw SQL. Dangerous by nature — the API caller MUST show the user
    * an approval card before calling this. Blocked statements: anything that

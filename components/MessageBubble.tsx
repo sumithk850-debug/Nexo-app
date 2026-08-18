@@ -10,6 +10,7 @@ import { Signal } from "./Signal";
 import { parseCraftSegments } from "@/lib/craftParser";
 import { parseSupabaseTaskBlocks, stripSupabaseTaskBlocks, type SupabaseTask } from "@/lib/supabaseTaskParser";
 import { parseSupabaseReadBlocks, stripSupabaseReadBlocks } from "@/lib/supabaseReadParser";
+import { stripSupabaseReadToolBlocks } from "@/lib/supabaseToolParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SupabaseReadCard } from "./SupabaseReadCard";
@@ -128,7 +129,7 @@ const markdownComponents = {
 };
 
 function normalizeMarkdownForDisplay(content: string) {
-  const withoutSupabaseCards = stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content));
+  const withoutSupabaseCards = stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content)));
   return withoutSupabaseCards
     .split(/(```[\s\S]*?```)/g)
     .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
@@ -136,7 +137,7 @@ function normalizeMarkdownForDisplay(content: string) {
 }
 
 function toSpeakableText(content: string) {
-  return content
+  return stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(content))
     .replace(/```[\s\S]*?```/g, " Code block omitted. ")
     .replace(/!?(\[[^\]]*\])\([^)]*\)/g, "$1")
     .replace(/[#>*_`~]/g, " ")
