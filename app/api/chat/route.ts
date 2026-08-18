@@ -10,6 +10,7 @@ import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
 import type { NexoModelId } from "@/lib/models";
 import { deriveSupabaseReadIntent } from "@/lib/supabaseReadIntent";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 import {
   checkCoderTokenAvailability,
   estimateTokens,
@@ -356,10 +357,15 @@ export async function POST(req: NextRequest) {
     const sessionId = body.sessionId as string | undefined;
     // The user's actual auth/user id, distinct from sessionId, used to look up
     // their GitHub connection. Sent by the client alongside sessionId.
-    const userId = body.userId as string | undefined;
+    let userId = body.userId as string | undefined;
     // Passed from the signed-in browser only for the user's own Supabase RLS
     // context. It is never stored, logged, or sent to an AI provider.
     const userAccessToken = body.userAccessToken as string | undefined;
+    if (userId) {
+      const verified = await requireVerifiedUser(req, userId);
+      if (verified.response) return verified.response;
+      userId = verified.user.id;
+    }
     const userName = typeof body.userName === "string" ? body.userName.trim().slice(0, 120) : "";
     // The Integrations panel owns this user-controlled switch. When off, the
     // chat may still answer normally but it must not receive repository context.

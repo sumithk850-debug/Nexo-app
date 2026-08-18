@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptIntegrationToken, decryptIntegrationToken } from "@/lib/integrationToken.server";
-import { resolveSupabaseAccessToken } from "@/lib/supabaseClient.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -21,26 +21,24 @@ export async function GET(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ connected: false }), { status: 200 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("supabase_connections")
     .select("supabase_username, access_token")
-    .eq("user_id", userId)
+    .eq("user_id", verified.user.id)
     .maybeSingle();
 
-  // Validate that a usable management token exists: a stored per-user token
-  // takes precedence, otherwise the platform's own service-role key is used
-  // (the owner's nexo-app project) so no manual connection is ever required.
+  // Integration status represents a real per-user connection only. A global
+  // service token must never make another account appear connected.
   let token: string | null = null;
   let username: string | null = null;
   try {
     if (data?.access_token) {
       token = decryptIntegrationToken(data.access_token);
       username = data.supabase_username ?? null;
-    } else {
-      token = await resolveSupabaseAccessToken(userId);
-      username = "nexo-app";
     }
   } catch {
     token = null;
@@ -75,6 +73,8 @@ export async function POST(req: NextRequest) {
   if (!userId || !token) {
     return new Response(JSON.stringify({ error: "Missing userId or token" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   // Validate before storing: a 200 on /v1/projects proves the token works.
   let username: string | null = null;
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     .from("supabase_connections")
     .upsert(
       {
-        user_id: userId,
+        user_id: verified.user.id,
         supabase_username: username,
         access_token: encryptIntegrationToken(token),
         connected_at: new Date().toISOString(),
@@ -120,7 +120,9 @@ export async function DELETE(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
   const supabase = getSupabaseAdmin();
-  await supabase.from("supabase_connections").delete().eq("user_id", userId);
+  await supabase.from("supabase_connections").delete().eq("user_id", verified.user.id);
   return new Response(JSON.stringify({ success: true }), { status: 200 });
 }

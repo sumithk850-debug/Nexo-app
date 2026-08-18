@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptGithubToken } from "@/lib/githubToken.server";
+import { verifyOAuthState } from "@/lib/oauthState.server";
 
 export const runtime = "nodejs";
 
@@ -23,10 +24,10 @@ function backToApp(req: NextRequest, params: Record<string, string>) {
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const userId = req.nextUrl.searchParams.get("state");
+  const userId = verifyOAuthState(req.nextUrl.searchParams.get("state"), "github");
 
   if (!code || !userId) {
-    return backToApp(req, { github: "error", reason: "missing_code" });
+    return backToApp(req, { github: "error", reason: "invalid_state" });
   }
 
   if (!process.env.GITHUB_OAUTH_CLIENT_ID || !process.env.GITHUB_OAUTH_CLIENT_SECRET) {

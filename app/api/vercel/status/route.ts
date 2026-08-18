@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -12,12 +13,14 @@ export async function GET(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ connected: false }), { status: 200 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("vercel_connections")
     .select("vercel_username, access_token")
-    .eq("user_id", userId)
+    .eq("user_id", verified.user.id)
     .maybeSingle();
 
   if (!data?.access_token) {
@@ -51,7 +54,9 @@ export async function DELETE(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
   const supabase = getSupabaseAdmin();
-  await supabase.from("vercel_connections").delete().eq("user_id", userId);
+  await supabase.from("vercel_connections").delete().eq("user_id", verified.user.id);
   return new Response(JSON.stringify({ success: true }), { status: 200 });
 }

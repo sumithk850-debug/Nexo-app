@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -17,12 +18,14 @@ export async function GET(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
     .select("access_token, selected_repo")
-    .eq("user_id", userId)
+    .eq("user_id", verified.user.id)
     .maybeSingle();
 
   if (!connection) {
@@ -63,18 +66,26 @@ export async function GET(req: NextRequest) {
 
 // POST /api/github/repos — set the selected/active repo for this user
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400 });
+  }
   const { userId, repoFullName } = body;
 
   if (!userId || !repoFullName) {
     return new Response(JSON.stringify({ error: "Missing userId or repoFullName" }), { status: 400 });
   }
+  if (typeof repoFullName !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repoFullName)) {
+    return new Response(JSON.stringify({ error: "Invalid repository name" }), { status: 400 });
+  }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from("github_connections")
     .update({ selected_repo: repoFullName })
-    .eq("user_id", userId);
+    .eq("user_id", verified.user.id);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });

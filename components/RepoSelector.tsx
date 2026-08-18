@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { FolderGit2, Check, RefreshCw } from "lucide-react";
+import { authenticatedFetch } from "@/lib/authFetch";
 
 interface Repo {
   id: number;
@@ -21,7 +22,7 @@ export function RepoSelector({ userId }: { userId: string }) {
   const loadRepos = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/github/repos?userId=${userId}`);
+      const res = await authenticatedFetch(`/api/github/repos?userId=${userId}`);
       const data = await res.json();
       if (data.repos) {
         setRepos(data.repos);
@@ -41,7 +42,7 @@ export function RepoSelector({ userId }: { userId: string }) {
   async function handleSelectRepo(repoFullName: string) {
     setSwitching(repoFullName);
     try {
-      await fetch("/api/github/repos", {
+      await authenticatedFetch("/api/github/repos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, repoFullName }),

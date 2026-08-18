@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getVercelConnection, VercelClient, VercelApiError } from "@/lib/vercelClient.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -24,8 +25,10 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
-  const connection = await getVercelConnection(userId);
+  const connection = await getVercelConnection(verified.user.id);
   if (!connection) {
     return new Response(JSON.stringify({ error: "Not connected to Vercel" }), { status: 404 });
   }

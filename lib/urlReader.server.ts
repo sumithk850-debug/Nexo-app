@@ -1,4 +1,6 @@
 // NEXO AI — Server-only web page reader
+import { lookup } from "dns/promises";
+
 // CRITICAL: This file must only ever be imported from app/api/** route handlers.
 // It fetches PUBLIC web pages referenced in a user's message and extracts their
 // content (title, meta, headings, body text, links, image alt text, lists,
@@ -14,6 +16,7 @@ const MAX_BYTES = 2_500_000; // ~2.5MB cap on downloaded page
 const MAX_CONTENT_CHARS = 7000; // main text budget per page
 const MAX_LINKS = 40;
 const MAX_IMAGES = 20;
+const MAX_REDIRECTS = 4;
 
 const URL_REGEX = /https?:\/\/[^\s<>()"'`]+/gi;
 
@@ -64,7 +67,7 @@ function isPrivateHost(hostname: string): boolean {
   return false;
 }
 
-function isSafeUrl(raw: string): boolean {
+async function isSafeUrl(raw: string): Promise<boolean> {
   let parsed: URL;
   try {
     parsed = new URL(raw);
@@ -74,7 +77,12 @@ function isSafeUrl(raw: string): boolean {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
   if (!parsed.hostname) return false;
   if (isPrivateHost(parsed.hostname)) return false;
-  return true;
+  try {
+    const addresses = await lookup(parsed.hostname, { all: true, verbatim: true });
+    return addresses.length > 0 && addresses.every((address) => !isPrivateHost(address.address));
+  } catch {
+    return false;
+  }
 }
 
 const NAMED_ENTITIES: Record<string, string> = {
@@ -241,7 +249,7 @@ export interface PageRead {
 }
 
 async function readSinglePage(url: string): Promise<PageRead> {
-  if (!isSafeUrl(url)) {
+  if (!(await isSafeUrl(url))) {
     return { url, ok: false, error: "URL is not a readable public http(s) address." };
   }
 
@@ -249,19 +257,32 @@ async function readSinglePage(url: string): Promise<PageRead> {
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; NexoAI-Reader/1.0; +https://nexo.ai)",
-        Accept: "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en,si;q=0.8",
-      },
-    });
-
-    if (res.url && !isSafeUrl(res.url)) {
-      return { url, ok: false, error: "Redirected to a non-public address." };
+    let target = url;
+    let res: Response | null = null;
+    for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+      if (!(await isSafeUrl(target))) {
+        return { url, ok: false, error: "Redirected to a non-public address." };
+      }
+      const candidate = await fetch(target, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; NexoAI-Reader/1.0; +https://nexo.ai)",
+          Accept: "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en,si;q=0.8",
+        },
+      });
+      if (candidate.status >= 300 && candidate.status < 400) {
+        const location = candidate.headers.get("location");
+        if (!location) return { url, ok: false, error: "Redirect response did not include a destination." };
+        target = new URL(location, target).toString();
+        continue;
+      }
+      res = candidate;
+      break;
+    }
+    if (!res) {
+      return { url, ok: false, error: "Too many redirects while reading this URL." };
     }
 
     if (!res.ok) {
@@ -395,7 +416,7 @@ export interface UrlScreenshot {
 }
 
 export async function captureUrlScreenshot(url: string): Promise<UrlScreenshot | null> {
-  if (!isSafeUrl(url)) {
+  if (!(await isSafeUrl(url))) {
     console.error("[screenshot] URL failed safety check:", url);
     return null;
   }

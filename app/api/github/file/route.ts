@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -23,12 +24,17 @@ export async function GET(req: NextRequest) {
   if (!userId || !path) {
     return new Response(JSON.stringify({ error: "Missing userId or path" }), { status: 400 });
   }
+  if (path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+    return new Response(JSON.stringify({ error: "Invalid repository path" }), { status: 400 });
+  }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
     .select("access_token, selected_repo")
-    .eq("user_id", userId)
+    .eq("user_id", verified.user.id)
     .maybeSingle();
 
   if (!connection || !connection.selected_repo) {

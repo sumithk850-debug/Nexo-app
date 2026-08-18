@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptIntegrationToken } from "@/lib/integrationToken.server";
+import { verifyOAuthState } from "@/lib/oauthState.server";
 
 export const runtime = "nodejs";
 
@@ -20,10 +21,10 @@ function backToApp(req: NextRequest, params: Record<string, string>) {
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const userId = req.nextUrl.searchParams.get("state");
+  const userId = verifyOAuthState(req.nextUrl.searchParams.get("state"), "supabase");
 
   if (!code || !userId) {
-    return backToApp(req, { supabase: "error", reason: "missing_code" });
+    return backToApp(req, { supabase: "error", reason: "invalid_state" });
   }
 
   if (!process.env.SUPABASE_OAUTH_CLIENT_ID || !process.env.SUPABASE_OAUTH_CLIENT_SECRET) {

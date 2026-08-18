@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { resolveSupabaseAccessToken } from "@/lib/supabaseClient.server";
+import { decryptIntegrationToken } from "@/lib/integrationToken.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,10 @@ function getSupabaseAdmin() {
 }
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("userId");
+  const requestedUserId = req.nextUrl.searchParams.get("userId");
+  const verified = requestedUserId ? await requireVerifiedUser(req, requestedUserId) : null;
+  if (verified?.response) return verified.response;
+  const userId = verified?.user.id ?? null;
   let github = {
     connected: false,
     username: null as string | null,
@@ -69,7 +73,6 @@ async function checkVercelConnection(userId: string) {
   if (!data?.access_token) return { connected: false, username: null as string | null };
 
   try {
-    const { decryptIntegrationToken } = await import("@/lib/integrationToken.server");
     const token = decryptIntegrationToken(data.access_token);
     const res = await fetch("https://api.vercel.com/oauth/userinfo", {
       headers: { Authorization: `Bearer ${token}` },
@@ -85,10 +88,12 @@ async function checkVercelConnection(userId: string) {
 async function checkSupabaseConnection(userId: string) {
   let token: string | null = null;
   try {
-    // A stored per-user token takes precedence; otherwise the platform's own
-    // service-role key (the owner's nexo-app project) is used, so the
-    // Supabase card is Connected out of the box without any manual step.
-    token = await resolveSupabaseAccessToken(userId);
+    const connection = await getSupabaseAdmin()
+      .from("supabase_connections")
+      .select("access_token")
+      .eq("user_id", userId)
+      .maybeSingle();
+    token = connection.data?.access_token ? decryptIntegrationToken(connection.data.access_token) : null;
   } catch {
     return { connected: false, username: null as string | null };
   }

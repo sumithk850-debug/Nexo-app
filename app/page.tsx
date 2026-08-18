@@ -28,6 +28,7 @@ import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supaba
 import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
+import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, FileText, Loader2 } from "lucide-react";
@@ -216,7 +217,7 @@ export default function ChatPage() {
     }
 
     try {
-      const response = await fetch(`/api/supabase/action?userId=${encodeURIComponent(currentUserId)}`, {
+      const response = await authenticatedFetch(`/api/supabase/action?userId=${encodeURIComponent(currentUserId)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "sql", payload: { projectId, sql: task.sql } }),
@@ -285,7 +286,7 @@ export default function ChatPage() {
     }
 
     try {
-      const response = await fetch(`/api/supabase/tool?userId=${encodeURIComponent(currentUserId)}`, {
+      const response = await authenticatedFetch(`/api/supabase/tool?userId=${encodeURIComponent(currentUserId)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(intent),
@@ -454,7 +455,7 @@ export default function ChatPage() {
 
   async function loadSelectedRepo(userId: string) {
     try {
-      const res = await fetch(`/api/github/repos?userId=${userId}`);
+      const res = await authenticatedFetch(`/api/github/repos?userId=${userId}`);
       const data = await res.json();
       setSelectedRepo(data.selectedRepo ?? null);
     } catch {
@@ -532,7 +533,7 @@ export default function ChatPage() {
   ) {
     if (!chatId || !user || !githubIntegrationEnabled || transcript.length === 0) return;
     const title = chats.find((chat) => chat.id === chatId)?.title ?? "Nexo conversation";
-    void fetch("/api/github/memory", {
+    void authenticatedFetch("/api/github/memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -599,7 +600,7 @@ export default function ChatPage() {
     setSecretSaving(true);
     setSecretSaveError(null);
     try {
-      const response = await fetch("/api/github/personal-token", {
+      const response = await authenticatedFetch("/api/github/personal-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, token: pendingGithubSecret }),
@@ -655,7 +656,7 @@ export default function ChatPage() {
         let original = "";
         if (user) {
           try {
-            const res = await fetch(
+            const res = await authenticatedFetch(
               `/api/github/file?userId=${user.id}&path=${encodeURIComponent(action.filePath)}`,
               { headers: { "Cache-Control": "no-store" } }
             );
@@ -703,7 +704,7 @@ export default function ChatPage() {
     }
 
     try {
-      const res = await fetch("/api/github/commit", {
+      const res = await authenticatedFetch("/api/github/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -779,7 +780,7 @@ export default function ChatPage() {
       // respect user_id-based RLS policies without exposing any service key.
       const { data: { session: authSession } } = await supabase.auth.getSession();
 
-      const res = await fetch("/api/chat", {
+      const res = await authenticatedFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,

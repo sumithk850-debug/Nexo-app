@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyOAuthState } from "@/lib/oauthState.server";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,12 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const installationId = req.nextUrl.searchParams.get("installation_id");
   const setupAction = req.nextUrl.searchParams.get("setup_action");
-  const userId = req.nextUrl.searchParams.get("state");
+  const userId = verifyOAuthState(req.nextUrl.searchParams.get("state"), "github");
 
   const origin = req.nextUrl.origin;
 
   if (!userId) {
-    return NextResponse.redirect(`${origin}/?github=error&reason=missing_state`);
+    return NextResponse.redirect(`${origin}/?github=error&reason=invalid_state`);
   }
 
   const supabase = getSupabaseAdmin();

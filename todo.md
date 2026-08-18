@@ -35,3 +35,9 @@
 - [x] Unify Supabase `list_projects` under one structured tool protocol with verified result/error cards that never terminate the chat stream.
 - [x] Prevent read-only Supabase requests from emitting false approval prose with deterministic verified-card routing, parser coverage, lint, and production-build validation.
 - [ ] Verify the deployed authenticated `describe_table` card execution when a Supabase-connected session is available without requiring phone-side setup.
+- [x] Perform a full Nexo App production-readiness audit across source, API routes, integrations, security, dependency/configuration, UI states, tests, and deployment paths; fix all confirmed safe issues without removing existing features.
+- [x] Replace client-supplied integration user identifiers with verified user-bound server authorization for privileged GitHub, Supabase, Vercel, chat, and memory routes.
+- [x] Bind OAuth connection callbacks to signed, expiring state rather than exposing or trusting raw user IDs in OAuth state.
+- [x] Remove misleading global Supabase service-token fallback from per-user connection status and tool execution paths.
+- [x] Harden public URL reading against redirect-chain and DNS-resolved private-network SSRF targets.
+- [x] Expand environment-template guidance and deterministic regression coverage for audit fixes.

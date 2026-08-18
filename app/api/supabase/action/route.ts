@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { SupabaseClient, SupabaseApiError } from "@/lib/supabaseClient.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -25,10 +26,12 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   let client: SupabaseClient;
   try {
-    client = await SupabaseClient.forUser(userId);
+    client = await SupabaseClient.forUser(verified.user.id);
   } catch {
     return new Response(JSON.stringify({ error: "Not connected to Supabase" }), { status: 404 });
   }

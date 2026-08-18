@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,10 @@ async function ghFetch(url: string, init: { method?: string; headers?: Record<st
 // selected repo via the GitHub Git Data API (atomic multi-file commit).
 // Supports two modes: "direct" (commit to main) and "pr" (create branch + PR).
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return new Response(JSON.stringify({ error: "Invalid commit request" }), { status: 400 });
+  }
   const {
     userId,
     files,
@@ -53,12 +57,14 @@ export async function POST(req: NextRequest) {
   if (!userId || !files || files.length === 0) {
     return new Response(JSON.stringify({ error: "Missing userId or files" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
     .select("access_token, selected_repo")
-    .eq("user_id", userId)
+    .eq("user_id", verified.user.id)
     .maybeSingle();
 
   if (!connection || !connection.selected_repo) {

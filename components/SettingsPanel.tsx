@@ -3,10 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn, Globe, Code2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { authenticatedFetch } from "@/lib/authFetch";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 import { RepoSelector } from "./RepoSelector";
-
-const GITHUB_CLIENT_ID = "Ov23liJrA0MJjDwCADrB";
 
 interface UserSettings {
   custom_persona: string;
@@ -60,7 +59,7 @@ export function SettingsPanel({
     if (!userId) return;
     setGithubLoading(true);
     try {
-      const res = await fetch(`/api/github/status?userId=${userId}`);
+      const res = await authenticatedFetch(`/api/github/status?userId=${userId}`);
       const data = await res.json();
       setGithubUsername(data.connected ? data.githubUsername : null);
     } catch {
@@ -121,15 +120,20 @@ export function SettingsPanel({
       alert("Please wait a moment and try again — your account is still loading.");
       return;
     }
-    const redirectUri = `${window.location.origin}/api/github/callback`;
-    // Request 'repo' scope for private repos + 'read:user' for profile info
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo%20read:user&state=${userId}`;
-    window.location.href = authUrl;
+    void authenticatedFetch("/api/github/login", { method: "POST" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || typeof data.authorizationUrl !== "string") {
+          throw new Error(data.error ?? "Could not start the secure GitHub connection flow.");
+        }
+        window.location.assign(data.authorizationUrl);
+      })
+      .catch((error) => console.error("[settings] GitHub OAuth start failed:", error));
   }
 
   async function handleDisconnectGithub() {
     if (!userId) return;
-    await fetch(`/api/github/status?userId=${userId}`, { method: "DELETE" });
+    await authenticatedFetch(`/api/github/status?userId=${userId}`, { method: "DELETE" });
     setGithubUsername(null);
   }
 

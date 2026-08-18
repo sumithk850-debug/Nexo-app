@@ -15,6 +15,7 @@ import {
   Triangle,
   X,
 } from "lucide-react";
+import { authenticatedFetch } from "@/lib/authFetch";
 
 interface IntegrationStatus {
   github: {
@@ -194,7 +195,7 @@ export function IntegrationsPanel({
     setLoading(true);
     try {
       const query = userId ? `?userId=${encodeURIComponent(userId)}` : "";
-      const response = await fetch(`/api/integrations/status${query}`, { cache: "no-store" });
+      const response = await authenticatedFetch(`/api/integrations/status${query}`, { cache: "no-store" });
       if (response.ok) setStatus(await response.json());
     } catch {
       setStatus(INITIAL_STATUS);
@@ -208,7 +209,7 @@ export function IntegrationsPanel({
     setVercelDataLoading(true);
     setVercelDataError(null);
     try {
-      const response = await fetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
+      const response = await authenticatedFetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
         cache: "no-store",
       });
       const data = await response.json();
@@ -286,21 +287,30 @@ export function IntegrationsPanel({
     if (open && status.vercel.connected) void loadVercelData();
   }, [open, status.vercel.connected, loadVercelData]);
 
+  async function beginOAuth(path: "/api/github/login" | "/api/github/app-install" | "/api/vercel/login" | "/api/supabase/login") {
+    const response = await authenticatedFetch(path, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || typeof data.authorizationUrl !== "string") {
+      throw new Error(data.error ?? "Could not start the secure connection flow.");
+    }
+    window.location.assign(data.authorizationUrl);
+  }
+
   function connectGithub() {
     if (!userId) return;
-    window.location.href = `/api/github/login?userId=${encodeURIComponent(userId)}`;
+    void beginOAuth("/api/github/login").catch((error) => console.error("[github] OAuth start failed:", error));
   }
 
   // ---- Vercel ----
 
   function connectVercel() {
     if (!userId) return;
-    window.location.href = `/api/vercel/login?userId=${encodeURIComponent(userId)}`;
+    void beginOAuth("/api/vercel/login").catch((error) => console.error("[vercel] OAuth start failed:", error));
   }
 
   async function disconnectVercel() {
     if (!userId) return;
-    await fetch(`/api/vercel/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    await authenticatedFetch(`/api/vercel/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
     setVercelExpanded(false);
     setVercelProjects([]);
     setVercelDeployments({});
@@ -325,7 +335,7 @@ export function IntegrationsPanel({
     setApproval({ ...approval, busy: true, error: null });
     try {
       if (approval.kind === "vercel-promote" && approval.deploymentId) {
-        const response = await fetch(`/api/vercel/action?userId=${encodeURIComponent(userId)}`, {
+        const response = await authenticatedFetch(`/api/vercel/action?userId=${encodeURIComponent(userId)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -339,7 +349,7 @@ export function IntegrationsPanel({
           return;
         }
       } else if (approval.kind === "supabase-sql" && approval.sql) {
-        const response = await fetch(`/api/supabase/action?userId=${encodeURIComponent(userId)}`, {
+        const response = await authenticatedFetch(`/api/supabase/action?userId=${encodeURIComponent(userId)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -369,12 +379,15 @@ export function IntegrationsPanel({
     // Supabase OAuth flow: sign in with the user's Supabase account. The
     // callback stores encrypted per-user tokens, so the panel flips to
     // connected immediately after returning to the app.
-    window.location.href = `/api/supabase/login?userId=${encodeURIComponent(userId)}`;
+    void beginOAuth("/api/supabase/login").catch((error) => {
+      setSupabaseConnecting(false);
+      console.error("[supabase] OAuth start failed:", error);
+    });
   }
 
   async function disconnectSupabase() {
     if (!userId) return;
-    await fetch(`/api/supabase/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    await authenticatedFetch(`/api/supabase/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
     setSupabaseExpanded(false);
     setSupabaseProjects([]);
     setSupabaseProjectId(null);
@@ -416,7 +429,7 @@ export function IntegrationsPanel({
     setSupabaseDataLoading(true);
     setSupabaseDataError(null);
     try {
-      const response = await fetch(`/api/supabase/projects?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
+      const response = await authenticatedFetch(`/api/supabase/projects?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
         setSupabaseDataError(data.error ?? "Could not load Supabase projects.");
@@ -477,7 +490,7 @@ export function IntegrationsPanel({
 
   async function disconnectGithub() {
     if (!userId) return;
-    await fetch(`/api/github/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
+    await authenticatedFetch(`/api/github/status?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
     onGithubEnabledChange(false);
     setDisconnectConfirm(false);
     await loadStatus();
@@ -488,7 +501,7 @@ export function IntegrationsPanel({
     setPatSaving(true);
     setPatError(null);
     try {
-      const response = await fetch("/api/github/personal-token", {
+      const response = await authenticatedFetch("/api/github/personal-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, token: personalToken.trim() }),
@@ -592,12 +605,13 @@ export function IntegrationsPanel({
               <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-amber-300">Read-only connection active</div>
-                  <a
-                    href={`/api/github/app-install?userId=${encodeURIComponent(userId ?? "")}`}
+                  <button
+                    type="button"
+                    onClick={() => void beginOAuth("/api/github/app-install").catch((error) => console.error("[github] App upgrade start failed:", error))}
                     className="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-void transition hover:bg-amber-400"
                   >
                     Enable Read & Write Access
-                  </a>
+                  </button>
                 </div>
                 <p className="mt-1 text-[11px] text-amber-200/80">
                   Upgrade your GitHub connection to install the Nexo App and grant repository write permissions for commits and file edits.

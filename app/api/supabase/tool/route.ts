@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { SupabaseApiError, SupabaseClient } from "@/lib/supabaseClient.server";
 import { SUPABASE_READ_TOOL_NAMES, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -30,9 +31,11 @@ export async function POST(req: NextRequest) {
   if (!userId || !intent || !SUPABASE_READ_TOOL_NAMES.includes(intent.tool)) {
     return new Response(JSON.stringify({ error: "Invalid Supabase read tool request" }), { status: 400 });
   }
+  const verified = await requireVerifiedUser(req, userId);
+  if (verified.response) return verified.response;
 
   try {
-    const client = await SupabaseClient.forUser(userId);
+    const client = await SupabaseClient.forUser(verified.user.id);
     if (intent.tool === "list_projects") {
       const projects = await client.listProjects() as Array<{ id?: string; name?: string; region?: string }>;
       return Response.json({

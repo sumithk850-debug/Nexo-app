@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptGithubToken } from "@/lib/githubToken.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
@@ -20,13 +21,17 @@ function invalidTokenResponse() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, token } = await req.json();
+    const body = await req.json().catch(() => null);
+    const userId = body?.userId;
+    const token = body?.token;
     const cleanUserId = typeof userId === "string" ? userId.trim() : "";
     const cleanToken = typeof token === "string" ? token.trim() : "";
 
     if (!cleanUserId || !cleanToken) {
       return Response.json({ error: "Missing user or secret." }, { status: 400 });
     }
+    const verified = await requireVerifiedUser(req, cleanUserId);
+    if (verified.response) return verified.response;
 
     // Validate the secret directly with GitHub. The raw token is never returned,
     // logged, or added to a model/chat prompt.
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
       .from("github_connections")
       .upsert(
         {
-          user_id: cleanUserId,
+          user_id: verified.user.id,
           github_username: githubUsername,
           access_token: encryptedToken,
           connected_at: new Date().toISOString(),
