@@ -32,6 +32,52 @@ function normalizeImageForVision(file: File): Promise<string> {
   });
 }
 
+function captureVideoPreview(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    const cleanup = () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Video preview preparation timed out."));
+    }, 8_000);
+    video.muted = true;
+    video.preload = "metadata";
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      video.currentTime = Math.min(Math.max(video.duration * 0.1, 0.1), 1);
+    };
+    video.onseeked = () => {
+      window.clearTimeout(timeout);
+      const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight, 1));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        cleanup();
+        reject(new Error("Your browser could not prepare a video preview."));
+        return;
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const preview = canvas.toDataURL("image/jpeg", 0.82);
+      cleanup();
+      resolve(preview);
+    };
+    video.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error("Nexo could not prepare a preview for this video."));
+    };
+    video.src = objectUrl;
+  });
+}
+
 async function renderPdfPages(file: File): Promise<ChatImageAttachment[]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -83,7 +129,25 @@ export async function prepareAttachmentsForVision(files: File[]): Promise<Prepar
       sourceNames.push(`${file.name}${pages.length > 1 ? ` (${pages.length} pages)` : ""}`);
       continue;
     }
-    // For general files (code, text, markdown, json, etc.), read text content directly
+    if (file.type.startsWith("video/")) {
+      sourceNames.push(file.name);
+      try {
+        const preview = await captureVideoPreview(file);
+        images.push({ dataUrl: preview, name: `${file.name} · representative frame` });
+        textSnippets.push(`--- VIDEO ATTACHMENT: ${file.name} ---\nA representative video frame is available for visual analysis. Audio and full-motion analysis are not available in this chat.\n--- END VIDEO ATTACHMENT ---`);
+      } catch (error) {
+        textSnippets.push(`--- VIDEO ATTACHMENT: ${file.name} ---\nVideo preview could not be prepared: ${error instanceof Error ? error.message : "unknown error"}. Do not claim that the video was fully read.\n--- END VIDEO ATTACHMENT ---`);
+      }
+      continue;
+    }
+    if (file.type.startsWith("audio/")) {
+      sourceNames.push(file.name);
+      textSnippets.push(`--- AUDIO ATTACHMENT: ${file.name} ---\nAudio transcription is not available in this chat. Do not claim that this audio was read.\n--- END AUDIO ATTACHMENT ---`);
+      continue;
+    }
+    // For general files (code, text, markdown, json, etc.), read text content directly.
+    // Binary media files are handled above so the browser never tries to decode
+    // them as text and leaves a misleading long-running read status.
     try {
       const text = await file.text();
       if (text.trim()) {

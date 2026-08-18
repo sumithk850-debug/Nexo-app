@@ -30,7 +30,7 @@ import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3 } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, FileText, Loader2 } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
@@ -45,6 +45,12 @@ interface PendingApproval {
   commitMessage: string;
   status: "pending" | "approving" | "approved" | "rejected" | "error";
 }
+
+type AttachmentPreparation = {
+  names: string[];
+  state: "preparing" | "error";
+  message?: string;
+};
 
 function readVerifiedPaths(response: Response): string[] {
   const raw = response.headers.get("X-Nexo-Verified-Reads");
@@ -104,6 +110,7 @@ export default function ChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [input, setInput] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachmentPreparation, setAttachmentPreparation] = useState<AttachmentPreparation | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamElapsedSeconds, setStreamElapsedSeconds] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -139,6 +146,7 @@ export default function ChatPage() {
   const activeAssistantIdRef = useRef<string | null>(null);
   const streamStartedAtRef = useRef<number | null>(null);
   const streamingLockRef = useRef(false);
+  const attachmentPreparationLockRef = useRef(false);
 
   useEffect(() => {
     if (!isStreaming || streamStartedAtRef.current === null) {
@@ -1048,7 +1056,13 @@ export default function ChatPage() {
 
   async function handleSend() {
     const text = input.trim();
-    if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current) return;
+    if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
+
+    const attachmentNames = attachedFiles.map((file) => file.name);
+    if (attachmentNames.length > 0) {
+      attachmentPreparationLockRef.current = true;
+      setAttachmentPreparation({ names: attachmentNames, state: "preparing" });
+    }
 
     const chatId = await ensureChat();
 
@@ -1056,14 +1070,23 @@ export default function ChatPage() {
     try {
       prepared = await prepareAttachmentsForVision(attachedFiles);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "NEXO could not prepare this attachment for analysis.");
+      attachmentPreparationLockRef.current = false;
+      setAttachmentPreparation({
+        names: attachmentNames,
+        state: "error",
+        message: error instanceof Error ? error.message : "NEXO could not prepare this attachment for analysis.",
+      });
+      window.setTimeout(() => setAttachmentPreparation(null), 6_000);
       return;
     }
+
+    attachmentPreparationLockRef.current = false;
+    setAttachmentPreparation(null);
 
     const hasAttachments = prepared.sourceNames.length > 0;
     const analysisPrompt = text || "Please analyze the attached files.";
     const enrichedPrompt = hasAttachments
-      ? `${analysisPrompt}\n\n[Attached Files Read]\n- Files uploaded and verified: ${prepared.sourceNames.join(", ")}${prepared.extractedText ? `\n\nExtracted File Contents:\n${prepared.extractedText}` : ""}`
+      ? `${analysisPrompt}\n\n[Attached Files Prepared]\n- Files available to you: ${prepared.sourceNames.join(", ")}${prepared.extractedText ? `\n\nPrepared File Context:\n${prepared.extractedText}` : ""}`
       : analysisPrompt;
     const messageText = text || `Uploaded files: ${prepared.sourceNames.join(", ")}`;
 
@@ -1079,11 +1102,9 @@ export default function ChatPage() {
     const conversationForApi = [...messages, { ...userMsg, content: enrichedPrompt }];
     setPendingApproval(null);
 
-    // Initial assistant reply with read intent and live task card if files are attached
-    const fileReadIntent = hasAttachments
-      ? `මම මේ file(s) කියවන්නම්...\n\n\`[READING FILE] ${prepared.sourceNames.join(", ")}\``
-      : "";
-    const initialAssistantContent = fileReadIntent;
+    // Do not fabricate a frontend “I will read this” reply. The selected model
+    // receives prepared attachment context and produces its own acknowledgement.
+    const initialAssistantContent = "";
 
     setMessages([
       ...nextMessages,
@@ -1099,7 +1120,7 @@ export default function ChatPage() {
     const controller = startStreamingTurn(assistantId);
 
     if (chatId) {
-      const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & read: ${prepared.sourceNames.join(", ")}]` : ""}`;
+      const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & prepared: ${prepared.sourceNames.join(", ")}]` : ""}`;
       saveMessage(chatId, "user", persistedMessageText);
     }
 
@@ -1313,7 +1334,7 @@ export default function ChatPage() {
           <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
               <div className="mx-auto max-w-3xl px-4 py-8">
-                {messages.length === 0 ? (
+                {messages.length === 0 && !attachmentPreparation ? (
                   <div className="flex min-h-[60vh] flex-col items-center justify-center text-center animate-fade-up">
                     <Signal size="lg" className="mb-8" />
                     <h1 className="font-display text-4xl font-black tracking-tight text-ink md:text-5xl">
@@ -1389,6 +1410,32 @@ export default function ChatPage() {
                         </div>
                       );
                     })}
+                    {attachmentPreparation && (
+                      <div
+                        className={`mx-4 flex max-w-xl items-start gap-3 rounded-xl border px-3 py-2.5 text-sm ${
+                          attachmentPreparation.state === "error"
+                            ? "border-rose-400/40 bg-rose-500/10 text-rose-200"
+                            : "border-cyan/30 bg-panel/85 text-ink shadow-[0_10px_24px_rgba(0,229,255,0.08)]"
+                        }`}
+                        role="status"
+                      >
+                        {attachmentPreparation.state === "preparing" ? (
+                          <Loader2 className="mt-0.5 h-4 w-4 flex-none animate-spin text-cyan" />
+                        ) : (
+                          <FileText className="mt-0.5 h-4 w-4 flex-none" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold">
+                            {attachmentPreparation.state === "preparing" ? "Preparing attachment context" : "Attachment preparation failed"}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs opacity-80" title={attachmentPreparation.names.join(", ")}>
+                            {attachmentPreparation.state === "preparing"
+                              ? attachmentPreparation.names.join(", ")
+                              : attachmentPreparation.message}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {isStreaming && <TypingIndicator modelId={isCoderMode ? "craft-v3" : selectedModel} />}
                   </div>
                 )}
@@ -1407,7 +1454,7 @@ export default function ChatPage() {
               value={input}
               onChange={setInput}
               onSend={handleSend}
-              disabled={isStreaming}
+              disabled={isStreaming || attachmentPreparation?.state === "preparing"}
               onOpenSidebar={() => setSidebarOpen(true)}
               selectedModel={selectedModel}
               onSelectModel={setSelectedModel}

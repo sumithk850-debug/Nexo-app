@@ -240,7 +240,11 @@ export function ChatInput({
                         ? "PDF analysis"
                         : file.type.startsWith("image/")
                           ? "Image ready"
-                          : "File uploaded"}
+                          : file.type.startsWith("video/")
+                            ? "Video preview"
+                            : file.type.startsWith("audio/")
+                              ? "Audio attached"
+                              : "File uploaded"}
                     </p>
                     <button onClick={() => onRemoveAttach?.(index)} className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-edge bg-panel text-ink-faint hover:text-red-400" aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button>
                   </div>

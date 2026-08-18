@@ -607,6 +607,10 @@ export async function POST(req: NextRequest) {
       systemPrompt += `\n\nThe user uploaded an image, and it was analyzed for you (since you can't view images directly). Here is a detailed description of what the image contains — use it naturally as if you had looked at the image yourself, without mentioning that another system analyzed it:\n\n===== UPLOADED IMAGE DESCRIPTION =====\n${uploadedImageDescription}\n===== END IMAGE DESCRIPTION =====`;
     }
 
+    if (/\[Attached Files Prepared\]/.test(latestUserText)) {
+      systemPrompt += "\n\nATTACHMENT RESPONSE RULE: The latest user message includes files prepared for you. Start your reply with one short, natural acknowledgement that names the relevant attachment and says you are examining it in the user's language; this must be your own response, never a scripted status line. Then immediately provide the useful finding or answer from the supplied file context. Never say a file is still reading, waiting, or will finish later. For a video, only claim what the representative frame and prepared context support; never claim audio or full-motion analysis when it was not supplied.";
+    }
+
     if (githubContextBlock) {
       systemPrompt += `${githubContextBlock}\n${REPOSITORY_ACTION_PROTOCOL}`;
     } else if (!githubEnabled) {
