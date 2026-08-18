@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:supabase-dispatcher": "rm -rf .tmp-supabase-dispatcher-test && tsc scripts/verify-supabase-dispatcher.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-supabase-dispatcher-test && node .tmp-supabase-dispatcher-test/scripts/verify-supabase-dispatcher.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

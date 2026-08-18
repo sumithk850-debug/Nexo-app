@@ -43,19 +43,22 @@ export function parseSupabaseReadToolIntents(content: string): SupabaseReadToolI
     const tool = field(body, "tool") as SupabaseReadToolName;
     const projectId = field(body, "project_id");
     const table = field(body, "table");
-    const requestedLimit = Number(field(body, "limit"));
+    const rawLimit = field(body, "limit");
+    const requestedLimit = rawLimit ? Number(rawLimit) : undefined;
 
     if (!SUPABASE_READ_TOOL_NAMES.includes(tool)) continue;
-    if (tool !== "list_projects" && !projectId) continue;
+    if (tool !== "list_projects" && (!projectId || ["unknown", "null", "n/a", "none"].includes(projectId.toLowerCase()))) continue;
     if ((tool === "describe_table" || tool === "read_rows") && !table) continue;
     if (table && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) continue;
 
     intents.push({
       tool,
       projectId: projectId || undefined,
-      table: table || undefined,
-      columns: readColumns(body),
-      limit: Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.floor(requestedLimit), 25)) : undefined,
+      ...(table ? { table } : {}),
+      ...(readColumns(body) ? { columns: readColumns(body) } : {}),
+      ...(typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
+        ? { limit: Math.max(1, Math.min(Math.floor(requestedLimit), 25)) }
+        : {}),
     });
   }
 
