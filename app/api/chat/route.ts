@@ -32,15 +32,22 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
 const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
-  // Nexio 1.1 uses the same verified fast transport for reliability, while
-  // retaining its existing public identity and without the UltraSpeed badge.
+  // Nexio 1.1 retains its existing public identity and no UltraSpeed badge.
   "nexio-1.1",
   "spadec-3.5",
   "galex-4.0",
   "brainex-10.8",
   "craft-v3",
 ]);
-const ULTRA_SPEED_MODEL = "gpt-oss-120b";
+// The first three Nexo profiles use Gemma on the private high-speed route.
+// Brainex and Craft retain the existing GPT-OSS high-speed engine.
+const GEMMA_MODEL_IDS = new Set<NexoModelId>([
+  "nexio-1.1",
+  "spadec-3.5",
+  "galex-4.0",
+]);
+const CEREBRAS_GEMMA_MODEL = "gemma-4-31b";
+const CEREBRAS_OSS_MODEL = "gpt-oss-120b";
 const ULTRA_SPEED_FALLBACK_MODEL = "openai/gpt-oss-120b";
 const DAILY_MESSAGE_LIMIT = 50;
 
@@ -734,9 +741,11 @@ export async function POST(req: NextRequest) {
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
     let activeProviderIsGemini = isGemini;
+    const usesGemma = GEMMA_MODEL_IDS.has(modelId);
     const candidateModels = usesUltraSpeed
       ? [
-          ULTRA_SPEED_MODEL,
+          ...(usesGemma ? [CEREBRAS_GEMMA_MODEL] : []),
+          CEREBRAS_OSS_MODEL,
           ...(process.env.GROQ_API_KEY ? [ULTRA_SPEED_FALLBACK_MODEL] : []),
         ]
       : [config.model, ...(config.fallbackModels ?? [])];
@@ -745,13 +754,15 @@ export async function POST(req: NextRequest) {
     for (const candidateModel of candidateModels) {
       activeProviderModel = candidateModel;
       
-      // Fast-path profiles always use the dedicated route. All other profiles
-      // retain their existing provider and fallback behaviour.
-      const currentIsUltraSpeed = usesUltraSpeed && candidateModel === ULTRA_SPEED_MODEL;
-      const isCandidateGemini = !currentIsUltraSpeed && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
-      const isCandidateGroq = !currentIsUltraSpeed && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
+      // Fast-path profiles use the dedicated private route first. All other
+      // profiles retain their existing provider and fallback behaviour.
+      const currentIsCerebras = usesUltraSpeed && (
+        candidateModel === CEREBRAS_GEMMA_MODEL || candidateModel === CEREBRAS_OSS_MODEL
+      );
+      const isCandidateGemini = !currentIsCerebras && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
+      const isCandidateGroq = !currentIsCerebras && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
       
-      const currentUpstreamUrl = currentIsUltraSpeed
+      const currentUpstreamUrl = currentIsCerebras
         ? CEREBRAS_ENDPOINT
         : isCandidateGemini
           ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
@@ -768,7 +779,7 @@ export async function POST(req: NextRequest) {
                 "Content-Type": "application/json",
                 "x-goog-api-key": process.env.GEMINI_API_KEY || "",
               }
-            : currentIsUltraSpeed
+            : currentIsCerebras
               ? {
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${process.env.CEREBRAS_API_KEY || ""}`,
@@ -804,7 +815,7 @@ export async function POST(req: NextRequest) {
                 stream: true,
                 temperature: 1.0,
                 top_p: 1.0,
-                max_tokens: currentIsUltraSpeed ? outputTokenLimit : MODEL_TOKEN_LIMITS[modelId] ?? 8192,
+                max_tokens: currentIsCerebras ? outputTokenLimit : MODEL_TOKEN_LIMITS[modelId] ?? 8192,
                 messages: [
                   { role: "system", content: systemPrompt },
                   ...messages.map((m) => ({ role: m.role, content: m.content })),
