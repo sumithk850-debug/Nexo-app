@@ -30,14 +30,15 @@ const expectedRoutes = {
     fallbacks: ["nvidia/nemotron-3-ultra-550b-a55b:free", "openai/gpt-oss-20b:free"],
   },
   "craft-v3": {
-    model: "poolside/laguna-xs-2.1:free",
+    model: "gemini-3.1-flash-lite",
     fallbacks: ["dots-studio/dots-3-note-preview:free", "cohere/north-mini-code:free"],
   },
 } as const;
 
 for (const [id, expected] of Object.entries(expectedRoutes)) {
   const config = PROVIDER_CONFIG[id as keyof typeof PROVIDER_CONFIG];
-  assert(config.provider === "openrouter", `${id} must use OpenRouter only`);
+  const expectedProvider = id === "craft-v3" ? "gemini" : "openrouter";
+  assert(config.provider === expectedProvider, `${id} provider route is incorrect`);
   assert(config.model === expected.model, `${id} primary route is incorrect`);
   assert(JSON.stringify(config.fallbackModels ?? []) === JSON.stringify(expected.fallbacks), `${id} fallback order is incorrect`);
 }
@@ -57,4 +58,4 @@ assert(JSON.stringify(CRAFT_V4_ENGINE_CONFIG.fallbackModels) === JSON.stringify(
   "cohere/north-mini-code:free",
 ]), "Craft V4 fallback order is incorrect");
 
-console.log("OpenRouter-only routing verification passed.");
+console.log("NEXO model routing verification passed.");

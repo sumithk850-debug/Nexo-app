@@ -30,6 +30,7 @@ interface IncomingMessage {
 }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const DAILY_MESSAGE_LIMIT = 50;
 
 const SECRET_HANDLING_PROTOCOL = `
@@ -483,11 +484,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Every model request uses the same OpenRouter-only transport. The
-    // provider configuration above controls exact primary/fallback model order.
-    const apiKey = process.env.OPENROUTER_API_KEY;
-
-    if (!apiKey) {
+    // Craft V3 Lite has its dedicated Gemini primary route. Every other
+    // profile retains the current OpenRouter transport and fallback behavior.
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (config.provider === "gemini" ? !geminiApiKey && !openRouterApiKey : !openRouterApiKey) {
       return new Response(
         JSON.stringify({
           error: "The NEXO intelligence service is temporarily unavailable. Please try again shortly.",
@@ -673,33 +674,60 @@ export async function POST(req: NextRequest) {
     const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 240_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
+    let activeProvider: "openrouter" | "gemini" = "openrouter";
     const candidateModels = [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
+      const useGemini = config.provider === "gemini" && candidateModel === config.model;
+      const candidateApiKey = useGemini ? geminiApiKey : openRouterApiKey;
+      if (!candidateApiKey) continue;
+
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         try {
-          upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-              "HTTP-Referer": "https://nexo-app-delta.vercel.app",
-              "X-Title": "NEXO AI",
-            },
-            body: JSON.stringify({
-              model: candidateModel,
-              stream: true,
-              temperature: responseTemperature,
-              top_p: 1.0,
-              max_tokens: outputTokenLimit,
-              messages: [
-                { role: "system", content: systemPrompt },
-                ...messages.map((m) => ({ role: m.role, content: m.content })),
-              ],
-            }),
-            signal: AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS),
-          });
+          upstreamRes = await fetch(
+            useGemini
+              ? `${GEMINI_API_BASE}/${encodeURIComponent(candidateModel)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(candidateApiKey)}`
+              : OPENROUTER_ENDPOINT,
+            {
+              method: "POST",
+              headers: useGemini
+                ? { "Content-Type": "application/json" }
+                : {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${candidateApiKey}`,
+                    "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+                    "X-Title": "NEXO AI",
+                  },
+              body: JSON.stringify(
+                useGemini
+                  ? {
+                      system_instruction: { parts: [{ text: systemPrompt }] },
+                      contents: messages.map((message) => ({
+                        role: message.role === "assistant" ? "model" : "user",
+                        parts: [{ text: message.content }],
+                      })),
+                      generationConfig: {
+                        temperature: responseTemperature,
+                        topP: 1.0,
+                        maxOutputTokens: outputTokenLimit,
+                      },
+                    }
+                  : {
+                      model: candidateModel,
+                      stream: true,
+                      temperature: responseTemperature,
+                      top_p: 1.0,
+                      max_tokens: outputTokenLimit,
+                      messages: [
+                        { role: "system", content: systemPrompt },
+                        ...messages.map((m) => ({ role: m.role, content: m.content })),
+                      ],
+                    }
+              ),
+              signal: AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS),
+            }
+          );
         } catch (error) {
           lastProviderError = error;
           upstreamRes = null;
@@ -707,6 +735,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (upstreamRes?.ok && upstreamRes.body) {
+          activeProvider = useGemini ? "gemini" : "openrouter";
           break providerAttempt;
         }
 
@@ -824,8 +853,16 @@ export async function POST(req: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                const delta = json.choices?.[0]?.delta?.content;
-                if (json.choices?.[0]?.finish_reason === "length") {
+                const delta = activeProvider === "gemini"
+                  ? json.candidates?.[0]?.content?.parts
+                      ?.map((part: { text?: string }) => part.text ?? "")
+                      .join("")
+                  : json.choices?.[0]?.delta?.content;
+                if (
+                  activeProvider === "gemini"
+                    ? json.candidates?.[0]?.finishReason === "MAX_TOKENS"
+                    : json.choices?.[0]?.finish_reason === "length"
+                ) {
                   needsContinuation = true;
                 }
                 if (delta) {
