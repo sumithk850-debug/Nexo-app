@@ -5,6 +5,10 @@ import {
   githubApiHeaders,
   isGitHubAppConfigured,
 } from "@/lib/githubApp.server";
+import {
+  checkGithubOAuthRepositoryWrite,
+  resolveGithubOAuthToken,
+} from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -90,7 +94,8 @@ function isSafeBranchName(branchName: string): boolean {
  * POST /api/github/commit
  *
  * This endpoint is reachable only after the user approves the repository change
- * proposal in the client. It uses a short-lived GitHub App installation token,
+ * proposal in the client. It uses a verified server-held per-user credential
+ * (an installed GitHub App when available, otherwise the user's OAuth token),
  * never a browser-supplied token, and makes one atomic multi-file commit using
  * GitHub's Git Data API.
  */
@@ -146,43 +151,57 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: connection, error: connectionError } = await supabase
     .from("github_connections")
-    .select("selected_repo, installation_id")
+    .select("selected_repo, installation_id, access_token")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
   if (connectionError || !connection?.selected_repo) {
     return json({ error: "No GitHub repository is selected. Choose one in Settings before approving changes." }, 400);
   }
-  if (!connection.installation_id || !isGitHubAppConfigured()) {
-    return json(
-      {
-        error: "Read & Write Access is not enabled for this connection. Install the Nexo GitHub App and grant Repository contents write access before approving changes.",
-        needsWriteAccess: true,
-      },
-      409
-    );
-  }
-
   const repository = normalizeRepo(connection.selected_repo);
   if (!repository) {
     return json({ error: "The selected GitHub repository is invalid. Select it again in Settings." }, 400);
   }
 
-  let installationToken: string;
-  try {
-    installationToken = (await createInstallationAccessToken(connection.installation_id)).token;
-  } catch (error) {
-    return json(
-      {
-        error: error instanceof Error ? error.message : "GitHub write access could not be verified.",
-        needsWriteAccess: true,
-      },
-      409
-    );
+  // Prefer the narrower GitHub App installation token when this optional
+  // upgrade exists. Every connected user can still write through their own
+  // OAuth connection, provided GitHub confirms push access to the selected repo.
+  let serverToken: string | null = null;
+  if (connection.installation_id && isGitHubAppConfigured()) {
+    try {
+      serverToken = (await createInstallationAccessToken(connection.installation_id)).token;
+    } catch {
+      // Fall through to the user's encrypted OAuth connection below.
+    }
+  }
+
+  if (!serverToken) {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    if (!oauthToken) {
+      return json(
+        {
+          error: "GitHub needs to be reconnected before repository changes can be approved.",
+          needsWriteAccess: true,
+        },
+        409
+      );
+    }
+
+    const oauthWriteCheck = await checkGithubOAuthRepositoryWrite(oauthToken, connection.selected_repo);
+    if (!oauthWriteCheck.canWrite) {
+      return json(
+        {
+          error: "Your connected GitHub account cannot push to the selected repository. Reconnect GitHub and grant repository access, or select a repository where you have write permission.",
+          needsWriteAccess: true,
+        },
+        403
+      );
+    }
+    serverToken = oauthToken;
   }
 
   const api = (path: string) => `https://api.github.com/repos/${repository.owner}/${repository.repo}/${path}`;
-  const headers = githubApiHeaders(installationToken, true);
+  const headers = githubApiHeaders(serverToken, true);
 
   // Resolve the repository's configured default branch. Never assume "main".
   const repositoryResponse = await githubRequest(api(""), { headers });
@@ -196,7 +215,7 @@ export async function POST(req: NextRequest) {
     return json({ error: "A pull request branch must be different from the repository default branch." }, 400);
   }
   if (repositoryData.permissions?.push === false) {
-    return json({ error: "The installed GitHub App does not have write access to the selected repository.", needsWriteAccess: true }, 403);
+    return json({ error: "The connected GitHub account does not have write access to the selected repository.", needsWriteAccess: true }, 403);
   }
 
   const encodedDefaultBranch = encodeURIComponent(defaultBranch);

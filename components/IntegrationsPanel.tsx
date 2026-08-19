@@ -252,7 +252,7 @@ export function IntegrationsPanel({
     } else if (githubState === "error") {
       setConnectionMessage({ kind: "error", text: `GitHub connection failed: ${params.get("reason") ?? "unknown error"}` });
     } else if (githubUpgrade === "pending") {
-      setConnectionMessage({ kind: "success", text: "GitHub App upgrade link ready. Configure GITHUB_APP_SLUG in environment when deploying your GitHub App." });
+      setConnectionMessage({ kind: "success", text: "GitHub repository access can be upgraded by reconnecting and approving repository permissions." });
     } else if (vercelState === "connected") {
       setConnectionMessage({ kind: "success", text: `Vercel connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
     } else if (vercelState === "error") {
@@ -574,14 +574,14 @@ export function IntegrationsPanel({
                   <div className="text-xs font-semibold text-amber-300">Read-only connection active</div>
                   <button
                     type="button"
-                    onClick={() => void beginOAuth("/api/github/app-install").catch((error) => console.error("[github] App upgrade start failed:", error))}
+                    onClick={() => void beginOAuth("/api/github/login").catch((error) => console.error("[github] OAuth reconnect start failed:", error))}
                     className="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-void transition hover:bg-amber-400"
                   >
-                    Enable Read & Write Access
+                    Reconnect GitHub
                   </button>
                 </div>
                 <p className="mt-1 text-[11px] text-amber-200/80">
-                  Upgrade your GitHub connection to install the Nexo App and grant repository write permissions for commits and file edits.
+                  Reconnect GitHub to grant repository access, then select a repository where your account has write permission. Commits and file edits still require your approval.
                 </p>
               </div>
             )}

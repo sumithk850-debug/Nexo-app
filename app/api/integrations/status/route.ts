@@ -6,6 +6,10 @@ import {
   githubApiHeaders,
   isGitHubAppConfigured,
 } from "@/lib/githubApp.server";
+import {
+  checkGithubOAuthRepositoryWrite,
+  resolveGithubOAuthToken,
+} from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -20,7 +24,7 @@ function getSupabaseAdmin() {
 async function checkGitHubConnection(userId: string) {
   const { data } = await getSupabaseAdmin()
     .from("github_connections")
-    .select("github_username, selected_repo, installation_id")
+    .select("github_username, selected_repo, installation_id, access_token")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -29,23 +33,26 @@ async function checkGitHubConnection(userId: string) {
   }
 
   let canWrite = false;
-  if (data.installation_id && isGitHubAppConfigured()) {
+  if (data.installation_id && isGitHubAppConfigured() && data.selected_repo) {
     try {
       const { token } = await createInstallationAccessToken(data.installation_id);
-      if (!data.selected_repo) {
-        canWrite = true;
-      } else {
-        const response = await fetch(`https://api.github.com/repos/${data.selected_repo}`, {
-          headers: githubApiHeaders(token),
-          cache: "no-store",
-        });
-        if (response.ok) {
-          const repository = (await response.json()) as { permissions?: { push?: boolean } };
-          canWrite = repository.permissions?.push !== false;
-        }
+      const response = await fetch(`https://api.github.com/repos/${data.selected_repo}`, {
+        headers: githubApiHeaders(token),
+        cache: "no-store",
+      });
+      if (response.ok) {
+        const repository = (await response.json()) as { permissions?: { push?: boolean } };
+        canWrite = repository.permissions?.push === true;
       }
     } catch {
       canWrite = false;
+    }
+  }
+
+  if (!canWrite && data.selected_repo) {
+    const oauthToken = resolveGithubOAuthToken(data.access_token);
+    if (oauthToken) {
+      canWrite = (await checkGithubOAuthRepositoryWrite(oauthToken, data.selected_repo)).canWrite;
     }
   }
 
