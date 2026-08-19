@@ -163,13 +163,17 @@ export async function POST(req: NextRequest) {
     return json({ error: "The selected GitHub repository is invalid. Select it again in Settings." }, 400);
   }
 
-  // Prefer the narrower GitHub App installation token when this optional
-  // upgrade exists. Every connected user can still write through their own
-  // OAuth connection, provided GitHub confirms push access to the selected repo.
+  // Prefer the narrower GitHub App installation token when it can access the
+  // selected repository. A GitHub App can be installed for only selected
+  // repositories, so a successful token exchange alone does not prove this
+  // repository is in scope; 403/404 reads below safely fall back to verified
+  // OAuth access before any repository mutation is attempted.
   let serverToken: string | null = null;
+  let credentialSource: "github-app" | "oauth" | null = null;
   if (connection.installation_id && isGitHubAppConfigured()) {
     try {
       serverToken = (await createInstallationAccessToken(connection.installation_id)).token;
+      credentialSource = "github-app";
     } catch {
       // Fall through to the user's encrypted OAuth connection below.
     }
@@ -198,14 +202,43 @@ export async function POST(req: NextRequest) {
       );
     }
     serverToken = oauthToken;
+    credentialSource = "oauth";
   }
 
   const api = (path: string) => `https://api.github.com/repos/${repository.owner}/${repository.repo}/${path}`;
-  const headers = githubApiHeaders(serverToken, true);
+  let headers = githubApiHeaders(serverToken, true);
 
   // Resolve the repository's configured default branch. Never assume "main".
-  const repositoryResponse = await githubRequest(api(""), { headers });
+  let repositoryResponse = await githubRequest(api(""), { headers });
+  const repositoryAccessDenied = repositoryResponse.response.status === 403 || repositoryResponse.response.status === 404;
+
+  if (credentialSource === "github-app" && repositoryAccessDenied) {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    const oauthWriteCheck = oauthToken
+      ? await checkGithubOAuthRepositoryWrite(oauthToken, connection.selected_repo)
+      : { canWrite: false as const };
+
+    if (oauthToken && oauthWriteCheck.canWrite) {
+      // The App installation is not scoped to this repo, but the user's
+      // verified OAuth connection can write it. Re-read the repository with
+      // that user-authorized fallback before proceeding.
+      serverToken = oauthToken;
+      credentialSource = "oauth";
+      headers = githubApiHeaders(serverToken, true);
+      repositoryResponse = await githubRequest(api(""), { headers });
+    }
+  }
+
   if (!repositoryResponse.response.ok) {
+    if (credentialSource === "github-app" && repositoryAccessDenied) {
+      return json(
+        {
+          error: "The selected repository is not included in the connected GitHub App installation, and the saved GitHub connection could not verify push access. Reconnect GitHub with access to this repository, then try again.",
+          needsWriteAccess: true,
+        },
+        403,
+      );
+    }
     return json({ error: `Could not read the selected repository: ${safeGitHubMessage(repositoryResponse.text)}` }, 400);
   }
   const repositoryData = JSON.parse(repositoryResponse.text) as { default_branch?: string; permissions?: { push?: boolean } };

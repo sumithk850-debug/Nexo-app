@@ -50,3 +50,5 @@
 - [x] Verify the current behavior and production suitability of the `openrouter/free` router before making any routing recommendation.
 - [x] Migrate all Nexo model requests to the user-approved OpenRouter-only primary and fallback routes, using `openrouter/free` as Nexio 1.1 primary while preserving Craft V3/V4 locks and all UI features.
 - [x] Fix only repository file-read completeness/retries and response-stream completeness so verified reads do not produce invented fallback prose and long replies do not stop early.
+- [x] Investigate only the GitHub selected-repository `Not Found` commit failure and report its root cause without changing code or configuration.
+- [x] Add a safe OAuth credential fallback when a GitHub App installation token cannot access the selected repository, without changing any other commit or UI behavior.
