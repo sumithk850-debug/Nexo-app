@@ -17,6 +17,7 @@ import { LiveStatusBar } from "@/components/LiveStatusBar";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
+import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligencePanel";
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
@@ -32,7 +33,7 @@ import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, FileText, Loader2 } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2 } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
@@ -131,6 +132,7 @@ export default function ChatPage() {
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [developmentIntelligenceOpen, setDevelopmentIntelligenceOpen] = useState(false);
   const [githubIntegrationEnabled, setGithubIntegrationEnabled] = useState(true);
   const [pendingGithubSecret, setPendingGithubSecret] = useState<string | null>(null);
   const [secretModalOpen, setSecretModalOpen] = useState(false);
@@ -1308,6 +1310,14 @@ export default function ChatPage() {
           >
             <BarChart3 className="h-4 w-4" />
           </button>
+          <button
+            onClick={() => setDevelopmentIntelligenceOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-panel hover:text-cyan"
+            aria-label="Open Development Intelligence"
+            title="Development Intelligence"
+          >
+            <Brain className="h-4 w-4" />
+          </button>
           {isCoderMode && (
             <CoderModelSelector
               selected={coderModel}
@@ -1528,6 +1538,12 @@ export default function ChatPage() {
             setCommitErrorDetail(null);
           }
         }}
+      />
+
+      <DevelopmentIntelligencePanel
+        open={developmentIntelligenceOpen}
+        onClose={() => setDevelopmentIntelligenceOpen(false)}
+        userId={user?.id}
       />
 
       <SettingsPanel

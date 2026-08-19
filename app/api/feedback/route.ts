@@ -1,54 +1,54 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
+import { getDevelopmentIntelligenceAdmin } from "@/lib/developmentIntelligence.server";
 
+function badRequest(message: string) {
+  return NextResponse.json({ error: message }, { status: 400 });
+}
+
+/**
+ * Stores an explicit user feedback signal. Identity always comes from the
+ * verified bearer token, never from a browser-provided session or user ID.
+ * Feedback is private and does not automatically alter model behavior.
+ */
 export async function POST(request: Request) {
+  const verified = await requireVerifiedUser(request);
+  if ("response" in verified) return verified.response;
+
   try {
-    const body = await request.json();
-    const { messageId, sessionId, modelId, rating, comment } = body;
+    const body = (await request.json()) as Record<string, unknown>;
+    const messageId = typeof body.messageId === "string" ? body.messageId.trim() : "";
+    const modelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
+    const rating = body.rating;
+    const comment = typeof body.comment === "string" ? body.comment.trim().slice(0, 2000) : null;
 
-    if (!messageId || !sessionId || !modelId || !rating) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    if (!messageId || messageId.length > 200) return badRequest("A valid message is required.");
+    if (!modelId || modelId.length > 120) return badRequest("A valid model is required.");
+    if (rating !== "up" && rating !== "down") return badRequest("Rating must be 'up' or 'down'.");
 
-    if (!["up", "down"].includes(rating)) {
-      return NextResponse.json(
-        { error: "Invalid rating. Must be 'up' or 'down'" },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await supabase
+    const admin = getDevelopmentIntelligenceAdmin();
+    const { error } = await admin
       .from("feedback")
       .upsert(
         {
           message_id: messageId,
-          user_id: sessionId,
-          session_id: sessionId,
+          user_id: verified.user.id,
+          session_id: verified.user.id,
           model_id: modelId,
-          rating: rating,
-          comment: comment || null,
+          rating,
+          comment,
         },
-        { onConflict: "message_id,user_id" }
-      )
-      .select();
+        { onConflict: "message_id,user_id" },
+      );
 
     if (error) {
-      console.error("Feedback save error:", error);
-      return NextResponse.json(
-        { error: "Failed to save feedback" },
-        { status: 500 }
-      );
+      console.error("Feedback save error:", error.message);
+      return NextResponse.json({ error: "Unable to save feedback right now." }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data });
-  } catch (err) {
-    console.error("Feedback route error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Feedback route error:", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Invalid feedback request." }, { status: 400 });
   }
 }

@@ -40,6 +40,7 @@ import "prismjs/components/prism-ini";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
+import { authenticatedFetch } from "@/lib/authFetch";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -209,12 +210,11 @@ export function MessageBubble({
     setFeedback((prev) => (prev === value ? null : value));
     if (!sessionId) return;
     try {
-      await fetch("/api/feedback", {
+      await authenticatedFetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messageId: message.id,
-          sessionId,
           modelId: message.modelId || "unknown",
           rating: value,
         }),
