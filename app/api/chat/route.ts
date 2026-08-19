@@ -16,6 +16,7 @@ import {
   estimateTokens,
   recordTokenUsage,
 } from "@/lib/rateLimits.server";
+import { RESPONSE_CONTINUATION_MARKER } from "@/lib/responseContinuation";
 
 export const runtime = "nodejs";
 // Long AI generations and repository tasks can legitimately take several
@@ -379,6 +380,7 @@ export async function POST(req: NextRequest) {
     const modelId = body.modelId as NexoModelId;
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
+    const isAutomaticContinuation = body.isAutomaticContinuation === true;
     // The user's actual auth/user id, distinct from sessionId, used to look up
     // their GitHub connection. Sent by the client alongside sessionId.
     let userId = body.userId as string | undefined;
@@ -450,7 +452,7 @@ export async function POST(req: NextRequest) {
           );
         }
         coderRemainingTokens = coderAvailability.remainingTokens;
-      } else {
+      } else if (!isAutomaticContinuation) {
         const { allowed, remaining, limit } = await checkRateLimit(sessionId);
         if (!allowed) {
           return new Response(
@@ -752,7 +754,9 @@ export async function POST(req: NextRequest) {
     // A provider has accepted the request, so this completed request now counts.
     // Failed/busy provider attempts do not consume a user's NEXO message allowance.
     if (sessionId) {
-      await incrementRateLimit(sessionId, usesCoderBudget);
+      if (!isAutomaticContinuation) {
+        await incrementRateLimit(sessionId, usesCoderBudget);
+      }
       // Persist prompt usage at acceptance time. Completion usage is added when
       // the stream ends, so dashboard totals remain truthful even if a provider
       // stalls after accepting a request.
@@ -770,6 +774,8 @@ export async function POST(req: NextRequest) {
         let buffer = "";
         let responseText = "";
         let usageRecorded = false;
+        let needsContinuation = false;
+        let continuationSent = false;
 
         const persistTokenUsage = async () => {
           if (usageRecorded || !sessionId) return;
@@ -808,6 +814,10 @@ export async function POST(req: NextRequest) {
               if (!trimmed.startsWith("data:")) continue;
               const data = trimmed.slice(5).trim();
               if (data === "[DONE]") {
+                if (needsContinuation && !continuationSent) {
+                  continuationSent = true;
+                  controller.enqueue(encoder.encode(RESPONSE_CONTINUATION_MARKER));
+                }
                 await persistTokenUsage();
                 controller.close();
                 return;
@@ -815,6 +825,9 @@ export async function POST(req: NextRequest) {
               try {
                 const json = JSON.parse(data);
                 const delta = json.choices?.[0]?.delta?.content;
+                if (json.choices?.[0]?.finish_reason === "length") {
+                  needsContinuation = true;
+                }
                 if (delta) {
                   responseText += delta;
                   controller.enqueue(encoder.encode(delta));
@@ -823,6 +836,10 @@ export async function POST(req: NextRequest) {
                 // ignore malformed keep-alive lines
               }
             }
+          }
+          if (needsContinuation && !continuationSent) {
+            continuationSent = true;
+            controller.enqueue(encoder.encode(RESPONSE_CONTINUATION_MARKER));
           }
           await persistTokenUsage();
           controller.close();

@@ -8,8 +8,14 @@ import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
 
 const GITHUB_API = "https://api.github.com";
-const MAX_FILE_BYTES = 40_000; // guard against dumping huge files into the prompt
+// A normal application page can exceed 40KB. Preserve a substantially larger
+// verified source window so the model can inspect the complete file in the
+// common case instead of analysing a misleading prefix.
+const MAX_FILE_BYTES = 200_000;
 const MAX_FILES_PER_REQUEST = 4;
+const GITHUB_READ_MAX_ATTEMPTS = 4;
+const GITHUB_READ_TIMEOUT_MS = 180_000;
+const GITHUB_RETRY_DELAYS_MS = [1_500, 4_000, 9_000] as const;
 
 interface GithubConnection {
   access_token: string;
@@ -20,6 +26,43 @@ interface GithubConnection {
 interface RepoTreeEntry {
   path: string;
   type: "blob" | "tree";
+}
+
+function shouldRetryGithubRead(status: number): boolean {
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
+function githubHeaders(accessToken: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github+json",
+  };
+}
+
+async function fetchGithubRead(url: string, accessToken: string): Promise<Response | null> {
+  let lastResponse: Response | null = null;
+
+  for (let attempt = 0; attempt < GITHUB_READ_MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: githubHeaders(accessToken),
+        cache: "no-store",
+        signal: AbortSignal.timeout(GITHUB_READ_TIMEOUT_MS),
+      });
+      lastResponse = response;
+      if (response.ok || !shouldRetryGithubRead(response.status) || attempt === GITHUB_READ_MAX_ATTEMPTS - 1) {
+        return response;
+      }
+    } catch (error) {
+      console.warn(`[github-context] Read attempt ${attempt + 1}/${GITHUB_READ_MAX_ATTEMPTS} failed:`, error);
+      if (attempt === GITHUB_READ_MAX_ATTEMPTS - 1) return null;
+    }
+
+    const delay = GITHUB_RETRY_DELAYS_MS[attempt] ?? GITHUB_RETRY_DELAYS_MS.at(-1)!;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  return lastResponse;
 }
 
 export interface GithubContextResult {
@@ -55,26 +98,16 @@ async function fetchRepoTree(
   accessToken: string
 ): Promise<RepoTreeEntry[]> {
   try {
-    const repoRes = await fetch(`${GITHUB_API}/repos/${repoFullName}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (!repoRes.ok) return [];
+    const repoRes = await fetchGithubRead(`${GITHUB_API}/repos/${repoFullName}`, accessToken);
+    if (!repoRes?.ok) return [];
     const repoJson = await repoRes.json();
     const defaultBranch = repoJson.default_branch ?? "main";
 
-    const treeRes = await fetch(
+    const treeRes = await fetchGithubRead(
       `${GITHUB_API}/repos/${repoFullName}/git/trees/${defaultBranch}?recursive=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/vnd.github+json",
-        },
-      }
+      accessToken,
     );
-    if (!treeRes.ok) return [];
+    if (!treeRes?.ok) return [];
     const treeJson = await treeRes.json();
     if (!Array.isArray(treeJson.tree)) return [];
 
@@ -94,22 +127,15 @@ async function fetchFileContent(
   accessToken: string
 ): Promise<string | null> {
   try {
-    const res = await fetch(
-      `${GITHUB_API}/repos/${repoFullName}/contents/${filePath}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/vnd.github+json",
-        },
-      }
-    );
-    if (!res.ok) return null;
+    const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+    const res = await fetchGithubRead(`${GITHUB_API}/repos/${repoFullName}/contents/${encodedPath}`, accessToken);
+    if (!res?.ok) return null;
     const json = await res.json();
     if (!json.content || json.encoding !== "base64") return null;
 
     const decoded = Buffer.from(json.content, "base64").toString("utf-8");
     if (decoded.length > MAX_FILE_BYTES) {
-      return `${decoded.slice(0, MAX_FILE_BYTES)}\n\n... [file truncated, ${decoded.length} bytes total]`;
+      return `${decoded.slice(0, MAX_FILE_BYTES)}\n\n... [verified source exceeds the safe single-read window: ${decoded.length} bytes total]`;
     }
     return decoded;
   } catch (err) {
@@ -187,6 +213,7 @@ export async function buildGithubContext(
 
   let fileContentsBlock = "";
   let fetchedFilePaths: string[] = [];
+  let unreadableFilePaths: string[] = [];
   if (referencedPaths.length > 0) {
     const fetchedFiles = await Promise.all(
       referencedPaths.map(async (path) => ({
@@ -195,6 +222,7 @@ export async function buildGithubContext(
       }))
     );
     const usableFiles = fetchedFiles.filter((f) => f.content !== null);
+    unreadableFilePaths = fetchedFiles.filter((f) => f.content === null).map((file) => file.path);
     if (usableFiles.length > 0) {
       fetchedFilePaths = usableFiles.map((file) => file.path);
       fileContentsBlock = usableFiles
@@ -218,7 +246,9 @@ ${treeSummary}
 ===== END REPOSITORY STRUCTURE =====${
     fileContentsBlock
       ? `\n\n===== FETCHED FILE CONTENTS =====\nThe user's message appears to reference the following file(s). Their current real content is provided below — use it as ground truth when discussing, explaining, or proposing changes to these files.\n\n${fileContentsBlock}\n===== END FETCHED FILE CONTENTS =====`
-      : `\n\nNo specific file was fetched for this message. If the user asks about a particular file's contents and you need to see it, ask them to name the exact file path, or tell them you'll need it referenced by name so it can be fetched.`
+      : unreadableFilePaths.length > 0
+        ? `\n\n===== VERIFIED REPOSITORY READ FAILURE =====\nThe requested file read did not complete after ${GITHUB_READ_MAX_ATTEMPTS} server-side attempts: ${unreadableFilePaths.join(", ")}. Do not infer, summarize, explain, or propose unrelated work from this unread file. State only that NEXO could not complete the verified read and offer to retry the same path.\n===== END REPOSITORY READ FAILURE =====`
+        : `\n\nNo specific file was fetched for this message. If the user asks about a particular file's contents and you need to see it, ask them to name the exact file path, or tell them you'll need it referenced by name so it can be fetched.`
   }`;
 
   return { connected: true, repoFullName, contextBlock, fetchedFilePaths };

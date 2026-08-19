@@ -21,6 +21,7 @@ import { CoderModelSelector } from "@/components/CoderModelSelector";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
+import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
@@ -742,7 +743,8 @@ export default function ChatPage() {
     uploadedImages?: { base64Image: string }[],
     providedController?: AbortController,
     initialContent = "",
-    supabaseToolDepth = 0
+    supabaseToolDepth = 0,
+    responseContinuationDepth = 0
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -784,6 +786,7 @@ export default function ChatPage() {
           // still verifies it against this user's connected account before use.
           supabaseProjectId: typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null,
           uploadedImages,
+          isAutomaticContinuation: responseContinuationDepth > 0,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
         }),
@@ -853,31 +856,63 @@ export default function ChatPage() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let needsAutomaticContinuation = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const streamedText = decoder.decode(value, { stream: true });
-        accumulated += streamedText;
-        recordStreamText(streamedText);
+        const marker = consumeResponseContinuationMarker(streamedText);
+        needsAutomaticContinuation ||= marker.shouldContinue;
+        accumulated += marker.content;
+        recordStreamText(marker.content);
         const displayContent = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
       }
 
+      const completedMarker = consumeResponseContinuationMarker(accumulated);
+      needsAutomaticContinuation ||= completedMarker.shouldContinue;
+      accumulated = completedMarker.content;
       accumulated = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
 
-      // A provider can occasionally end immediately after emitting a file-status
-      // marker. Never leave the user with a spinning/empty repository task: add
-      // a compact, honest report that asks them to retry for the actual findings.
+      if (
+        needsAutomaticContinuation &&
+        canAutomaticallyContinue(responseContinuationDepth) &&
+        !controller.signal.aborted
+      ) {
+        const continuationContext: ChatMessage[] = [
+          ...conversationSoFar,
+          { id: `partial-${assistantId}-${responseContinuationDepth}`, role: "assistant", content: accumulated },
+          {
+            id: `continue-${assistantId}-${responseContinuationDepth}`,
+            role: "user",
+            content: "Continue exactly from where your previous response stopped. Return only the remaining response, without repeating any earlier text, status marker, or task summary.",
+          },
+        ];
+        return streamResponse(
+          chatId,
+          continuationContext,
+          assistantId,
+          override,
+          uploadedImages,
+          controller,
+          accumulated,
+          supabaseToolDepth,
+          responseContinuationDepth + 1,
+        );
+      }
+
+      // A provider can occasionally end immediately after emitting a verified
+      // file-status marker. Never fabricate a partial report or unrelated file
+      // findings: preserve the verified marker and let the retry control re-run
+      // the exact user request if no actual analysis was returned.
       const parsedTask = parseCraftResponse(accumulated);
       const readActions = parsedTask.fileActions.filter((action) => action.type === "reading");
       if (verifiedReadPaths.length > 0 && readActions.length > 0 && !parsedTask.summary) {
-        const paths = [...new Set(readActions.map((action) => action.filePath))].join(", ");
-        accumulated += `\n\n\`\`\`task-summary\nstatus: partial\nfiles read: ${paths}\nfiles changed:\nfiles deleted:\ndetails: The provider ended before it returned the file findings. Please retry this read request.\n\`\`\``;
         setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated, generationState: "failed" } : m))
         );
       }
 
@@ -932,7 +967,7 @@ export default function ChatPage() {
         )
       );
     } finally {
-      finishStreamingTurn(assistantId);
+      if (responseContinuationDepth === 0) finishStreamingTurn(assistantId);
     }
   }
 
