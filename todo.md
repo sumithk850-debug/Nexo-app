@@ -42,3 +42,10 @@
 - [x] Harden public URL reading against redirect-chain and DNS-resolved private-network SSRF targets.
 - [x] Expand environment-template guidance and deterministic regression coverage for audit fixes.
 - [x] Restore reliable structured clarification boards for all models, including raw-option fallback conversion, option selection, mobile layout, and regression validation.
+- [ ] Verify and enforce that signed-in chat history and clarification-card selections persist and restore through Supabase conversations/messages as the primary save/load path.
+- [x] Revert only commit `cbdea21` GitHub App write-upgrade changes and preserve all earlier deployed fixes.
+- [x] Verify the latest committed seven-model routing configuration in Sumith’s Nexo repository and report the authoritative mapping.
+- [x] Research current OpenRouter primary and free-fallback model options for all seven Nexo personas; make no routing or code changes until the user approves a recommendation.
+- [x] Re-check the live OpenRouter free catalogue and correct the model recommendation using only IDs that are currently available as free.
+- [x] Verify the current behavior and production suitability of the `openrouter/free` router before making any routing recommendation.
+- [x] Migrate all Nexo model requests to the user-approved OpenRouter-only primary and fallback routes, using `openrouter/free` as Nexio 1.1 primary while preserving Craft V3/V4 locks and all UI features.

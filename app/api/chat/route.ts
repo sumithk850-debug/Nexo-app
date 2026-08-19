@@ -29,26 +29,6 @@ interface IncomingMessage {
 }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
-const ULTRA_SPEED_MODEL_IDS = new Set<NexoModelId>([
-  // Nexio 1.1 retains its existing public identity and no UltraSpeed badge.
-  "nexio-1.1",
-  "spadec-3.5",
-  "galex-4.0",
-  "brainex-10.8",
-  "craft-v3",
-]);
-// The first three Nexo profiles use Gemma on the private high-speed route.
-// Brainex and Craft retain the existing GPT-OSS high-speed engine.
-const GEMMA_MODEL_IDS = new Set<NexoModelId>([
-  "nexio-1.1",
-  "spadec-3.5",
-  "galex-4.0",
-]);
-const CEREBRAS_GEMMA_MODEL = "gemma-4-31b";
-const CEREBRAS_OSS_MODEL = "gpt-oss-120b";
-const ULTRA_SPEED_FALLBACK_MODEL = "openai/gpt-oss-120b";
 const DAILY_MESSAGE_LIMIT = 50;
 
 const SECRET_HANDLING_PROTOCOL = `
@@ -182,9 +162,9 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
   "craft-v3": 3000,
 };
 
-// Gemma 4 is the shared vision layer. It analyzes uploaded images before the
+// Gemma 4 is the shared OpenRouter vision layer. It analyzes uploaded images before the
 // selected model responds, so text-only profiles can still answer image tasks.
-const VISION_FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free";
+const VISION_FALLBACK_MODEL = "google/gemma-4-31b-it:free";
 
 function getSupabase(userAccessToken?: string) {
   return createClient(
@@ -486,9 +466,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Craft V3 Lite keeps its dedicated free-tier prompt while using the
-    // Nexo UltraSpeed transport. Paid Craft engines are rejected above until
-    // Pro access is explicitly launched.
+    // Craft V3 Lite keeps its dedicated free-tier prompt. Paid Craft engines
+    // are rejected above until Pro access is explicitly launched.
     const baseConfig = PROVIDER_CONFIG[modelId];
     const coderOverridePrompt = explicitlyUnlockedLite
       ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
@@ -502,14 +481,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Fast-path profiles retain their existing identity, prompts, usage limits,
-    // and picker labels. Only their private server-side transport changes.
-    const usesUltraSpeed = ULTRA_SPEED_MODEL_IDS.has(modelId);
-    const apiKey = usesUltraSpeed
-      ? process.env.CEREBRAS_API_KEY
-      : config.provider === "gemini"
-        ? process.env.GEMINI_API_KEY
-        : process.env.OPENROUTER_API_KEY;
+    // Every model request uses the same OpenRouter-only transport. The
+    // provider configuration above controls exact primary/fallback model order.
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       return new Response(
@@ -527,7 +501,6 @@ export async function POST(req: NextRequest) {
     // Uploaded images are analyzed by the shared Gemma 4 vision layer. Its
     // description is woven into the selected profile's system prompt, so every
     // NEXO profile can answer about an image without exposing internal routing.
-    // Craft V3 keeps its existing Gemini/Groq model routing unchanged.
     let visionContext = "";
     let uploadedImageDescription = "";
 
@@ -635,6 +608,10 @@ export async function POST(req: NextRequest) {
       systemPrompt += "\n\nThe user prefers replies in English unless they explicitly request another language.";
     }
 
+    if (!searchGroundingEnabled) {
+      systemPrompt += "\n\nThe user has disabled web-search grounding. Do not present unverified real-time web claims as if a live web search was performed.";
+    }
+
     // Code Review Mode: deep code analysis instructions for Craft V3
     if (codeReviewEnabled && (modelId === "craft-v3" || activeCoderModel === "craft-v4")) {
       systemPrompt += `\n\nCODE REVIEW MODE IS ACTIVE. For any code the user shares or asks about, provide a thorough code review including:\n- Code quality assessment (cleanliness, readability, maintainability)\n- Bug detection and potential issues\n- Performance optimization suggestions\n- Security vulnerability analysis\n- Best practices and improvement recommendations\n- Architecture and design pattern suggestions\nStructure your review with clear sections and use code examples where helpful.`;
@@ -679,7 +656,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const isGemini = config.provider === "gemini";
     // Integration requests rely on structured, safety-critical content. Lower
     // randomness prevents broken pseudo-cards and irrelevant token drift.
     const responseTemperature = isSupabaseQuestion ? 0.2 : 1.0;
@@ -687,51 +663,6 @@ export async function POST(req: NextRequest) {
       usesCoderBudget && coderRemainingTokens !== undefined
         ? Math.max(1, Math.min(MODEL_TOKEN_LIMITS[modelId] ?? 3000, coderRemainingTokens))
         : MODEL_TOKEN_LIMITS[modelId] ?? 8192;
-    let activeProviderModel = config.model;
-    const upstreamUrl = isGemini
-      ? `https://generativelanguage.googleapis.com/v1beta/models/${activeProviderModel}:streamGenerateContent?alt=sse`
-      : OPENROUTER_ENDPOINT;
-
-    const buildUpstreamBody = () =>
-      isGemini
-        ? {
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: messages.map((m) => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }],
-            })),
-            generationConfig: {
-              temperature: responseTemperature,
-              topP: 1.0,
-              maxOutputTokens: outputTokenLimit,
-            },
-            ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
-          }
-        : {
-            model: activeProviderModel,
-            stream: true,
-            temperature: responseTemperature,
-            top_p: 1.0,
-            max_tokens: outputTokenLimit,
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...messages.map((m) => ({ role: m.role, content: m.content })),
-            ],
-          };
-
-    const buildUpstreamHeaders = (): Record<string, string> =>
-      isGemini
-        ? {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          }
-        : {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-            "HTTP-Referer": "https://nexo-app-delta.vercel.app",
-            "X-Title": "NEXO AI",
-          };
-
     // A free provider can be briefly queued or exhausted. Use a deliberately
     // long bounded wait so slow but active model generations are not cut off.
     // A real provider failure still advances to the next configured fallback.
@@ -740,92 +671,31 @@ export async function POST(req: NextRequest) {
     const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 240_000;
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
-    let activeProviderIsGemini = isGemini;
-    const usesGemma = GEMMA_MODEL_IDS.has(modelId);
-    const candidateModels = usesUltraSpeed
-      ? [
-          ...(usesGemma ? [CEREBRAS_GEMMA_MODEL] : []),
-          CEREBRAS_OSS_MODEL,
-          ...(process.env.GROQ_API_KEY ? [ULTRA_SPEED_FALLBACK_MODEL] : []),
-        ]
-      : [config.model, ...(config.fallbackModels ?? [])];
+    const candidateModels = [config.model, ...(config.fallbackModels ?? [])];
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
-      activeProviderModel = candidateModel;
-      
-      // Fast-path profiles use the dedicated private route first. All other
-      // profiles retain their existing provider and fallback behaviour.
-      const currentIsCerebras = usesUltraSpeed && (
-        candidateModel === CEREBRAS_GEMMA_MODEL || candidateModel === CEREBRAS_OSS_MODEL
-      );
-      const isCandidateGemini = !currentIsCerebras && candidateModel.startsWith("gemini-") && (candidateModel === config.model || isGemini);
-      const isCandidateGroq = !currentIsCerebras && (candidateModel.includes("gpt-oss-120b") || candidateModel.includes("deepseek-r1") || candidateModel.includes("llama-3.3") || candidateModel.includes("llama-3.1"));
-      
-      const currentUpstreamUrl = currentIsCerebras
-        ? CEREBRAS_ENDPOINT
-        : isCandidateGemini
-          ? `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:streamGenerateContent?alt=sse`
-          : (isCandidateGroq && process.env.GROQ_API_KEY) ? GROQ_ENDPOINT : OPENROUTER_ENDPOINT;
-
-      const currentIsGemini = isCandidateGemini;
-      const currentIsGroq = isCandidateGroq && !!process.env.GROQ_API_KEY;
-
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         try {
-          // Re-build headers and body for each candidate as the provider might change
-          const currentHeaders: Record<string, string> = currentIsGemini
-            ? {
-                "Content-Type": "application/json",
-                "x-goog-api-key": process.env.GEMINI_API_KEY || "",
-              }
-            : currentIsCerebras
-              ? {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${process.env.CEREBRAS_API_KEY || ""}`,
-                }
-              : currentIsGroq
-                ? {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${process.env.GROQ_API_KEY || ""}`,
-                  }
-                : {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
-                    "HTTP-Referer": "https://nexo-app-delta.vercel.app",
-                    "X-Title": "NEXO AI",
-                  };
-
-          const currentBody = currentIsGemini
-            ? {
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: messages.map((m) => ({
-                  role: m.role === "assistant" ? "model" : "user",
-                  parts: [{ text: m.content }],
-                })),
-                generationConfig: {
-                  temperature: 1.0,
-                  topP: 1.0,
-                  maxOutputTokens: MODEL_TOKEN_LIMITS[modelId] ?? 8192,
-                },
-                ...(searchGroundingEnabled ? { tools: [{ google_search: {} }] } : {}),
-              }
-            : {
-                model: candidateModel,
-                stream: true,
-                temperature: 1.0,
-                top_p: 1.0,
-                max_tokens: currentIsCerebras ? outputTokenLimit : MODEL_TOKEN_LIMITS[modelId] ?? 8192,
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  ...messages.map((m) => ({ role: m.role, content: m.content })),
-                ],
-              };
-
-          upstreamRes = await fetch(currentUpstreamUrl, {
+          upstreamRes = await fetch(OPENROUTER_ENDPOINT, {
             method: "POST",
-            headers: currentHeaders,
-            body: JSON.stringify(currentBody),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+              "HTTP-Referer": "https://nexo-app-delta.vercel.app",
+              "X-Title": "NEXO AI",
+            },
+            body: JSON.stringify({
+              model: candidateModel,
+              stream: true,
+              temperature: responseTemperature,
+              top_p: 1.0,
+              max_tokens: outputTokenLimit,
+              messages: [
+                { role: "system", content: systemPrompt },
+                ...messages.map((m) => ({ role: m.role, content: m.content })),
+              ],
+            }),
             signal: AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS),
           });
         } catch (error) {
@@ -835,9 +705,6 @@ export async function POST(req: NextRequest) {
         }
 
         if (upstreamRes?.ok && upstreamRes.body) {
-          // Remember which provider actually accepted the request. Craft V3 may
-          // fall back from Gemini to Groq/OpenRouter, which use a different SSE shape.
-          activeProviderIsGemini = currentIsGemini;
           break providerAttempt;
         }
 
@@ -947,30 +814,10 @@ export async function POST(req: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                if (activeProviderIsGemini) {
-                  const parts = json.candidates?.[0]?.content?.parts ?? [];
-                  const textParts = parts.map((part: { text?: string }) => part.text ?? "").join("");
-                  if (textParts) {
-                    responseText += textParts;
-                    controller.enqueue(encoder.encode(textParts));
-                  }
-                  // Built-in Google Search: when the model decides to search the
-                  // web, the stream emits a part with a `googleSearchCall`
-                  // field containing the queries it executed. Relay that back
-                  // to the client as a [NEXO:SEARCHING ...] marker so the UI
-                  // can show a "Searching..." pill in the live status bar.
-                  for (const part of parts) {
-                    if (part?.googleSearchCall?.arguments?.queries?.length) {
-                      const queries = part.googleSearchCall.arguments.queries.join(", ");
-                      controller.enqueue(encoder.encode(`\n[NEXO:SEARCHING ${queries}]\n`));
-                    }
-                  }
-                } else {
-                  const delta = json.choices?.[0]?.delta?.content;
-                  if (delta) {
-                    responseText += delta;
-                    controller.enqueue(encoder.encode(delta));
-                  }
+                const delta = json.choices?.[0]?.delta?.content;
+                if (delta) {
+                  responseText += delta;
+                  controller.enqueue(encoder.encode(delta));
                 }
               } catch {
                 // ignore malformed keep-alive lines
