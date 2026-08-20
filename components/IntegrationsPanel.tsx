@@ -120,6 +120,9 @@ function vercelCallbackError(reason: string | null): string {
       return "Vercel did not return a valid access token. Please check your Vercel OAuth app credentials and try again.";
     case "missing_code":
       return "The Vercel authorization did not complete. Please try connecting again.";
+    case "invalid_state":
+    case "missing_pkce_verifier":
+      return "The secure Vercel sign-in session expired or was interrupted. Please select Connect Vercel account again and complete it in the same browser.";
     case "not_configured":
       return "Vercel OAuth credentials are not configured on the server.";
     default:

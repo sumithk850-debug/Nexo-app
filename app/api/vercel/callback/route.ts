@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptIntegrationToken } from "@/lib/integrationToken.server";
 import { verifyOAuthState } from "@/lib/oauthState.server";
+import { vercelPkceCookieOptions, VERCEL_PKCE_COOKIE } from "@/lib/vercelOAuth.server";
 
 export const runtime = "nodejs";
 
@@ -16,15 +17,24 @@ function backToApp(req: NextRequest, params: Record<string, string>) {
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
-  return NextResponse.redirect(url.toString());
+  const response = NextResponse.redirect(url.toString());
+  response.cookies.set(VERCEL_PKCE_COOKIE, "", {
+    ...vercelPkceCookieOptions(req.nextUrl.protocol === "https:"),
+    maxAge: 0,
+  });
+  return response;
 }
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const userId = verifyOAuthState(req.nextUrl.searchParams.get("state"), "vercel");
+  const codeVerifier = req.cookies.get(VERCEL_PKCE_COOKIE)?.value;
 
   if (!code || !userId) {
     return backToApp(req, { vercel: "error", reason: "invalid_state" });
+  }
+  if (!codeVerifier) {
+    return backToApp(req, { vercel: "error", reason: "missing_pkce_verifier" });
   }
 
   if (!process.env.VERCEL_CLIENT_ID || !process.env.VERCEL_CLIENT_SECRET) {
@@ -34,30 +44,32 @@ export async function GET(req: NextRequest) {
 
   try {
     const redirectUri = `${req.nextUrl.origin}/api/vercel/callback`;
-    const tokenRes = await fetch("https://api.vercel.com/oauth/access-token", {
+    const tokenRes = await fetch("https://api.vercel.com/login/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
+        grant_type: "authorization_code",
         client_id: process.env.VERCEL_CLIENT_ID,
         client_secret: process.env.VERCEL_CLIENT_SECRET,
         code,
+        code_verifier: codeVerifier,
         redirect_uri: redirectUri,
       }).toString(),
     });
 
-    const tokenData = await tokenRes.json();
+    const tokenData = await tokenRes.json().catch(() => null);
     const accessToken = tokenData?.access_token;
-    if (!accessToken) {
+    if (!tokenRes.ok || !accessToken) {
       console.error("[vercel-callback] Token exchange failed:", tokenData?.error ?? tokenData);
       return backToApp(req, { vercel: "error", reason: "token_exchange_failed" });
     }
 
-    const userRes = await fetch("https://api.vercel.com/oauth/userinfo", {
+    const userRes = await fetch("https://api.vercel.com/login/oauth/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const vercelUser = await userRes.json();
+    const vercelUser = userRes.ok ? await userRes.json().catch(() => null) : null;
     const email = vercelUser?.email ?? null;
-    const userIdent = email?.split("@")?.[0] ?? "unknown";
+    const userIdent = vercelUser?.preferred_username ?? email?.split("@")?.[0] ?? "connected account";
 
     const supabase = getSupabaseAdmin();
     const { error: upsertError } = await supabase
