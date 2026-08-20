@@ -28,8 +28,6 @@ import type { ChatMessage } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
 import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
-import { createIntegrationReadBlock, type IntegrationReadCardData } from "@/lib/integrationReadParser";
-import { parseIntegrationReadToolIntents, stripIntegrationReadToolBlocks, type IntegrationReadToolIntent } from "@/lib/integrationToolParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
@@ -323,87 +321,6 @@ export default function ChatPage() {
       return {
         card: supabaseToolCard(intent, "error", "Nexo could not reach the Supabase tool endpoint. No result is being claimed."),
         promptContext: `Supabase tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
-        ok: false,
-      };
-    }
-  }
-
-  function integrationToolCard(
-    intent: IntegrationReadToolIntent,
-    state: IntegrationReadCardData["state"],
-    message: string,
-    items?: IntegrationReadCardData["items"],
-  ) {
-    const isVercel = intent.service === "vercel";
-    const title = isVercel
-      ? intent.action === "list_deployments" ? "Reading Vercel deployments" : "Reading Vercel projects"
-      : intent.action === "selected_repository" ? "Reading selected GitHub repository" : "Reading GitHub repositories";
-    return createIntegrationReadBlock({ service: intent.service, state, title, message, items });
-  }
-
-  async function executeIntegrationReadTool(intent: IntegrationReadToolIntent): Promise<{ card: string; promptContext: string; ok: boolean }> {
-    const currentUserId = user?.id;
-    if (!currentUserId) {
-      return {
-        card: integrationToolCard(intent, "needs_connection", "Sign in and connect this integration before Nexo can run a verified read."),
-        promptContext: `${intent.service} read did not run because no signed-in connection is available. Do not claim a result.`,
-        ok: false,
-      };
-    }
-
-    const isVercel = intent.service === "vercel";
-    const path = isVercel
-      ? `/api/vercel/deployments?userId=${encodeURIComponent(currentUserId)}${intent.action === "list_projects" ? "&projects" : ""}`
-      : `/api/github/repos?userId=${encodeURIComponent(currentUserId)}`;
-
-    try {
-      const response = await authenticatedFetch(path, { headers: { "Cache-Control": "no-store" } });
-      const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-      if (!response.ok) {
-        const needsConnection = response.status === 401 || response.status === 403 || response.status === 404;
-        return {
-          card: integrationToolCard(intent, needsConnection ? "needs_connection" : "error", typeof data.error === "string" ? data.error : "The verified integration read did not return a result."),
-          promptContext: `Verified ${intent.service} read failed: ${typeof data.error === "string" ? data.error : "unknown error"}. Do not claim the request is waiting or complete.`,
-          ok: false,
-        };
-      }
-
-      const projects = Array.isArray(data.projects) ? data.projects : [];
-      const repos = Array.isArray(data.repos) ? data.repos : [];
-      const items = isVercel
-        ? projects.slice(0, 20).flatMap((project) => {
-          if (!project || typeof project !== "object") return [];
-          const value = project as { name?: unknown; id?: unknown; framework?: unknown };
-          return typeof value.name === "string"
-            ? [{ primary: value.name, secondary: typeof value.framework === "string" ? value.framework : typeof value.id === "string" ? value.id : undefined }]
-            : [];
-        })
-        : repos.slice(0, 20).flatMap((repo) => {
-          if (!repo || typeof repo !== "object") return [];
-          const value = repo as { full_name?: unknown; name?: unknown; private?: unknown };
-          const name = typeof value.full_name === "string" ? value.full_name : typeof value.name === "string" ? value.name : "";
-          return name ? [{ primary: name, secondary: typeof value.private === "boolean" ? value.private ? "private" : "public" : undefined }] : [];
-        });
-      const selectedRepo = typeof data.selectedRepo === "string" ? data.selectedRepo : null;
-      const count = isVercel ? projects.length : repos.length;
-      const summary = intent.action === "selected_repository"
-        ? selectedRepo ? `Selected repository: ${selectedRepo}.` : "No GitHub repository is selected."
-        : `${count} verified ${isVercel ? "Vercel project(s)" : "GitHub repository/repositories"} returned.`;
-      const safeResult = JSON.stringify({
-        selectedRepo,
-        items,
-        scope: typeof data.scope === "string" ? data.scope : undefined,
-        deploymentProjectCount: isVercel && data.deployments && typeof data.deployments === "object" ? Object.keys(data.deployments as Record<string, unknown>).length : undefined,
-      }).slice(0, 8000);
-      return {
-        card: integrationToolCard(intent, "success", summary, items),
-        promptContext: `VERIFIED ${intent.service.toUpperCase()} TOOL RESULT for ${intent.action}: ${safeResult}. This read has completed. Explain only this result naturally; do not claim that another call is running or waiting.`,
-        ok: true,
-      };
-    } catch {
-      return {
-        card: integrationToolCard(intent, "error", "Nexo could not reach the verified integration endpoint. No result is being claimed."),
-        promptContext: `Verified ${intent.service} read could not reach the server. Do not claim that the call is waiting or complete.`,
         ok: false,
       };
     }
@@ -829,8 +746,7 @@ export default function ChatPage() {
     providedController?: AbortController,
     initialContent = "",
     supabaseToolDepth = 0,
-    responseContinuationDepth = 0,
-    integrationToolDepth = 0,
+    responseContinuationDepth = 0
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -987,7 +903,6 @@ export default function ChatPage() {
           accumulated,
           supabaseToolDepth,
           responseContinuationDepth + 1,
-          integrationToolDepth,
         );
       }
 
@@ -1000,41 +915,6 @@ export default function ChatPage() {
       if (verifiedReadPaths.length > 0 && readActions.length > 0 && !parsedTask.summary) {
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated, generationState: "failed" } : m))
-        );
-      }
-
-      const integrationToolIntent = integrationToolDepth === 0
-        ? parseIntegrationReadToolIntents(accumulated)[0]
-        : undefined;
-      if (integrationToolIntent) {
-        const toolRequestText = stripIntegrationReadToolBlocks(accumulated).trim();
-        const loadingCard = integrationToolCard(
-          integrationToolIntent,
-          "loading",
-          "Nexo is validating the connection and running this read-only integration task now.",
-        );
-        setMessages((prev) => prev.map((message) => (
-          message.id === assistantId ? { ...message, content: loadingCard } : message
-        )));
-
-        const verifiedTool = await executeIntegrationReadTool(integrationToolIntent);
-        const serviceName = integrationToolIntent.service === "vercel" ? "Vercel" : "GitHub";
-        const continuedConversation: ChatMessage[] = [
-          ...conversationSoFar,
-          { id: `integration-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || `Nexo requested a verified ${serviceName} read.` },
-          { id: `integration-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified ${serviceName} read executed by Nexo]\n${verifiedTool.promptContext}` },
-        ];
-        return streamResponse(
-          chatId,
-          continuedConversation,
-          assistantId,
-          override,
-          uploadedImages,
-          controller,
-          verifiedTool.card,
-          supabaseToolDepth,
-          responseContinuationDepth,
-          integrationToolDepth + 1,
         );
       }
 
@@ -1066,9 +946,7 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           verifiedTool.card,
-          supabaseToolDepth + 1,
-          responseContinuationDepth,
-          integrationToolDepth,
+          supabaseToolDepth + 1
         );
       }
 
