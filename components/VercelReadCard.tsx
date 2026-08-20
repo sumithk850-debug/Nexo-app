@@ -49,7 +49,9 @@ export function VercelReadCard({ card }: { card: VercelReadCardData }) {
                 <div key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-edge bg-panel px-2.5 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-ink" title={project.name}>{project.name}</p>
-                    <p className="font-mono text-[10px] text-ink-faint">{project.framework ?? "framework unavailable"}</p>
+                    <p className="font-mono text-[10px] text-ink-faint">
+                      {project.framework ?? "framework unavailable"}{project.scopeLabel ? ` · ${project.scopeLabel}` : ""}
+                    </p>
                   </div>
                   <span className="font-mono text-[10px] text-ink-faint">{project.productionUrl ?? "no production URL"}</span>
                 </div>

@@ -1,74 +1,78 @@
 import { NextRequest } from "next/server";
-import { getVercelConnection, VercelClient } from "@/lib/vercelClient.server";
+import { getVercelConnection, listAccessibleVercelProjects, VercelClient, VercelScope } from "@/lib/vercelClient.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
 /**
- * Read-only view of the connected user's Vercel account:
- *   GET ?userId=...&projects            → teams + projects
- *   GET ?userId=...&events&deploymentId → build events for one deployment
- *   GET ?userId=... (default)           → teams + projects + recent deployments
+ * Read-only view of the connected user's Vercel account. Project discovery
+ * spans the personal account and every team scope exposed by that OAuth token.
+ * No provider error payload is returned to the browser.
  */
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   if (!userId) {
-    return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400 });
+    return Response.json({ error: "Missing user ID." }, { status: 400 });
   }
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
   const connection = await getVercelConnection(verified.user.id);
   if (!connection) {
-    return new Response(JSON.stringify({ error: "Not connected to Vercel" }), { status: 404 });
+    return Response.json({ error: "Connect Vercel before viewing account data." }, { status: 404 });
   }
 
   try {
-    // Vercel personal accounts may not have any team. API endpoints work at
-    // account scope when teamId is omitted, so a missing team must not block a
-    // valid OAuth connection from listing its projects or deployments.
-    const teamId = await resolveTeamId(connection.accessToken);
-    const client = new VercelClient({ teamId, accessToken: connection.accessToken });
-    const projects = await client.listProjects();
+    const inventory = await listAccessibleVercelProjects(connection.accessToken);
 
     if (req.nextUrl.searchParams.has("projects")) {
-      return new Response(JSON.stringify({ teamId, projects }), { status: 200 });
+      return Response.json(inventory);
     }
 
     if (req.nextUrl.searchParams.has("events")) {
       const deploymentId = req.nextUrl.searchParams.get("deploymentId");
       if (!deploymentId) {
-        return new Response(JSON.stringify({ error: "Missing deploymentId" }), { status: 400 });
+        return Response.json({ error: "Missing deployment ID." }, { status: 400 });
       }
-      const events = await client.buildEvents(deploymentId);
-      return new Response(JSON.stringify({ events }), { status: 200 });
+      const scopes = uniqueScopes(inventory.projects.map((project) => project.scope));
+      for (const scope of scopes) {
+        try {
+          const events = await new VercelClient({ accessToken: connection.accessToken, teamId: scope.teamId }).buildEvents(deploymentId);
+          return Response.json({ events });
+        } catch {
+          // A deployment is scoped. Continue only through scopes already
+          // discovered for this same authenticated account.
+        }
+      }
+      return Response.json({ error: "Build events are not available for this deployment." }, { status: 404 });
     }
 
-    const deploymentsByProject: Record<string, unknown[]> = {};
-    for (const project of projects) {
+    const deployments: Record<string, unknown[]> = {};
+    for (const project of inventory.projects) {
       try {
-        deploymentsByProject[project.id] = await client.listDeployments(project.id);
+        deployments[project.id] = await new VercelClient({
+          accessToken: connection.accessToken,
+          teamId: project.scope.teamId,
+        }).listDeployments(project.id);
       } catch {
-        deploymentsByProject[project.id] = [];
+        // One inaccessible deployment history cannot hide an otherwise valid
+        // project inventory. The panel renders a harmless empty state.
+        deployments[project.id] = [];
       }
     }
 
-    return new Response(JSON.stringify({ teamId, scope: teamId ? "team" : "personal", projects, deployments: deploymentsByProject }), {
-      status: 200,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return new Response(JSON.stringify({ error: "Could not reach Vercel", detail: message }), {
-      status: 502,
-    });
+    return Response.json({ ...inventory, deployments });
+  } catch {
+    return Response.json({ error: "The Vercel project list could not be loaded." }, { status: 502 });
   }
 }
 
-async function resolveTeamId(accessToken: string): Promise<string | null> {
-  const res = await fetch("https://api.vercel.com/v0/teams", {
-    headers: { Authorization: `Bearer ${accessToken}` },
+function uniqueScopes(scopes: VercelScope[]): VercelScope[] {
+  const seen = new Set<string>();
+  return scopes.filter((scope) => {
+    const key = scope.teamId ?? "personal";
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.teams?.[0]?.id ?? null;
 }

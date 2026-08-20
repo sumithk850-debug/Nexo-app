@@ -5,6 +5,7 @@ export interface VercelProjectSummary {
   name: string;
   framework: string | null;
   productionUrl: string | null;
+  scopeLabel: string | null;
 }
 
 export interface VercelDeploymentSummary {
@@ -32,11 +33,17 @@ function asProject(value: unknown): VercelProjectSummary | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   if (typeof item.id !== "string" || typeof item.name !== "string") return null;
+  const rawScope = item.scope;
+  const scopeLabelCandidate = rawScope && typeof rawScope === "object" && !Array.isArray(rawScope)
+    ? (rawScope as Record<string, unknown>).label
+    : null;
+  const scopeLabel = typeof scopeLabelCandidate === "string" ? scopeLabelCandidate : null;
   return {
     id: item.id,
     name: item.name,
     framework: typeof item.framework === "string" ? item.framework : null,
     productionUrl: typeof item.productionUrl === "string" ? item.productionUrl : null,
+    scopeLabel,
   };
 }
 

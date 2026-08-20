@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
-import { getVercelConnection, VercelClient } from "@/lib/vercelClient.server";
+import { getVercelConnection, listAccessibleVercelProjects, VercelClient } from "@/lib/vercelClient.server";
 import { parseVercelReadToolIntent } from "@/lib/vercelToolParser";
 
 export const runtime = "nodejs";
 
 /**
- * Executes only the small Vercel read vocabulary used by chat. This route has
- * no mutation capability and always resolves the OAuth connection by verified
- * Nexo user ID, never from client-provided credentials.
+ * Executes the deliberately small, read-only Vercel vocabulary used by chat.
+ * The OAuth connection is resolved from the verified Nexo user, never from
+ * client-provided credentials or a client-provided team scope.
  */
 export async function POST(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
@@ -25,40 +25,32 @@ export async function POST(req: NextRequest) {
   if (!connection) return Response.json({ error: "Connect Vercel before requesting live account data." }, { status: 404 });
 
   try {
-    const teamId = await resolveTeamId(connection.accessToken);
-    const client = new VercelClient({ accessToken: connection.accessToken, teamId });
+    const inventory = await listAccessibleVercelProjects(connection.accessToken);
 
     if (intent.tool === "list_projects") {
-      const projects = await client.listProjects();
       return Response.json({
-        scope: teamId ? "team" : "personal",
-        projects: projects.slice(0, 50),
+        projects: inventory.projects.slice(0, 50),
+        checkedScopes: inventory.checkedScopes,
+        inaccessibleScopes: inventory.inaccessibleScopes,
       });
     }
 
-    const deployments = await client.listDeployments(intent.projectId);
+    const project = inventory.projects.find((candidate) => candidate.id === intent.projectId);
+    if (!project) {
+      return Response.json({ error: "That project is not available in the connected account." }, { status: 404 });
+    }
+
+    const deployments = await new VercelClient({
+      accessToken: connection.accessToken,
+      teamId: project.scope.teamId,
+    }).listDeployments(project.id);
     return Response.json({
-      projectId: intent.projectId,
+      projectId: project.id,
       deployments: deployments.slice(0, 25),
     });
   } catch {
-    // Do not return provider error bodies because they can contain connection
-    // metadata. The chat continuation receives only this safe failure state.
+    // Provider payloads can include connection metadata and are never exposed
+    // to the model or browser.
     return Response.json({ error: "The live Vercel read could not be completed." }, { status: 502 });
-  }
-}
-
-async function resolveTeamId(accessToken: string): Promise<string | null> {
-  try {
-    const response = await fetch("https://api.vercel.com/v0/teams", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const team = Array.isArray(data?.teams) ? data.teams[0] : null;
-    return typeof team?.id === "string" ? team.id : null;
-  } catch {
-    return null;
   }
 }

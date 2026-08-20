@@ -335,9 +335,45 @@ export default function ChatPage() {
     }
   }
 
+  function safeVercelToolData(data: Record<string, unknown>) {
+    const projects = Array.isArray(data.projects)
+      ? data.projects.flatMap((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const project = value as Record<string, unknown>;
+        if (typeof project.id !== "string" || typeof project.name !== "string") return [];
+        const scope = project.scope && typeof project.scope === "object" && !Array.isArray(project.scope)
+          ? project.scope as Record<string, unknown>
+          : null;
+        return [{
+          id: project.id,
+          name: project.name,
+          framework: typeof project.framework === "string" ? project.framework : null,
+          productionUrl: typeof project.productionUrl === "string" ? project.productionUrl : null,
+          scopeLabel: typeof scope?.label === "string" ? scope.label : null,
+        }];
+      })
+      : undefined;
+    const deployments = Array.isArray(data.deployments)
+      ? data.deployments.flatMap((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const deployment = value as Record<string, unknown>;
+        if (typeof deployment.id !== "string") return [];
+        return [{
+          id: deployment.id,
+          url: typeof deployment.url === "string" ? deployment.url : null,
+          readyState: typeof deployment.readyState === "string" ? deployment.readyState : null,
+          createdAt: typeof deployment.createdAt === "number" ? deployment.createdAt : null,
+          isProduction: deployment.isProduction === true,
+        }];
+      })
+      : undefined;
+    return { projects, deployments };
+  }
+
   function vercelToolCard(intent: VercelReadToolIntent, state: VercelReadCardData["state"], message: string, data?: Record<string, unknown>) {
-    const projects = Array.isArray(data?.projects) ? data.projects as VercelReadCardData["projects"] : undefined;
-    const deployments = Array.isArray(data?.deployments) ? data.deployments as VercelReadCardData["deployments"] : undefined;
+    const safeData = data
+      ? safeVercelToolData(data)
+      : { projects: undefined, deployments: undefined };
     const kind = intent.tool === "list_projects" ? "projects" : "deployments";
     const loadingTitle = intent.tool === "list_projects" ? "Reading connected Vercel projects" : "Reading recent Vercel deployments";
     const successTitle = intent.tool === "list_projects" ? "Verified Vercel project result" : "Verified Vercel deployment result";
@@ -347,8 +383,8 @@ export default function ChatPage() {
       title: state === "success" ? successTitle : loadingTitle,
       message,
       projectId: intent.tool === "list_deployments" ? intent.projectId : undefined,
-      projects,
-      deployments,
+      projects: safeData.projects,
+      deployments: safeData.deployments,
     });
   }
 
@@ -378,12 +414,13 @@ export default function ChatPage() {
         };
       }
 
+      const safeData = safeVercelToolData(data);
       const summary = intent.tool === "list_projects"
-        ? `${Array.isArray(data.projects) ? data.projects.length : 0} project(s) returned.`
-        : `${Array.isArray(data.deployments) ? data.deployments.length : 0} deployment(s) returned for the selected project.`;
+        ? `${safeData.projects?.length ?? 0} project(s) returned.`
+        : `${safeData.deployments?.length ?? 0} deployment(s) returned for the selected project.`;
       return {
-        card: vercelToolCard(intent, "success", summary, data),
-        promptContext: `VERIFIED VERCEL TOOL RESULT for ${intent.tool}: ${JSON.stringify(data).slice(0, 8000)}. This tool has completed. Explain only this result; do not claim that a call is still running or waiting.`,
+        card: vercelToolCard(intent, "success", summary, safeData),
+        promptContext: `VERIFIED VERCEL TOOL RESULT for ${intent.tool}: ${JSON.stringify(safeData).slice(0, 8000)}. This tool has completed. Explain only this result; do not claim that a call is still running or waiting.`,
         ok: true,
       };
     } catch {

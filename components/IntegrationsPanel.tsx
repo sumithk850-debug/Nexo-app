@@ -46,17 +46,18 @@ interface VercelProject {
   name: string;
   framework: string | null;
   productionUrl: string | null;
+  scope: { kind: "personal" | "team"; teamId: string | null; label: string };
 }
 
 interface VercelDeployment {
   id: string;
-  url: string;
-  readyState: string;
-  createdAt: number | string;
+  url: string | null;
+  readyState: string | null;
+  createdAt: number | null;
   meta: { gitCommitMessage: string | null } | null;
   isProduction: boolean;
-  projectId: string;
-  ready: boolean | null;
+  projectId: string | null;
+  ready: boolean;
 }
 
 interface SupabaseProject {
@@ -69,8 +70,9 @@ interface ApprovalState {
   kind: "vercel-promote" | "supabase-sql";
   projectId: string;
   projectName: string;
+  teamId?: string | null;
   deploymentId?: string;
-  deploymentUrl?: string;
+  deploymentUrl?: string | null;
   sql?: string;
   busy: boolean;
   error: string | null;
@@ -172,6 +174,7 @@ export function IntegrationsPanel({
   const [vercelDeployments, setVercelDeployments] = useState<Record<string, VercelDeployment[]>>({});
   const [vercelDataLoading, setVercelDataLoading] = useState(false);
   const [vercelDataError, setVercelDataError] = useState<string | null>(null);
+  const [vercelAccessMessage, setVercelAccessMessage] = useState<string | null>(null);
   const [vercelExpanded, setVercelExpanded] = useState(false);
 
   // Supabase live data
@@ -205,6 +208,7 @@ export function IntegrationsPanel({
     if (!userId) return;
     setVercelDataLoading(true);
     setVercelDataError(null);
+    setVercelAccessMessage(null);
     try {
       const response = await authenticatedFetch(`/api/vercel/deployments?userId=${encodeURIComponent(userId)}`, {
         cache: "no-store",
@@ -214,8 +218,14 @@ export function IntegrationsPanel({
         setVercelDataError(data.error ?? "Could not load Vercel data.");
         return;
       }
-      setVercelProjects(data.projects ?? []);
+      const projects = Array.isArray(data.projects) ? data.projects : [];
+      setVercelProjects(projects);
       setVercelDeployments(data.deployments ?? {});
+      if (projects.length === 0 && typeof data.inaccessibleScopes === "number" && data.inaccessibleScopes > 0) {
+        setVercelAccessMessage("Signed in, but project access was not granted for this account. Reconnect Vercel with project access and try again.");
+      } else if (typeof data.inaccessibleScopes === "number" && data.inaccessibleScopes > 0) {
+        setVercelAccessMessage("Some account or team scopes could not be read. Visible projects are shown below.");
+      }
     } catch {
       setVercelDataError("Could not load Vercel data.");
     } finally {
@@ -314,15 +324,23 @@ export function IntegrationsPanel({
     setVercelExpanded(false);
     setVercelProjects([]);
     setVercelDeployments({});
+    setVercelAccessMessage(null);
     setVercelDisconnectConfirm(false);
     await loadStatus();
   }
 
-  function confirmVercelPromote(projectName: string, projectId: string, deploymentId: string, deploymentUrl?: string) {
+  function confirmVercelPromote(
+    projectName: string,
+    projectId: string,
+    teamId: string | null,
+    deploymentId: string,
+    deploymentUrl?: string | null
+  ) {
     setApproval({
       kind: "vercel-promote",
       projectId,
       projectName,
+      teamId,
       deploymentId,
       deploymentUrl,
       busy: false,
@@ -340,7 +358,7 @@ export function IntegrationsPanel({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "promote",
-            payload: { projectId: approval.projectId, deploymentId: approval.deploymentId },
+            payload: { projectId: approval.projectId, deploymentId: approval.deploymentId, teamId: approval.teamId ?? null },
           }),
         });
         const data = await response.json();
@@ -673,9 +691,14 @@ export function IntegrationsPanel({
                         </button>
                       </div>
                     )}
-                    {!vercelDataLoading && !vercelDataError && vercelProjects.length === 0 && (
+                    {vercelAccessMessage && (
+                      <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+                        {vercelAccessMessage}
+                      </p>
+                    )}
+                    {!vercelDataLoading && !vercelDataError && vercelProjects.length === 0 && !vercelAccessMessage && (
                       <p className="rounded-lg border border-edge px-3 py-2 text-[11px] text-ink-faint">
-                        No projects found on this Vercel account.
+                        No projects found in the accessible Vercel account or team scopes.
                       </p>
                     )}
                     {vercelProjects.map((project) => {
@@ -683,9 +706,14 @@ export function IntegrationsPanel({
                       return (
                         <section key={project.id} className="rounded-xl border border-edge bg-panel/60 p-3">
                           <div className="flex items-center justify-between gap-2">
-                            <h4 className="truncate text-xs font-semibold text-ink" title={project.productionUrl ?? project.name}>
-                              {project.name}
-                            </h4>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-xs font-semibold text-ink" title={project.productionUrl ?? project.name}>
+                                {project.name}
+                              </h4>
+                              <p className="mt-0.5 truncate text-[10px] text-ink-faint" title={project.scope.label}>
+                                {project.scope.label}
+                              </p>
+                            </div>
                             {project.productionUrl ? (
                               <a
                                 href={project.productionUrl}
@@ -709,8 +737,8 @@ export function IntegrationsPanel({
                                   className="flex flex-wrap items-center justify-between gap-1.5 rounded-lg border border-edge/70 bg-void/40 px-2.5 py-1.5"
                                 >
                                   <div className="min-w-0 flex-1">
-                                    <p className="truncate text-[11px] font-medium text-ink-faint" title={commitMessage ?? deployment.url}>
-                                      {commitMessage ?? deployment.url}
+                                    <p className="truncate text-[11px] font-medium text-ink-faint" title={commitMessage ?? deployment.url ?? deployment.id}>
+                                      {commitMessage ?? deployment.url ?? deployment.id}
                                     </p>
                                     <p className="mt-0.5 font-mono text-[10px] text-ink-faint/70">
                                       {deployment.readyState}{deployment.isProduction ? " · production" : ""}
@@ -720,7 +748,7 @@ export function IntegrationsPanel({
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        confirmVercelPromote(project.name, project.id, deployment.id, deployment.url)
+                                        confirmVercelPromote(project.name, project.id, project.scope.teamId, deployment.id, deployment.url)
                                       }
                                       className="shrink-0 rounded-md border border-cyan/40 px-2 py-1 text-[10px] font-semibold text-cyan transition hover:bg-cyan/10"
                                     >
