@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   try {
     const { decryptIntegrationToken } = await import("@/lib/integrationToken.server");
     const token = decryptIntegrationToken(data.access_token);
-    const res = await fetch("https://api.vercel.com/oauth/userinfo", {
+    const res = await fetch("https://api.vercel.com/login/oauth/userinfo", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {

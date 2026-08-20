@@ -258,6 +258,9 @@ export function IntegrationsPanel({
       setConnectionMessage({ kind: "success", text: "GitHub repository access can be upgraded by reconnecting and approving repository permissions." });
     } else if (vercelState === "connected") {
       setConnectionMessage({ kind: "success", text: `Vercel connected${params.get("user") ? ` as ${params.get("user")}` : ""}.` });
+      // The callback persisted the protected connection before redirecting here.
+      // Re-read status immediately so the Vercel card reflects that saved state.
+      void loadStatus();
     } else if (vercelState === "error") {
       setConnectionMessage({ kind: "error", text: vercelCallbackError(params.get("reason")) });
     } else if (supabaseState === "connected") {
@@ -277,7 +280,7 @@ export function IntegrationsPanel({
       const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
       window.history.replaceState({}, "", newUrl);
     }
-  }, []);
+  }, [loadStatus]);
 
   // Refresh Vercel viewer data whenever the connection state changes.
   useEffect(() => {

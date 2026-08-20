@@ -29,6 +29,8 @@ import type { ChatMessage } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
 import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
+import { createVercelReadBlock, type VercelReadCardData } from "@/lib/vercelReadParser";
+import { parseVercelReadToolIntents, stripVercelReadToolBlocks, type VercelReadToolIntent } from "@/lib/vercelToolParser";
 import { getSessionId } from "@/lib/session";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
@@ -328,6 +330,66 @@ export default function ChatPage() {
       return {
         card: supabaseToolCard(intent, "error", "Nexo could not reach the Supabase tool endpoint. No result is being claimed."),
         promptContext: `Supabase tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
+        ok: false,
+      };
+    }
+  }
+
+  function vercelToolCard(intent: VercelReadToolIntent, state: VercelReadCardData["state"], message: string, data?: Record<string, unknown>) {
+    const projects = Array.isArray(data?.projects) ? data.projects as VercelReadCardData["projects"] : undefined;
+    const deployments = Array.isArray(data?.deployments) ? data.deployments as VercelReadCardData["deployments"] : undefined;
+    const kind = intent.tool === "list_projects" ? "projects" : "deployments";
+    const loadingTitle = intent.tool === "list_projects" ? "Reading connected Vercel projects" : "Reading recent Vercel deployments";
+    const successTitle = intent.tool === "list_projects" ? "Verified Vercel project result" : "Verified Vercel deployment result";
+    return createVercelReadBlock({
+      state,
+      kind,
+      title: state === "success" ? successTitle : loadingTitle,
+      message,
+      projectId: intent.tool === "list_deployments" ? intent.projectId : undefined,
+      projects,
+      deployments,
+    });
+  }
+
+  async function executeVercelReadTool(intent: VercelReadToolIntent): Promise<{ card: string; promptContext: string; ok: boolean }> {
+    const currentUserId = user?.id;
+    if (!currentUserId) {
+      return {
+        card: vercelToolCard(intent, "needs_connection", "Sign in and connect Vercel before Nexo can run a verified read."),
+        promptContext: "The Vercel tool did not run because there is no signed-in user connection.",
+        ok: false,
+      };
+    }
+
+    try {
+      const response = await authenticatedFetch(`/api/vercel/tool?userId=${encodeURIComponent(currentUserId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(intent),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const needsConnection = response.status === 403 || response.status === 404;
+        return {
+          card: vercelToolCard(intent, needsConnection ? "needs_connection" : "error", data.error ?? "The live Vercel read did not return a result."),
+          promptContext: `Vercel tool ${intent.tool} failed: ${data.error ?? "unknown error"}. Do not claim the request is waiting or complete.`,
+          ok: false,
+        };
+      }
+
+      const summary = intent.tool === "list_projects"
+        ? `${Array.isArray(data.projects) ? data.projects.length : 0} project(s) returned.`
+        : `${Array.isArray(data.deployments) ? data.deployments.length : 0} deployment(s) returned for the selected project.`;
+      return {
+        card: vercelToolCard(intent, "success", summary, data),
+        promptContext: `VERIFIED VERCEL TOOL RESULT for ${intent.tool}: ${JSON.stringify(data).slice(0, 8000)}. This tool has completed. Explain only this result; do not claim that a call is still running or waiting.`,
+        ok: true,
+      };
+    } catch {
+      return {
+        card: vercelToolCard(intent, "error", "Nexo could not reach the Vercel tool endpoint. No result is being claimed."),
+        promptContext: `Vercel tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
         ok: false,
       };
     }
@@ -752,7 +814,7 @@ export default function ChatPage() {
     uploadedImages?: { base64Image: string }[],
     providedController?: AbortController,
     initialContent = "",
-    supabaseToolDepth = 0,
+    liveToolDepth = 0,
     responseContinuationDepth = 0
   ) {
     const effectiveModel = override
@@ -908,7 +970,7 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           accumulated,
-          supabaseToolDepth,
+          liveToolDepth,
           responseContinuationDepth + 1,
         );
       }
@@ -925,7 +987,7 @@ export default function ChatPage() {
         );
       }
 
-      const supabaseToolIntent = supabaseToolDepth === 0
+      const supabaseToolIntent = liveToolDepth === 0
         ? parseSupabaseReadToolIntents(accumulated)[0]
         : undefined;
       if (supabaseToolIntent) {
@@ -953,7 +1015,39 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           verifiedTool.card,
-          supabaseToolDepth + 1
+          liveToolDepth + 1
+        );
+      }
+
+      const vercelToolIntent = liveToolDepth === 0
+        ? parseVercelReadToolIntents(accumulated)[0]
+        : undefined;
+      if (vercelToolIntent) {
+        const toolRequestText = stripVercelReadToolBlocks(accumulated).trim();
+        const loadingCard = vercelToolCard(
+          vercelToolIntent,
+          "loading",
+          "Nexo is validating the connection and running this read-only Vercel tool now."
+        );
+        setMessages((prev) => prev.map((message) => (
+          message.id === assistantId ? { ...message, content: loadingCard } : message
+        )));
+
+        const verifiedTool = await executeVercelReadTool(vercelToolIntent);
+        const continuedConversation: ChatMessage[] = [
+          ...conversationSoFar,
+          { id: `vercel-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Nexo requested a verified Vercel read tool." },
+          { id: `vercel-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Vercel read executed by Nexo]\n${verifiedTool.promptContext}` },
+        ];
+        return streamResponse(
+          chatId,
+          continuedConversation,
+          assistantId,
+          override,
+          uploadedImages,
+          controller,
+          verifiedTool.card,
+          liveToolDepth + 1
         );
       }
 

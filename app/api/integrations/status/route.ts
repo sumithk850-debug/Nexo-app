@@ -101,7 +101,7 @@ async function checkVercelConnection(userId: string) {
 
   try {
     const token = decryptIntegrationToken(data.access_token);
-    const response = await fetch("https://api.vercel.com/oauth/userinfo", {
+    const response = await fetch("https://api.vercel.com/login/oauth/userinfo", {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });

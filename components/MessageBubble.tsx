@@ -11,10 +11,13 @@ import { parseCraftSegments } from "@/lib/craftParser";
 import { parseSupabaseTaskBlocks, stripSupabaseTaskBlocks, type SupabaseTask } from "@/lib/supabaseTaskParser";
 import { parseSupabaseReadBlocks, stripSupabaseReadBlocks } from "@/lib/supabaseReadParser";
 import { stripSupabaseReadToolBlocks } from "@/lib/supabaseToolParser";
+import { parseVercelReadBlocks, stripVercelReadBlocks } from "@/lib/vercelReadParser";
+import { stripVercelReadToolBlocks } from "@/lib/vercelToolParser";
 import { parseClarificationBlocks, stripClarificationBlocks } from "@/lib/clarificationParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SupabaseReadCard } from "./SupabaseReadCard";
+import { VercelReadCard } from "./VercelReadCard";
 import { SummaryCard } from "./SummaryCard";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
@@ -132,7 +135,7 @@ const markdownComponents = {
 };
 
 function normalizeMarkdownForDisplay(content: string) {
-  const withoutSupabaseCards = stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content)));
+  const withoutSupabaseCards = stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content)))));
   return withoutSupabaseCards
     .split(/(```[\s\S]*?```)/g)
     .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
@@ -140,7 +143,7 @@ function normalizeMarkdownForDisplay(content: string) {
 }
 
 function toSpeakableText(content: string) {
-  return stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(content))
+  return stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(content))))
     .replace(/```[\s\S]*?```/g, " Code block omitted. ")
     .replace(/!?(\[[^\]]*\])\([^)]*\)/g, "$1")
     .replace(/[#>*_`~]/g, " ")
@@ -187,8 +190,9 @@ export function MessageBubble({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
+  const vercelReadCards = parseVercelReadBlocks(message.content);
   const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
-  const displayContent = stripClarificationBlocks(stripSupabaseReadBlocks(message.content));
+  const displayContent = stripClarificationBlocks(stripVercelReadBlocks(stripSupabaseReadBlocks(message.content)));
 
   useEffect(() => {
     return () => {
@@ -349,6 +353,7 @@ export function MessageBubble({
         {coderMode ? (
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
+            {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
@@ -423,6 +428,7 @@ export function MessageBubble({
         ) : (
           <div className="prose-nexo text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
+            {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
