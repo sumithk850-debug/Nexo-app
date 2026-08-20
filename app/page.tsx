@@ -6,6 +6,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Signal } from "@/components/Signal";
+import { NexoSplash } from "@/components/NexoSplash";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { AnnouncementModal } from "@/components/AnnouncementModal";
 import { AuthModal } from "@/components/AuthModal";
@@ -102,6 +103,7 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [splashVisible, setSplashVisible] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -151,6 +153,11 @@ export default function ChatPage() {
   const streamStartedAtRef = useRef<number | null>(null);
   const streamingLockRef = useRef(false);
   const attachmentPreparationLockRef = useRef(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSplashVisible(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!isStreaming || streamStartedAtRef.current === null) {
@@ -1236,6 +1243,10 @@ export default function ChatPage() {
     } catch {
       // fail silently
     }
+  }
+
+  if (splashVisible) {
+    return <NexoSplash />;
   }
 
   if (authLoading) {

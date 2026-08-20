@@ -217,3 +217,73 @@ textarea:focus-visible {
 .prose-nexo table ol {
   padding-left: 1em;
 }
+
+.nexo-splash {
+  background:
+    radial-gradient(circle at 50% 42%, rgb(var(--color-cyan) / 0.12), transparent 28%),
+    radial-gradient(circle at 15% 90%, rgb(var(--color-indigo) / 0.12), transparent 32%),
+    rgb(var(--color-void));
+}
+
+.nexo-splash-grid {
+  background-image:
+    linear-gradient(rgb(var(--color-edge) / 0.45) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--color-edge) / 0.45) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 12%, transparent 76%);
+  opacity: 0.4;
+}
+
+.nexo-splash-orb {
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.16;
+  pointer-events: none;
+  animation: nexo_splash_orb 5s ease-in-out infinite alternate;
+}
+
+.nexo-splash-orb-left {
+  left: -11rem;
+  bottom: -10rem;
+  background: rgb(var(--color-indigo));
+}
+
+.nexo-splash-orb-right {
+  right: -11rem;
+  top: -10rem;
+  background: rgb(var(--color-cyan));
+  animation-delay: -2.2s;
+}
+
+.nexo-splash-mark {
+  animation: nexo_splash_mark 1.8s ease-in-out infinite alternate;
+}
+
+.nexo-splash-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(var(--color-cyan));
+  box-shadow: 0 0 14px rgb(var(--color-cyan) / 0.9);
+  animation: nexo_splash_dot 1.2s ease-in-out infinite;
+}
+
+.nexo-splash-dot-delay-1 { animation-delay: 160ms; }
+.nexo-splash-dot-delay-2 { animation-delay: 320ms; }
+
+@keyframes nexo_splash_mark {
+  from { transform: translateY(3px) scale(0.98); opacity: 0.82; }
+  to { transform: translateY(-3px) scale(1); opacity: 1; }
+}
+
+@keyframes nexo_splash_orb {
+  from { transform: scale(0.92) translate3d(0, 0, 0); }
+  to { transform: scale(1.08) translate3d(0, -14px, 0); }
+}
+
+@keyframes nexo_splash_dot {
+  0%, 100% { transform: scale(0.7); opacity: 0.35; }
+  50% { transform: scale(1.25); opacity: 1; }
+}

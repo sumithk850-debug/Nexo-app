@@ -52,3 +52,4 @@
 - [x] Fix only repository file-read completeness/retries and response-stream completeness so verified reads do not produce invented fallback prose and long replies do not stop early.
 - [x] Investigate only the GitHub selected-repository `Not Found` commit failure and report its root cause without changing code or configuration.
 - [x] Add a safe OAuth credential fallback when a GitHub App installation token cannot access the selected repository, without changing any other commit or UI behavior.
+- [x] Replace the plain auth loading screen with a branded Nexo splash screen that displays for a few seconds before the existing AI interface.
