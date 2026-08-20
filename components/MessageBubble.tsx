@@ -40,7 +40,6 @@ import "prismjs/components/prism-ini";
 import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
-import { FileActivityPreview } from "./FileActivityPreview";
 import { authenticatedFetch } from "@/lib/authFetch";
 
 /**
@@ -188,7 +187,6 @@ export function MessageBubble({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
-  const fileActivities = message.fileActivities ?? [];
   const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
   const displayContent = stripClarificationBlocks(stripSupabaseReadBlocks(message.content));
 
@@ -351,7 +349,6 @@ export function MessageBubble({
         {coderMode ? (
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
-            {fileActivities.map((artifact) => <FileActivityPreview key={artifact.id} artifact={artifact} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
@@ -426,7 +423,6 @@ export function MessageBubble({
         ) : (
           <div className="prose-nexo text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
-            {fileActivities.map((artifact) => <FileActivityPreview key={artifact.id} artifact={artifact} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
