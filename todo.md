@@ -52,3 +52,7 @@
 - [x] Fix only repository file-read completeness/retries and response-stream completeness so verified reads do not produce invented fallback prose and long replies do not stop early.
 - [x] Investigate only the GitHub selected-repository `Not Found` commit failure and report its root cause without changing code or configuration.
 - [x] Add a safe OAuth credential fallback when a GitHub App installation token cannot access the selected repository, without changing any other commit or UI behavior.
+- [ ] Review the user’s latest remote repository changes read-only and report change scope plus validation results without modifying code or configuration.
+- [x] Review the user’s latest remote repository changes read-only and report change scope plus validation results without modifying code or configuration.
+- [ ] Continue the same assistant response automatically with a verified natural answer after Vercel, Supabase, or GitHub task-card tool results return; preserve all fetch, task-card, approval, and UI behavior.
+- [x] Continue the same assistant response automatically with a verified natural answer after Vercel, Supabase, or GitHub task-card tool results return; preserve all fetch, task-card, approval, and UI behavior.
