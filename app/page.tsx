@@ -24,7 +24,7 @@ import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, FileActivityArtifact } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
 import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
@@ -33,6 +33,7 @@ import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
+import { createProposedFileActivities, createVerifiedReadActivities, countFileLines, mergeFileActivities } from "@/lib/fileActivity";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2 } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
@@ -184,6 +185,86 @@ export default function ChatPage() {
     firstTokenAtRef.current = null;
     speedSamplesRef.current = [];
     setTypingSpeed(0);
+  }
+
+  function updateFileActivities(assistantId: string, updater: (activities: FileActivityArtifact[]) => FileActivityArtifact[]) {
+    setMessages((previous) => previous.map((message) => (
+      message.id === assistantId
+        ? { ...message, fileActivities: updater(message.fileActivities ?? []) }
+        : message
+    )));
+  }
+
+  async function hydrateVerifiedReadArtifacts(assistantId: string, paths: string[]) {
+    if (!user?.id) return;
+    const activities = createVerifiedReadActivities(paths);
+    updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, activities));
+    await Promise.all(activities.map(async (activity) => {
+      try {
+        const response = await authenticatedFetch(
+          `/api/github/file?userId=${encodeURIComponent(user.id)}&path=${encodeURIComponent(activity.filePath)}`,
+          { headers: { "Cache-Control": "no-store" } }
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || typeof payload.content !== "string") {
+          throw new Error(payload.error ?? "The verified file endpoint did not return source content.");
+        }
+        updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, [{
+          ...activity,
+          state: "success",
+          content: payload.content,
+          lineCount: countFileLines(payload.content),
+          message: "Verified live file from the selected GitHub repository.",
+        }]));
+      } catch (error) {
+        updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, [{
+          ...activity,
+          state: "error",
+          message: error instanceof Error ? error.message : "Nexo could not retrieve this verified file.",
+        }]));
+      }
+    }));
+  }
+
+  async function verifyCommittedFileArtifacts(
+    assistantId: string,
+    files: Array<{ filePath: string; content: string; type: "editing" | "creating" | "deleting" }>
+  ) {
+    if (!user?.id) return;
+    await Promise.all(files.map(async (file) => {
+      const id = `proposal:${file.type}:${file.filePath}`;
+      if (file.type === "deleting") {
+        updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, [{ id, action: "deleting", filePath: file.filePath, language: "text", state: "success", message: "Verified deletion committed to GitHub." }]));
+        return;
+      }
+      try {
+        const response = await authenticatedFetch(
+          `/api/github/file?userId=${encodeURIComponent(user.id)}&path=${encodeURIComponent(file.filePath)}`,
+          { headers: { "Cache-Control": "no-store" } }
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || typeof payload.content !== "string") throw new Error(payload.error ?? "The committed file could not be verified.");
+        updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, [{
+          id,
+          action: file.type,
+          filePath: file.filePath,
+          language: file.filePath.split(".").pop() ?? "text",
+          state: "success",
+          content: payload.content,
+          lineCount: countFileLines(payload.content),
+          message: "Verified live file after the approved GitHub commit.",
+        }]));
+      } catch (error) {
+        updateFileActivities(assistantId, (existing) => mergeFileActivities(existing, [{
+          id,
+          action: file.type,
+          filePath: file.filePath,
+          language: file.filePath.split(".").pop() ?? "text",
+          state: "error",
+          message: error instanceof Error ? error.message : "The committed file could not be verified.",
+        }]));
+      }
+    }));
   }
 
   function startStreamingTurn(assistantId: string) {
@@ -429,6 +510,14 @@ export default function ChatPage() {
 
       if (lastAssistantMsg.content && !isStreaming) {
         const parsed = parseCraftResponse(lastAssistantMsg.content);
+        const proposedArtifacts = createProposedFileActivities(parsed.fileActions);
+        if (proposedArtifacts.length > 0) {
+          setMessages((previous) => previous.map((message) => (
+            message.id === lastAssistantMsg.id
+              ? { ...message, fileActivities: mergeFileActivities(message.fileActivities, proposedArtifacts) }
+              : message
+          )));
+        }
         if (parsed.hasProposal) {
           setPendingApproval((prev) => {
             // Don't recreate the card if we already have one for this message
@@ -712,6 +801,7 @@ export default function ChatPage() {
         console.error("[approve] Commit failed:", data.error ?? data.message);
       } else {
         setCommitErrorDetail(null);
+        void verifyCommittedFileArtifacts(pendingApproval.messageId, filesToCommit);
       }
       setPendingApproval({
         ...pendingApproval,
@@ -854,6 +944,7 @@ export default function ChatPage() {
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
         );
+        void hydrateVerifiedReadArtifacts(assistantId, verifiedReadPaths);
       }
 
       const reader = res.body.getReader();

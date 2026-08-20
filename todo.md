@@ -52,3 +52,16 @@
 - [x] Fix only repository file-read completeness/retries and response-stream completeness so verified reads do not produce invented fallback prose and long replies do not stop early.
 - [x] Investigate only the GitHub selected-repository `Not Found` commit failure and report its root cause without changing code or configuration.
 - [x] Add a safe OAuth credential fallback when a GitHub App installation token cannot access the selected repository, without changing any other commit or UI behavior.
+- [ ] Review the user’s latest remote repository changes read-only and report change scope plus validation results without modifying code or configuration.
+- [x] Review the user’s latest remote repository changes read-only and report change scope plus validation results without modifying code or configuration.
+- [ ] Continue the same assistant response automatically with a verified natural answer after Vercel, Supabase, or GitHub task-card tool results return; preserve all fetch, task-card, approval, and UI behavior.
+- [x] Continue the same assistant response automatically with a verified natural answer after Vercel, Supabase, or GitHub task-card tool results return; preserve all fetch, task-card, approval, and UI behavior.
+- [x] Revert only commit `4ff418f` (`fix: continue chat after integration task results`) and preserve every other repository change.
+- [ ] Generate and deliver a one-minute original Nexo AI melodic-trap/future-bass vocal song using the user-approved concept and lyrics direction.
+- [x] Generate and deliver a one-minute original Nexo AI melodic-trap/future-bass vocal song using the user-approved concept and lyrics direction.
+- [ ] Generate and deliver a second one-minute original Nexo anthem featuring a cinematic vocal break, silence, two-stage explosive drop, and final lift.
+- [x] Generate and deliver a second one-minute original Nexo anthem featuring a cinematic vocal break, silence, two-stage explosive drop, and final lift.
+- [ ] Generate and deliver a one-minute original Sinhala deep-male-vocal Nexo anthem preserving the cinematic two-stage rise and heavy bass energy.
+- [ ] Retry the Sinhala Nexo anthem audio generation after the earlier music-service failures.
+- [ ] Add real clickable GitHub file activity preview cards for verified read/edit/create operations, with full content and diff viewer while keeping main chat responses code-free by default.
+- [x] Add real clickable GitHub file activity preview cards for verified read/edit/create operations, with full content and diff viewer while keeping main chat responses code-free by default.
