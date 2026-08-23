@@ -15,6 +15,7 @@ import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
+import { AgentTimeline } from "@/components/AgentTimeline";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
@@ -1731,6 +1732,14 @@ export default function ChatPage() {
                 )}
               </div>
             </div>
+
+            <AgentTimeline
+              streaming={isStreaming}
+              actions={githubIntegrationEnabled ? activityActions : []}
+              searching={activitySearching?.action ?? null}
+              attachmentState={attachmentPreparation?.state ?? null}
+              approvalState={pendingApproval?.status ?? null}
+            />
 
             <LiveStatusBar
               actions={githubIntegrationEnabled ? activityActions : []}
