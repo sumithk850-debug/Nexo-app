@@ -1536,6 +1536,7 @@ export default function ChatPage() {
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
       <ChatSidebar
         chats={chats}
+        sessionId={sessionId}
         activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, X, MessageSquare, Loader2 } from "lucide-react";
+import { Search, X, MessageSquare, Loader2, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface SearchModalProps {
@@ -13,7 +13,7 @@ interface SearchModalProps {
 
 export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchModalProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<{ id: string; chat_id: string; content: string; chat_title?: string }[]>([]);
+  const [results, setResults] = useState<Array<{ id: string; chat_id: string; content: string; chat_title: string; kind: "conversation" | "message" }>>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,27 +33,44 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
       try {
         const { data: chats } = await supabase
           .from("chats")
-          .select("id, title")
-          .eq("session_id", sessionId);
-          
-        if (!chats || chats.length === 0) return;
-        
-        const chatIds = chats.map(c => c.id);
-        const chatMap = new Map(chats.map(c => [c.id, c.title]));
+          .select("id, title, updated_at")
+          .eq("session_id", sessionId)
+          .order("updated_at", { ascending: false });
+
+        if (!chats || chats.length === 0) {
+          setResults([]);
+          return;
+        }
+
+        const normalizedQuery = query.trim().toLocaleLowerCase();
+        const chatIds = chats.map((chat) => chat.id);
+        const chatMap = new Map(chats.map((chat) => [chat.id, chat.title]));
+        const titleResults = chats
+          .filter((chat) => chat.title.toLocaleLowerCase().includes(normalizedQuery))
+          .slice(0, 8)
+          .map((chat) => ({
+            id: `chat:${chat.id}`,
+            chat_id: chat.id,
+            chat_title: chat.title,
+            content: "Conversation title",
+            kind: "conversation" as const,
+          }));
 
         const { data: messages } = await supabase
           .from("messages")
           .select("id, chat_id, content")
           .in("chat_id", chatIds)
-          .ilike("content", `%${query}%`)
+          .ilike("content", `%${query.trim()}%`)
           .limit(20);
 
-        if (messages) {
-          setResults(messages.map(m => ({
-            ...m,
-            chat_title: chatMap.get(m.chat_id) || "Unknown Chat"
-          })));
-        }
+        const messageResults = (messages || []).map((message) => ({
+          id: message.id,
+          chat_id: message.chat_id,
+          content: message.content,
+          chat_title: chatMap.get(message.chat_id) || "Untitled conversation",
+          kind: "message" as const,
+        }));
+        setResults([...titleResults, ...messageResults].slice(0, 20));
       } catch (err) {
         console.error(err);
       } finally {
@@ -80,7 +97,7 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search across all chats..."
+            placeholder="Search conversations and messages..."
             className="flex-1 bg-transparent text-ink placeholder:text-ink-faint focus:outline-none"
           />
           {loading && <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />}
@@ -106,10 +123,13 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
               className="flex w-full flex-col gap-1 rounded-xl p-3 text-left transition hover:bg-edge"
             >
               <div className="flex items-center gap-2 text-xs font-medium text-cyan">
-                <MessageSquare className="h-3.5 w-3.5" />
+                {res.kind === "conversation" ? <MessageSquare className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
                 {res.chat_title}
+                <span className="rounded bg-cyan/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan/80">
+                  {res.kind === "conversation" ? "Conversation" : "Message"}
+                </span>
               </div>
-              <p className="line-clamp-2 text-sm text-ink">
+              <p className={`line-clamp-2 text-sm ${res.kind === "conversation" ? "text-ink-muted" : "text-ink"}`}>
                 {res.content}
               </p>
             </button>

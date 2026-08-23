@@ -6,6 +6,7 @@ import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon,
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
+import { emptyChatFolderState, readChatFolderState, writeChatFolderState, type ChatFolderState } from "@/lib/chatFolders";
 
 const NEXO_THEMES: { id: Theme; color: string; name: string }[] = [
   { id: "dark", color: "#0A0E1A", name: "Deep Void" },
@@ -30,6 +31,7 @@ const TEMPLATES = [
 
 export function ChatSidebar({
   chats,
+  sessionId,
   activeChatId,
   onSelectChat,
   onNewChat,
@@ -49,6 +51,7 @@ export function ChatSidebar({
   onInsertTemplate,
 }: {
   chats: DbChat[];
+  sessionId: string;
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
@@ -74,57 +77,52 @@ export function ChatSidebar({
   const [personasOpen, setPersonasOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
 
-  // Chat Folder Organization state
+  // Project folders are local to the active Nexo browser session. This keeps the feature
+  // useful immediately without changing the current chat schema or its access model.
   const [folderView, setFolderView] = useState(true);
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const [customFoldersOpen, setCustomFoldersOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
+  const [folderState, setFolderState] = useState<ChatFolderState>(() => emptyChatFolderState());
+  const [projectCreatorOpen, setProjectCreatorOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
 
-  // Load folder assignments from localStorage
-  const [chatFolders, setChatFolders] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(localStorage.getItem("nexo_chat_folders") || "{}");
-    } catch {
-      return {};
-    }
-  });
+  useEffect(() => {
+    setFolderState(readChatFolderState(sessionId));
+  }, [sessionId]);
 
-  function saveFolderAssignment(chatId: string, folder: string) {
-    setChatFolders((prev) => {
-      const updated = { ...prev, [chatId]: folder };
-      localStorage.setItem("nexo_chat_folders", JSON.stringify(updated));
-      return updated;
-    });
-  }
-
-  function removeFolderAssignment(chatId: string) {
-    setChatFolders((prev) => {
-      const { [chatId]: _, ...rest } = prev;
-      localStorage.setItem("nexo_chat_folders", JSON.stringify(rest));
-      return rest;
-    });
-  }
-
-  function toggleFolderCollapse(folderName: string) {
-    setCollapsedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folderName)) {
-        next.delete(folderName);
-      } else {
-        next.add(folderName);
-      }
+  function updateFolderState(updater: (current: ChatFolderState) => ChatFolderState) {
+    setFolderState((current) => {
+      const next = updater(current);
+      writeChatFolderState(sessionId, next);
       return next;
     });
   }
 
-  function createCustomFolder() {
-    const name = newFolderName.trim();
-    if (!name) return;
-    setNewFolderName("");
-    // Create a folder marker — chats can be assigned to it
-    const existing = Object.values(chatFolders);
-    if (existing.includes(name)) return;
+  function assignChatToProject(chatId: string, projectId: string) {
+    updateFolderState((current) => ({
+      ...current,
+      assignments: projectId
+        ? { ...current.assignments, [chatId]: projectId }
+        : Object.fromEntries(Object.entries(current.assignments).filter(([id]) => id !== chatId)),
+    }));
+  }
+
+  function toggleFolderCollapse(folderId: string) {
+    updateFolderState((current) => ({
+      ...current,
+      collapsed: current.collapsed.includes(folderId)
+        ? current.collapsed.filter((id) => id !== folderId)
+        : [...current.collapsed, folderId],
+    }));
+  }
+
+  function createProjectFolder() {
+    const name = newProjectName.trim().replace(/\s+/g, " ");
+    if (!name || folderState.folders.some((folder) => folder.name.toLowerCase() === name.toLowerCase())) return;
+    updateFolderState((current) => ({
+      ...current,
+      folders: [...current.folders, { id: crypto.randomUUID(), name, createdAt: new Date().toISOString() }],
+    }));
+    setNewProjectName("");
+    setProjectCreatorOpen(false);
   }
 
   // Categorize chats into auto folders
@@ -140,31 +138,25 @@ export function ChatSidebar({
     return "Older";
   }
 
-  // Group chats by folder
-  function getGroupedChats(): Record<string, DbChat[]> {
-    if (!folderView) return { "": chats };
+  // Project groups appear first. Chats outside a project stay in the familiar date-based sections.
+  function getGroupedChats(): Array<{ id: string; name: string; chats: DbChat[]; isProject: boolean }> {
+    if (!folderView) return [];
 
-    const groups: Record<string, DbChat[]> = {};
+    const projects = folderState.folders
+      .map((folder) => ({
+        id: folder.id,
+        name: folder.name,
+        chats: chats.filter((chat) => folderState.assignments[chat.id] === folder.id),
+        isProject: true,
+      }));
+
     const autoFolders = ["Today", "Yesterday", "This Week", "Older"];
-    const customFolders = [...new Set(Object.values(chatFolders).filter((f) => !autoFolders.includes(f)))];
+    const unassigned = chats.filter((chat) => !folderState.assignments[chat.id]);
+    const datedGroups = autoFolders
+      .map((name) => ({ id: `date:${name}`, name, chats: unassigned.filter((chat) => getAutoFolder(chat) === name), isProject: false }))
+      .filter((group) => group.chats.length > 0);
 
-    // Custom folders first
-    for (const folder of customFolders) {
-      const folderChats = chats.filter((c) => chatFolders[c.id] === folder);
-      if (folderChats.length > 0) groups[folder] = folderChats;
-    }
-
-    // Auto folders
-    for (const folder of autoFolders) {
-      const folderChats = chats.filter((c) => {
-        // Only include if not in a custom folder
-        if (chatFolders[c.id] && !autoFolders.includes(chatFolders[c.id])) return false;
-        return getAutoFolder(c) === folder;
-      });
-      if (folderChats.length > 0) groups[folder] = folderChats;
-    }
-
-    return groups;
+    return [...projects, ...datedGroups];
   }
 
   const groupedChats = getGroupedChats();
@@ -339,32 +331,67 @@ export function ChatSidebar({
           ) : (
             <div className="space-y-4">
               {/* Folder header with toggle */}
-              <div className="flex items-center justify-between px-1">
+              <div className="flex items-center justify-between gap-2 px-1">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-                  {folderView ? "Chats by Folder" : "Recent Chats"}
+                  {folderView ? "Projects & Chats" : "Recent Chats"}
                 </p>
-                <button
-                  onClick={() => setFolderView(!folderView)}
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-ink-faint transition hover:bg-panel hover:text-ink"
-                  title={folderView ? "Switch to flat view" : "Switch to folder view"}
-                >
-                  {folderView ? <ChevronDown className="h-3 w-3" /> : <Folder className="h-3 w-3" />}
-                  {folderView ? "Flat" : "Folders"}
-                </button>
+                <div className="flex items-center gap-1">
+                  {folderView && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectCreatorOpen((open) => !open)}
+                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium text-cyan transition hover:bg-cyan/10"
+                      title="Create project folder"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" />
+                      Project
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setFolderView(!folderView)}
+                    className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] text-ink-faint transition hover:bg-panel hover:text-ink"
+                    title={folderView ? "Switch to flat view" : "Switch to project view"}
+                  >
+                    {folderView ? <ChevronDown className="h-3 w-3" /> : <Folder className="h-3 w-3" />}
+                    {folderView ? "Flat" : "Projects"}
+                  </button>
+                </div>
               </div>
+
+              {folderView && projectCreatorOpen && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    createProjectFolder();
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-cyan/20 bg-cyan/5 p-2"
+                >
+                  <FolderPlus className="h-4 w-4 shrink-0 text-cyan" />
+                  <input
+                    autoFocus
+                    value={newProjectName}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                    placeholder="Project name"
+                    maxLength={48}
+                    className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+                  />
+                  <button type="submit" className="rounded-md bg-cyan px-2 py-1 text-[10px] font-semibold text-panel transition hover:brightness-110">
+                    Add
+                  </button>
+                </form>
+              )}
 
               {folderView ? (
                 /* Folder-grouped view */
-                Object.entries(groupedChats).map(([folderName, folderChats]) => {
-                  const isCollapsed = collapsedFolders.has(folderName);
-                  const autoFolders = ["Today", "Yesterday", "This Week", "Older"];
-                  const isAuto = autoFolders.includes(folderName);
+                groupedChats.map((group) => {
+                  const { id: folderId, name: folderName, chats: folderChats, isProject } = group;
+                  const isCollapsed = folderState.collapsed.includes(folderId);
 
                   return (
-                    <div key={folderName} className="space-y-1">
+                    <div key={folderId} className="space-y-1">
                       {/* Folder header */}
                       <button
-                        onClick={() => toggleFolderCollapse(folderName)}
+                        onClick={() => toggleFolderCollapse(folderId)}
                         className="flex w-full items-center gap-1.5 px-1 py-1 text-left text-[10px] font-medium text-ink-muted transition hover:text-ink"
                       >
                         {isCollapsed ? (
@@ -372,12 +399,12 @@ export function ChatSidebar({
                         ) : (
                           <ChevronDown className="h-3 w-3" />
                         )}
-                        {isAuto ? (
-                          <FolderOpen className="h-3 w-3 text-cyan/60" />
+                        {isProject ? (
+                          <Folder className="h-3 w-3 text-cyan" />
                         ) : (
-                          <Folder className="h-3 w-3 text-amber-400/60" />
+                          <FolderOpen className="h-3 w-3 text-ink-faint" />
                         )}
-                        <span className="uppercase tracking-wider">{folderName}</span>
+                        <span className={isProject ? "tracking-wide text-ink" : "uppercase tracking-wider"}>{folderName}</span>
                         <span className="text-ink-faint">({folderChats.length})</span>
                       </button>
 
@@ -434,24 +461,15 @@ export function ChatSidebar({
                                     {/* Move to folder button */}
                                     <div className="relative">
                                       <select
-                                        value={chatFolders[chat.id] || ""}
-                                        onChange={(e) => {
-                                          if (e.target.value) {
-                                            saveFolderAssignment(chat.id, e.target.value);
-                                          } else {
-                                            removeFolderAssignment(chat.id);
-                                          }
-                                        }}
-                                        className="hidden group-hover:block rounded border border-edge bg-panel px-1 py-0.5 text-[10px] text-ink-faint focus:outline-none"
-                                        title="Move to folder"
+                                        value={folderState.assignments[chat.id] || ""}
+                                        onChange={(event) => assignChatToProject(chat.id, event.target.value)}
+                                        className="max-w-20 rounded border border-edge bg-panel px-1 py-0.5 text-[10px] text-ink-muted opacity-70 transition hover:opacity-100 focus:opacity-100 focus:outline-none"
+                                        title="Move to project"
+                                        aria-label={`Move ${chat.title} to project`}
                                       >
-                                        <option value="">Auto</option>
-                                        <option value="Today">Today</option>
-                                        <option value="Yesterday">Yesterday</option>
-                                        <option value="This Week">This Week</option>
-                                        <option value="Older">Older</option>
-                                        {[...new Set(Object.values(chatFolders).filter((f) => !autoFolders.includes(f)))].map((f) => (
-                                          <option key={f} value={f}>{f}</option>
+                                        <option value="">Inbox</option>
+                                        {folderState.folders.map((folder) => (
+                                          <option key={folder.id} value={folder.id}>{folder.name}</option>
                                         ))}
                                       </select>
                                     </div>
