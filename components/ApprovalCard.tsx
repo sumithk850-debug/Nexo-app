@@ -73,9 +73,11 @@ export function ApprovalCard({
   onRetry?: () => void;
 }) {
   const [diffOpen, setDiffOpen] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<"direct" | "pr">("direct");
-  const [showBranchInput, setShowBranchInput] = useState(false);
-  const [branchName, setBranchName] = useState("");
+  const [diffReviewed, setDiffReviewed] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<"direct" | "pr">("pr");
+  const [showBranchInput, setShowBranchInput] = useState(true);
+  const [branchName, setBranchName] = useState(`nexo-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`);
+  const [directAcknowledged, setDirectAcknowledged] = useState(false);
 
   const proposalActions = actions.filter((a) => {
     if (a.type === "reading") return false;
@@ -87,7 +89,11 @@ export function ApprovalCard({
 
   if (proposalActions.length === 0) return null;
 
+  const requiresDiffReview = !proposalActions.every((action) => action.type === "deleting");
+  const canApprove = (!requiresDiffReview || diffReviewed) && (selectedMode !== "direct" || directAcknowledged);
+
   const handleApprove = () => {
+    if (!canApprove) return;
     onApprove(selectedMode, selectedMode === "pr" ? branchName.trim() : undefined);
   };
 
@@ -98,10 +104,10 @@ export function ApprovalCard({
         <AlertTriangle className="h-4 w-4 flex-shrink-0 text-cyan" />
         <div>
           <p className="font-display text-sm font-bold text-ink">
-            NEXO Craft V3: Action Required
+            Review required
           </p>
           <p className="text-[11px] text-ink-muted">
-            The agent wants to make changes to your repository.
+            The agent prepared a repository change. Nothing is applied until you approve it.
           </p>
         </div>
       </div>
@@ -135,7 +141,7 @@ export function ApprovalCard({
                   )}
                   {action.type === "deleting" && (
                     <span className="flex-shrink-0 rounded-full border border-red-500/40 px-2 py-0.5 text-[10px] text-red-400">
-                      will be removed from GitHub
+                      will be removed
                     </span>
                   )}
                 </div>
@@ -158,7 +164,7 @@ export function ApprovalCard({
         {status === "pending" && (
           <div className="rounded-lg border border-edge bg-void p-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-              Commit mode
+              Release strategy
             </p>
             <div className="flex gap-2">
               <button
@@ -173,14 +179,14 @@ export function ApprovalCard({
                 }`}
               >
                 <GitCommit className="h-3.5 w-3.5" />
-                Commit to main
+Apply directly
               </button>
               <button
                 onClick={() => {
                   setSelectedMode("pr");
                   setShowBranchInput(true);
                   setBranchName(
-                    `nexo-craft/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`
+                    `nexo-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`
                   );
                 }}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition ${
@@ -190,7 +196,7 @@ export function ApprovalCard({
                 }`}
               >
                 <GitPullRequest className="h-3.5 w-3.5" />
-                Open as PR
+Create review branch
               </button>
             </div>
             {showBranchInput && selectedMode === "pr" && (
@@ -200,10 +206,21 @@ export function ApprovalCard({
                   type="text"
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
-                  placeholder="branch-name"
+                  placeholder="review-branch-name"
                   className="w-full rounded border border-edge bg-panel px-2 py-1.5 font-mono text-xs text-ink outline-none focus:border-cyan/50"
                 />
               </div>
+            )}
+            {selectedMode === "direct" && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-300/25 bg-amber-300/5 p-2 text-[11px] text-amber-100">
+                <input
+                  type="checkbox"
+                  checked={directAcknowledged}
+                  onChange={(event) => setDirectAcknowledged(event.target.checked)}
+                  className="mt-0.5 accent-cyan"
+                />
+                <span>I understand this applies the reviewed change directly to the default branch.</span>
+              </label>
             )}
           </div>
         )}
@@ -211,11 +228,14 @@ export function ApprovalCard({
         {/* Diff viewer */}
         {!proposalActions.every((a) => a.type === "deleting") && (
           <button
-            onClick={() => setDiffOpen((v) => !v)}
+            onClick={() => {
+              setDiffOpen((open) => !open);
+              setDiffReviewed(true);
+            }}
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge py-2 text-xs font-medium text-ink-muted transition hover:border-cyan/40 hover:text-ink"
           >
             {diffOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            {diffOpen ? "Hide code" : "View code"}
+            {diffOpen ? "Hide change details" : "Review change details"}
           </button>
         )}
 
@@ -251,13 +271,18 @@ export function ApprovalCard({
 
         {/* Action buttons */}
         {status === "pending" && (
-          <div className="flex gap-2 pt-1">
+          <div className="space-y-2 pt-1">
+            {requiresDiffReview && !diffReviewed && (
+              <p className="rounded-lg border border-amber-300/25 bg-amber-300/5 px-3 py-2 text-[11px] text-amber-100">Review the change details before approving this action.</p>
+            )}
+            <div className="flex gap-2">
             <button
               onClick={handleApprove}
-              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500"
+              disabled={!canApprove}
+              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Check className="h-4 w-4" />
-              Approve & Commit
+              {selectedMode === "pr" ? "Approve & create review" : "Approve & apply"}
               {selectedMode === "pr" && <GitPullRequest className="h-3.5 w-3.5" />}
             </button>
             <button
@@ -267,6 +292,7 @@ export function ApprovalCard({
               <X className="h-4 w-4" />
               Reject
             </button>
+            </div>
           </div>
         )}
 
@@ -275,7 +301,7 @@ export function ApprovalCard({
           <div className="rounded-lg bg-cyan/10 p-3">
             <div className="flex items-center gap-2 text-sm font-medium text-cyan">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>Committing to {repoFullName}…</span>
+              <span>Applying your approved change…</span>
             </div>
             <div className="mt-2 space-y-1">
               {PROGRESS_STEPS.map((step, i) => (
@@ -313,7 +339,7 @@ export function ApprovalCard({
                   className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs text-green-300 transition hover:bg-green-500/10"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  View commit on GitHub
+                  View commit
                 </a>
               )}
               {prUrl && (
@@ -324,7 +350,7 @@ export function ApprovalCard({
                   className="flex items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-500/5 px-3 py-2 text-xs text-purple-300 transition hover:bg-purple-500/10"
                 >
                   <GitPullRequest className="h-3.5 w-3.5" />
-                  View Pull Request on GitHub
+                  View review branch
                 </a>
               )}
             </div>
