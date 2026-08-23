@@ -1,27 +1,68 @@
-import { Signal } from "@/components/Signal";
-
 export function NexoSplash() {
   return (
     <main
-      className="nexo-splash relative flex min-h-screen items-center justify-center overflow-hidden bg-void px-6"
+      className="nexo-splash relative flex min-h-screen items-center justify-center overflow-hidden bg-void px-5"
       role="status"
-      aria-label="Loading Nexo AI"
+      aria-label="Loading"
     >
       <div className="nexo-splash-grid absolute inset-0" aria-hidden="true" />
       <div className="nexo-splash-orb nexo-splash-orb-left absolute" aria-hidden="true" />
       <div className="nexo-splash-orb nexo-splash-orb-right absolute" aria-hidden="true" />
 
-      <div className="nexo-splash-content relative z-10 flex w-full max-w-sm flex-col items-center text-center sm:max-w-md">
-        <div className="nexo-splash-mark flex h-28 w-28 items-center justify-center rounded-[1.75rem] border border-cyan/30 bg-panel/70 p-3 shadow-[0_0_80px_rgb(var(--color-cyan)/0.18)] backdrop-blur-xl sm:h-32 sm:w-32 sm:rounded-[2rem]">
-          <Signal size="lg" className="h-full w-full" />
-        </div>
-        <div className="nexo-splash-wordmark relative mt-7 flex items-center justify-center sm:mt-8">
-          <span className="font-display text-3xl font-black tracking-[0.22em] text-ink sm:text-4xl sm:tracking-[0.28em]">NEXO</span>
-          <span className="absolute -right-4 top-1/2 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-cyan shadow-[0_0_18px_rgb(var(--color-cyan))] sm:-right-5" aria-hidden="true" />
-        </div>
-        <p className="mt-3 px-2 font-mono text-[9px] uppercase tracking-[0.24em] text-ink-muted sm:text-[10px] sm:tracking-[0.34em]">
-          Think beyond. Create faster.
-        </p>
+      <div className="nexo-splash-mark relative z-10" aria-hidden="true">
+        <svg
+          className="nexo-splash-logo"
+          viewBox="0 0 240 240"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <linearGradient id="nexo-splash-ribbon" x1="44" y1="58" x2="196" y2="182" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#195BFF" />
+              <stop offset="0.5" stopColor="#0FA9FF" />
+              <stop offset="1" stopColor="#54F1FF" />
+            </linearGradient>
+            <linearGradient id="nexo-splash-ring" x1="37" y1="200" x2="204" y2="38" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#184EFF" />
+              <stop offset="1" stopColor="#4EE9FF" />
+            </linearGradient>
+            <filter id="nexo-splash-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          <circle
+            className="nexo-splash-ring"
+            cx="120"
+            cy="120"
+            r="93"
+            stroke="url(#nexo-splash-ring)"
+            strokeWidth="4"
+            strokeLinecap="round"
+            filter="url(#nexo-splash-glow)"
+          />
+          <path
+            className="nexo-splash-ribbon"
+            d="M48 120C70 77 96 77 120 120C144 163 170 163 192 120C170 77 144 77 120 120C96 163 70 163 48 120"
+            stroke="url(#nexo-splash-ribbon)"
+            strokeWidth="14"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#nexo-splash-glow)"
+          />
+          <path
+            className="nexo-splash-ribbon-highlight"
+            d="M48 120C70 77 96 77 120 120C144 163 170 163 192 120C170 77 144 77 120 120C96 163 70 163 48 120"
+            stroke="#B5FAFF"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
     </main>
   );

@@ -287,3 +287,77 @@ textarea:focus-visible {
   0%, 100% { transform: scale(0.7); opacity: 0.35; }
   50% { transform: scale(1.25); opacity: 1; }
 }
+
+/* Text-free Nexo splash sequence: ribbon draws first, then the outer ring, then the mark exits into the app. */
+.nexo-splash-mark {
+  animation: nexo_splash_complete 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: center;
+}
+
+.nexo-splash-logo {
+  display: block;
+  width: clamp(11.5rem, 45vw, 17.5rem);
+  height: auto;
+  overflow: visible;
+}
+
+.nexo-splash-ribbon,
+.nexo-splash-ribbon-highlight {
+  stroke-dasharray: 430;
+  stroke-dashoffset: 430;
+}
+
+.nexo-splash-ribbon {
+  animation: nexo_ribbon_draw 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
+}
+
+.nexo-splash-ribbon-highlight {
+  opacity: 0;
+  animation: nexo_ribbon_highlight 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
+}
+
+.nexo-splash-ring {
+  stroke-dasharray: 585;
+  stroke-dashoffset: 585;
+  opacity: 0;
+  animation: nexo_ring_draw 0.72s cubic-bezier(0.65, 0, 0.25, 1) 0.98s forwards;
+}
+
+@keyframes nexo_ribbon_draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes nexo_ribbon_highlight {
+  0% { stroke-dashoffset: 430; opacity: 0; }
+  55% { opacity: 0.25; }
+  100% { stroke-dashoffset: 0; opacity: 0.58; }
+}
+
+@keyframes nexo_ring_draw {
+  0% { stroke-dashoffset: 585; opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes nexo_splash_complete {
+  0% { opacity: 0; transform: scale(0.92); }
+  10% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.08); filter: blur(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexo-splash-mark { animation: nexo_splash_reduced_exit 2.6s ease forwards; }
+  .nexo-splash-ribbon,
+  .nexo-splash-ribbon-highlight,
+  .nexo-splash-ring {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes nexo_splash_reduced_exit {
+  0%, 82% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
