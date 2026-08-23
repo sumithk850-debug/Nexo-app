@@ -11,22 +11,17 @@ export function NexoSplash() {
       <div className="nexo-splash-orb nexo-splash-orb-left absolute" aria-hidden="true" />
       <div className="nexo-splash-orb nexo-splash-orb-right absolute" aria-hidden="true" />
 
-      <div className="nexo-splash-content relative z-10 flex flex-col items-center text-center">
-        <div className="nexo-splash-mark flex items-center justify-center rounded-[2rem] border border-cyan/30 bg-panel/70 p-7 shadow-[0_0_80px_rgb(var(--color-cyan)/0.18)] backdrop-blur-xl">
-          <Signal size="lg" className="scale-[1.8]" />
+      <div className="nexo-splash-content relative z-10 flex w-full max-w-sm flex-col items-center text-center sm:max-w-md">
+        <div className="nexo-splash-mark flex h-28 w-28 items-center justify-center rounded-[1.75rem] border border-cyan/30 bg-panel/70 p-3 shadow-[0_0_80px_rgb(var(--color-cyan)/0.18)] backdrop-blur-xl sm:h-32 sm:w-32 sm:rounded-[2rem]">
+          <Signal size="lg" className="h-full w-full" />
         </div>
-        <div className="nexo-splash-wordmark relative mt-8 flex items-center justify-center">
-          <span className="font-display text-4xl font-black tracking-[0.28em] text-ink">NEXO</span>
-          <span className="absolute -right-5 top-1/2 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-cyan shadow-[0_0_18px_rgb(var(--color-cyan))]" aria-hidden="true" />
+        <div className="nexo-splash-wordmark relative mt-7 flex items-center justify-center sm:mt-8">
+          <span className="font-display text-3xl font-black tracking-[0.22em] text-ink sm:text-4xl sm:tracking-[0.28em]">NEXO</span>
+          <span className="absolute -right-4 top-1/2 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-cyan shadow-[0_0_18px_rgb(var(--color-cyan))] sm:-right-5" aria-hidden="true" />
         </div>
-        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.34em] text-ink-muted">
+        <p className="mt-3 px-2 font-mono text-[9px] uppercase tracking-[0.24em] text-ink-muted sm:text-[10px] sm:tracking-[0.34em]">
           Think beyond. Create faster.
         </p>
-        <div className="mt-8 flex items-center gap-2" aria-hidden="true">
-          <span className="nexo-splash-dot" />
-          <span className="nexo-splash-dot nexo-splash-dot-delay-1" />
-          <span className="nexo-splash-dot nexo-splash-dot-delay-2" />
-        </div>
       </div>
     </main>
   );

@@ -1,16 +1,23 @@
-export function Signal({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) {
-  const heights =
-    size === "lg"
-      ? ["h-6", "h-10", "h-14", "h-8", "h-5"]
-      : size === "sm"
-      ? ["h-2", "h-3", "h-4", "h-3", "h-2"]
-      : ["h-3", "h-5", "h-7", "h-4", "h-3"];
+type SignalSize = "sm" | "md" | "lg";
 
+const SIZE_CLASS: Record<SignalSize, string> = {
+  sm: "h-5 w-5",
+  md: "h-9 w-9",
+  lg: "h-16 w-16",
+};
+
+/**
+ * Shared Nexo identity mark. Replacing this component keeps the splash screen,
+ * assistant chat marker, and other Nexo-owned brand locations consistent without
+ * altering any surrounding interactions or loading behavior.
+ */
+export function Signal({ size = "md", className = "" }: { size?: SignalSize; className?: string }) {
   return (
-    <span className={`signal-bars ${className}`} aria-hidden="true">
-      {heights.map((h, i) => (
-        <span key={i} className={h} />
-      ))}
-    </span>
+    <img
+      src="/nexo-integration-logo.png"
+      alt=""
+      aria-hidden="true"
+      className={`${SIZE_CLASS[size]} shrink-0 object-contain ${className}`}
+    />
   );
 }
