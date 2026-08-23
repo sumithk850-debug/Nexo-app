@@ -26,13 +26,6 @@ export function NexoSplash() {
               <stop stopColor="#184EFF" />
               <stop offset="1" stopColor="#4EE9FF" />
             </linearGradient>
-            <filter id="nexo-splash-glow" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
 
           <circle
@@ -43,7 +36,6 @@ export function NexoSplash() {
             stroke="url(#nexo-splash-ring)"
             strokeWidth="4"
             strokeLinecap="round"
-            filter="url(#nexo-splash-glow)"
           />
           <path
             className="nexo-splash-ribbon"
@@ -52,7 +44,6 @@ export function NexoSplash() {
             strokeWidth="14"
             strokeLinecap="round"
             strokeLinejoin="round"
-            filter="url(#nexo-splash-glow)"
           />
           <path
             className="nexo-splash-ribbon-highlight"
