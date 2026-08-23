@@ -45,6 +45,62 @@ const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
 // across page reloads inside Nexo Coder Agent mode.
 const CODER_MODEL_STORAGE_KEY = "nexo.coderModel";
 
+// Drafts are intentionally stored only in this browser and scoped to NEXO's
+// existing session ID. Attachments are never persisted because File objects
+// may contain private data and cannot be restored reliably after a reload.
+const DRAFT_STORAGE_PREFIX = "nexo.chatDrafts:";
+const NEW_CHAT_DRAFT_ID = "__new__";
+const MAX_DRAFT_LENGTH = 100_000;
+
+type DraftStore = Record<string, string>;
+
+function getDraftStorageKey(sessionId: string): string {
+  return `${DRAFT_STORAGE_PREFIX}${sessionId}`;
+}
+
+function readDraftStore(sessionId: string): DraftStore {
+  if (typeof window === "undefined" || !sessionId) return {};
+  try {
+    const raw = window.localStorage.getItem(getDraftStorageKey(sessionId));
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([key, value]) => typeof key === "string" && typeof value === "string" && value.length <= MAX_DRAFT_LENGTH
+      )
+    );
+  } catch {
+    // localStorage can be unavailable or contain malformed data; drafts are
+    // best-effort and must never block the chat UI.
+    return {};
+  }
+}
+
+function writeDraftStore(sessionId: string, drafts: DraftStore): void {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    if (Object.keys(drafts).length === 0) {
+      window.localStorage.removeItem(getDraftStorageKey(sessionId));
+    } else {
+      window.localStorage.setItem(getDraftStorageKey(sessionId), JSON.stringify(drafts));
+    }
+  } catch {
+    // Quota/private-mode failures must not affect sending messages.
+  }
+}
+
+function removeDraft(sessionId: string, draftId: string): void {
+  const drafts = readDraftStore(sessionId);
+  if (!(draftId in drafts)) return;
+  delete drafts[draftId];
+  writeDraftStore(sessionId, drafts);
+}
+
+function containsGithubToken(value: string): boolean {
+  return /(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/.test(value);
+}
+
 interface PendingApproval {
   messageId: string;
   actions: FileAction[];
@@ -155,6 +211,47 @@ export default function ChatPage() {
   const streamStartedAtRef = useRef<number | null>(null);
   const streamingLockRef = useRef(false);
   const attachmentPreparationLockRef = useRef(false);
+  const draftHydrationKeyRef = useRef("");
+  const skipNextDraftSaveRef = useRef(false);
+  const draftScope = user?.id ? `user:${user.id}` : sessionId ? `session:${sessionId}` : "";
+  const draftId = activeChatId ?? NEW_CHAT_DRAFT_ID;
+  const draftHydrationKey = draftScope ? `${draftScope}:${draftId}` : "";
+
+  // Restore only the draft belonging to the current account/session and chat.
+  // The guard prevents the first autosave pass after a chat switch from saving
+  // the previous chat's input into the newly selected chat.
+  useEffect(() => {
+    if (!draftScope || !draftHydrationKey) return;
+    skipNextDraftSaveRef.current = true;
+    const savedDraft = readDraftStore(draftScope)[draftId] ?? "";
+    setInput(savedDraft);
+    draftHydrationKeyRef.current = draftHydrationKey;
+  }, [draftScope, draftId, draftHydrationKey]);
+
+  // localStorage is deliberately used as a best-effort offline cache. It is
+  // synchronous and small here, so every edit is saved without a debounce
+  // window that could lose the last keystrokes during a sudden reload.
+  useEffect(() => {
+    if (!draftScope || !draftHydrationKey) return;
+    if (skipNextDraftSaveRef.current) {
+      skipNextDraftSaveRef.current = false;
+      return;
+    }
+    if (draftHydrationKeyRef.current !== draftHydrationKey) return;
+
+    if (containsGithubToken(input) || input.length > MAX_DRAFT_LENGTH) {
+      removeDraft(draftScope, draftId);
+      return;
+    }
+
+    const drafts = readDraftStore(draftScope);
+    if (input.length === 0) {
+      delete drafts[draftId];
+    } else {
+      drafts[draftId] = input;
+    }
+    writeDraftStore(draftScope, drafts);
+  }, [input, draftScope, draftId, draftHydrationKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSplashVisible(false), 2600);
@@ -1212,6 +1309,27 @@ export default function ChatPage() {
     await streamResponse(activeChatId, [...conversationSoFar, continuationPrompt], assistantId, undefined, undefined, controller);
   }
 
+  function persistCurrentDraft(): void {
+    if (!draftScope || !draftHydrationKey || draftHydrationKeyRef.current !== draftHydrationKey) return;
+    if (containsGithubToken(input) || input.length > MAX_DRAFT_LENGTH || input.length === 0) {
+      removeDraft(draftScope, draftId);
+      return;
+    }
+    const drafts = readDraftStore(draftScope);
+    drafts[draftId] = input;
+    writeDraftStore(draftScope, drafts);
+  }
+
+  function clearDraftForCurrentTurn(chatId?: string | null): void {
+    if (!draftScope) return;
+    removeDraft(draftScope, draftId);
+    // When a new chat is created lazily, its unsent text lived under the
+    // temporary new-chat key. Clear that key as well after the send begins.
+    if (chatId && draftId === NEW_CHAT_DRAFT_ID) {
+      removeDraft(draftScope, NEW_CHAT_DRAFT_ID);
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
@@ -1273,6 +1391,7 @@ export default function ChatPage() {
         modelId: isCoderMode ? "craft-v3" : selectedModel,
       },
     ]);
+    clearDraftForCurrentTurn(chatId);
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
@@ -1301,6 +1420,7 @@ export default function ChatPage() {
   }
 
   function handleNewChat() {
+    persistCurrentDraft();
     setActiveChatId(null);
     setMessages([]);
     setInput("");
@@ -1321,6 +1441,7 @@ export default function ChatPage() {
     const nextMessages = [...messages, userMsg];
     setPendingApproval(null);
     setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    clearDraftForCurrentTurn(chatId);
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
@@ -1343,6 +1464,7 @@ export default function ChatPage() {
 
   async function handleSelectChat(chatId: string) {
     if (activeChatId === chatId) return;
+    persistCurrentDraft();
     setActiveChatId(chatId);
     setSidebarOpen(false);
     await loadMessages(chatId);
@@ -1396,10 +1518,7 @@ export default function ChatPage() {
         open={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
         sessionId={sessionId}
-        onSelectChat={(id) => {
-          setActiveChatId(id);
-          loadMessages(id);
-        }}
+        onSelectChat={handleSelectChat}
       />
       <AuthModal
           open
