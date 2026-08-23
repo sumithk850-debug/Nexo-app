@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { History, ArrowRight, X } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 
@@ -16,6 +16,19 @@ export function SessionResumeCard({
   onDismiss?: () => void;
 }) {
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const dismissedAt = Number(window.localStorage.getItem(DISMISS_KEY));
+      // A short cooling-off period keeps this recovery aid useful without repeatedly
+      // interrupting a user who has already dismissed it during the current day.
+      if (Number.isFinite(dismissedAt) && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) {
+        setDismissed(true);
+      }
+    } catch {
+      // Resume suggestions are optional and must never block the workspace.
+    }
+  }, []);
 
   // Filter to chats that look like real conversations (have a meaningful title)
   const resumeCandidates = recentChats
