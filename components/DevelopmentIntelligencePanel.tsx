@@ -13,6 +13,7 @@ import {
   Rocket,
   Save,
   ShieldCheck,
+  Sparkles,
   Trash2,
   WandSparkles,
   X,
@@ -86,6 +87,7 @@ const EMPTY: Workspace = {
 };
 
 const TABS = [
+  { id: "overview", label: "Overview", icon: Sparkles },
   { id: "brain", label: "Project Brain", icon: Brain },
   { id: "plan", label: "Planner", icon: ClipboardList },
   { id: "knowledge", label: "Knowledge", icon: BookOpen },
@@ -132,6 +134,25 @@ export function DevelopmentIntelligencePanel({ open, onClose, userId }: { open: 
   const [previewingRecipeId, setPreviewingRecipeId] = useState<string | null>(null);
 
   const activeBrain = useMemo(() => workspace.brains.find((brain) => brain.is_active) ?? workspace.brains[0] ?? null, [workspace.brains]);
+  const intelligenceSummary = useMemo(() => {
+    const inProgress = workspace.tasks.filter((task) => task.status === "in_progress").length;
+    const blocked = workspace.tasks.filter((task) => task.status === "blocked").length;
+    const planned = workspace.tasks.filter((task) => task.status === "planned").length;
+    const latestReport = workspace.regressionReports[0] ?? null;
+    const readiness = blocked > 0 || latestReport?.overall_status === "blocked"
+      ? "blocked"
+      : inProgress > 0 || latestReport?.overall_status === "attention"
+        ? "attention"
+        : "ready";
+    const nextStep = blocked > 0
+      ? "Resolve the current blocked task before preparing a release."
+      : inProgress > 0
+        ? "Continue the active task and save a regression snapshot when it is ready for review."
+        : planned > 0
+          ? "Move the highest-priority planned task into progress when you are ready to begin."
+          : "Create a project task or release brief to start building a focused execution plan.";
+    return { inProgress, blocked, planned, latestReport, readiness, nextStep };
+  }, [workspace]);
 
   const load = useCallback(async () => {
     if (!userId) { setWorkspace(EMPTY); return; }
@@ -264,6 +285,16 @@ export function DevelopmentIntelligencePanel({ open, onClose, userId }: { open: 
         <main className="flex-1 overflow-y-auto px-5 py-5 sm:px-7">
           {!userId ? <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-100">Sign in to use your private development workspace.</div> : loading ? <div className="flex items-center justify-center py-20 text-ink-muted"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading workspace…</div> : <>
             {error && <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/5 p-3 text-sm text-rose-100"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
+
+            {activeTab === "overview" && <section className="space-y-5">
+              <div className="rounded-2xl border border-cyan/20 bg-gradient-to-br from-cyan/[0.09] to-transparent p-5">
+                <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan">Project intelligence</p><h3 className="mt-2 text-xl font-bold text-ink">{activeBrain ? activeBrain.name : "Set your project direction"}</h3><p className="mt-2 max-w-xl text-sm leading-6 text-ink-muted">{activeBrain?.description || "Create a Project Brain to keep your goals, conventions, and planning context organized in one private workspace."}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusTone(intelligenceSummary.readiness)}`}>{intelligenceSummary.readiness}</span></div>
+                <div className="mt-5 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-[#07111f]/55 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">In progress</p><p className="mt-1 text-2xl font-bold text-ink">{intelligenceSummary.inProgress}</p></div><div className="rounded-xl border border-white/10 bg-[#07111f]/55 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Planned</p><p className="mt-1 text-2xl font-bold text-ink">{intelligenceSummary.planned}</p></div><div className="rounded-xl border border-white/10 bg-[#07111f]/55 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Private notes</p><p className="mt-1 text-2xl font-bold text-ink">{workspace.knowledgeEntries.length}</p></div></div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"><div className="flex gap-3"><ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-cyan" /><div><h3 className="font-semibold text-ink">Recommended next step</h3><p className="mt-1 text-sm leading-6 text-ink-muted">{intelligenceSummary.nextStep}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => setActiveTab("plan")} className="rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-2 text-xs font-bold text-cyan">Open planner</button><button type="button" onClick={() => setActiveTab("release")} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-bold text-ink-muted transition hover:text-ink">Review release readiness</button></div></div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-ink">Latest regression snapshot</h3><p className="mt-1 text-sm text-ink-muted">{intelligenceSummary.latestReport ? intelligenceSummary.latestReport.summary || "No summary was recorded." : "No regression snapshot has been saved yet."}</p></div>{intelligenceSummary.latestReport && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusTone(intelligenceSummary.latestReport.overall_status)}`}>{intelligenceSummary.latestReport.overall_status}</span>}</div></div>
+              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.045] p-4 text-sm leading-6 text-amber-100"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><p>This overview prepares context and highlights follow-up work only. It never changes code, data, deployments, or external services automatically.</p></div></div>
+            </section>}
 
             {activeTab === "brain" && <section className="space-y-5">
               <div className="rounded-2xl border border-cyan/20 bg-cyan/[0.045] p-4"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan" /><div><h3 className="font-semibold text-ink">Private by design</h3><p className="mt-1 text-sm leading-6 text-ink-muted">Only your active project summary, goals, conventions, and open tasks guide Nexo. No credentials, repository source files, tool output, or private knowledge notes are added to model context.</p></div></div></div>
