@@ -1622,8 +1622,8 @@ export default function ChatPage() {
           />
         )}
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className={`flex flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-1/2' : 'w-full'}`}>
+        <div className="flex flex-1 flex-col overflow-hidden xl:flex-row">
+          <div className={`flex min-h-0 flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-full xl:w-1/2' : 'w-full'}`}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
               <div className="mx-auto max-w-3xl px-4 py-8">
                 {messages.length === 0 && !attachmentPreparation ? (
@@ -1773,7 +1773,7 @@ export default function ChatPage() {
 
           {/* Nexo Coder Side Panel */}
           {isCoderMode && lastExtractedCode && (
-            <div className="w-1/2 border-l border-edge bg-void/50 p-4 animate-fade-left">
+            <div className="max-h-[58vh] w-full shrink-0 overflow-hidden border-t border-edge bg-void/50 p-3 animate-fade-up xl:max-h-none xl:w-1/2 xl:border-l xl:border-t-0 xl:p-4 xl:animate-fade-left">
               <NexoCoder 
                 code={lastExtractedCode.code}
                 language={lastExtractedCode.lang}

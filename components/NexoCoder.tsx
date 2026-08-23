@@ -1,135 +1,165 @@
 "use client";
 
-import { useState } from "react";
-import { Sandpack } from "@codesandbox/sandpack-react";
-import { Code2, Play, Copy, Check, FileCode, Monitor, Layout, Database, Sparkles, Terminal, ChevronRight, Zap } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, ChevronDown, Code2, Copy, Eye, FileCode2, FileDiff, FileText, Monitor, PanelRightClose, Play, Rows3, ShieldCheck, Sparkles, Table2 } from "lucide-react";
 
-export function NexoCoder({ 
-  code, 
-  language = "typescript", 
-  fileName = "component.tsx" 
-}: { 
-  code: string; 
-  language?: string; 
+type WorkspaceTab = "source" | "preview" | "changes";
+
+type WorkspaceKind = "document" | "style" | "data" | "database" | "diff" | "code";
+
+function classifyWorkspace(language: string, fileName: string): WorkspaceKind {
+  const normalized = `${language} ${fileName}`.toLowerCase();
+  if (language.toLowerCase() === "diff" || fileName.toLowerCase().endsWith(".diff")) return "diff";
+  if (/\b(html|htm|svg)\b/.test(normalized)) return "document";
+  if (/\b(css|scss|sass|less)\b/.test(normalized)) return "style";
+  if (/\b(sql|postgres|mysql|sqlite)\b/.test(normalized)) return "database";
+  if (/\b(json|yaml|yml|csv)\b/.test(normalized)) return "data";
+  return "code";
+}
+
+function countDiff(code: string) {
+  return code.split("\n").reduce((counts, line) => ({
+    additions: counts.additions + (line.startsWith("+") && !line.startsWith("+++") ? 1 : 0),
+    removals: counts.removals + (line.startsWith("-") && !line.startsWith("---") ? 1 : 0),
+  }), { additions: 0, removals: 0 });
+}
+
+function extractSqlTargets(code: string): string[] {
+  const targets = [...code.matchAll(/(?:create|alter|drop|insert\s+into|update|delete\s+from|select\s+.+?\s+from)\s+(?:table\s+)?[\"`]?([a-zA-Z_][\w.]*)/gi)]
+    .map((match) => match[1])
+    .filter(Boolean);
+  return [...new Set(targets)].slice(0, 8);
+}
+
+function wrapCssPreview(code: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"/><style>html,body{margin:0;min-height:100%;background:#0a0e1a;color:#e8f3ff;font-family:system-ui,sans-serif}.nexo-preview{padding:28px}.nexo-card{max-width:440px;border:1px solid rgba(148,163,184,.25);border-radius:18px;background:#111827;padding:20px;box-sizing:border-box}.nexo-kicker{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#67e8f9}.nexo-title{margin:10px 0 8px;font-size:22px}.nexo-copy{margin:0;color:#a7b3c7;font-size:14px}.nexo-action{margin-top:18px;border:0;border-radius:10px;background:#06b6d4;color:#03111a;padding:10px 14px;font-weight:700}${code}</style></head><body><main class="nexo-preview"><section class="nexo-card"><div class="nexo-kicker">Style preview</div><h1 class="nexo-title">Nexo workspace</h1><p class="nexo-copy">A safe, isolated preview of the supplied stylesheet.</p><button class="nexo-action">Primary action</button></section></main></body></html>`;
+}
+
+export function NexoCoder({
+  code,
+  language = "typescript",
+  fileName = "component.tsx",
+}: {
+  code: string;
+  language?: string;
   fileName?: string;
 }) {
-  const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("source");
   const [copied, setCopied] = useState(false);
+  const kind = useMemo(() => classifyWorkspace(language, fileName), [language, fileName]);
+  const diff = useMemo(() => countDiff(code), [code]);
+  const sqlTargets = useMemo(() => kind === "database" ? extractSqlTargets(code) : [], [code, kind]);
+  const lineCount = useMemo(() => code ? code.split("\n").length : 0, [code]);
 
-  function handleCopy() {
-    navigator.clipboard.writeText(code);
+  async function handleCopy() {
+    await navigator.clipboard.writeText(code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    window.setTimeout(() => setCopied(false), 1_800);
   }
 
+  const isRenderable = kind === "document" || kind === "style";
+  const previewSource = kind === "document" ? code : kind === "style" ? wrapCssPreview(code) : "";
+
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-edge bg-void/40 shadow-2xl backdrop-blur-2xl animate-fade-up ring-1 ring-cyan/20">
-      {/* Premium Header */}
-      <div className="flex items-center justify-between border-b border-edge bg-panel/50 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan/20 to-indigo-500/20 text-cyan shadow-inner">
-            <Terminal className="h-5 w-5" />
-          </div>
-          <div>
+    <section className="flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-edge bg-panel/80 shadow-2xl ring-1 ring-cyan/15 backdrop-blur-xl" aria-label="Code workspace">
+      <header className="border-b border-edge bg-panel-raised/70 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan">
+            <FileCode2 className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-black tracking-tight text-ink uppercase">BrainEx Engine</span>
-              <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-[9px] font-bold text-cyan uppercase tracking-widest animate-pulse">Live</span>
+              <h2 className="truncate text-sm font-semibold text-ink">Code workspace</h2>
+              <span className="rounded-full border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-cyan">Read only</span>
             </div>
-            <p className="text-[11px] font-bold text-ink-faint flex items-center gap-1.5">
-              <FileCode className="h-3 w-3" /> {fileName}
-            </p>
+            <p className="truncate font-mono text-[11px] text-ink-muted" title={fileName}>{fileName}</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 rounded-2xl bg-void/50 p-1.5 border border-edge">
-          <button
-            onClick={() => setActiveTab("code")}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 ${
-              activeTab === "code" 
-                ? "bg-cyan text-void shadow-lg shadow-cyan/20 scale-105" 
-                : "text-ink-muted hover:text-ink hover:bg-panel"
-            }`}
-          >
-            <Code2 className="h-3.5 w-3.5" />
-            Source
-          </button>
-          <button
-            onClick={() => setActiveTab("preview")}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 ${
-              activeTab === "preview" 
-                ? "bg-cyan text-void shadow-lg shadow-cyan/20 scale-105" 
-                : "text-ink-muted hover:text-ink hover:bg-panel"
-            }`}
-          >
-            <Layout className="h-3.5 w-3.5" />
-            Preview
+          <button onClick={handleCopy} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-edge text-ink-muted transition hover:border-cyan/30 hover:text-cyan" aria-label="Copy source" title="Copy source">
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
         </div>
-      </div>
-
-      {/* Code / Preview Area */}
-      <div className="relative flex-1 overflow-hidden bg-void/20">
-        {activeTab === "code" ? (
-          <div className="h-full overflow-auto p-6 font-mono text-sm leading-relaxed custom-scrollbar">
-            <div className="flex justify-between items-start mb-4">
-               <div className="flex gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-red-500/50"></div>
-                  <div className="h-3 w-3 rounded-full bg-yellow-500/50"></div>
-                  <div className="h-3 w-3 rounded-full bg-green-500/50"></div>
-               </div>
-               <button
-                onClick={handleCopy}
-                className="flex items-center gap-2 rounded-lg bg-panel/50 px-3 py-1.5 text-[10px] font-bold text-ink-muted transition-all hover:bg-panel hover:text-cyan border border-edge"
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1 rounded-lg border border-edge bg-void/40 p-1">
+            {([
+              ["source", Code2, "Source"],
+              ["preview", Eye, "Preview"],
+              ["changes", FileDiff, "Changes"],
+            ] as const).map(([tab, Icon, label]) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold transition ${activeTab === tab ? "bg-cyan text-void shadow-sm" : "text-ink-muted hover:bg-panel hover:text-ink"}`}
               >
-                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                {copied ? "COPIED" : "COPY CODE"}
+                <Icon className="h-3.5 w-3.5" /> {label}
               </button>
-            </div>
-            <pre className="text-ink/90 selection:bg-cyan/30">
-              <code>{code}</code>
-            </pre>
+            ))}
           </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center p-8 text-center animate-fade-up">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 blur-3xl bg-cyan/20 animate-drift"></div>
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-panel border border-edge shadow-2xl">
-                <Monitor className="h-10 w-10 text-cyan" />
+          <span className="shrink-0 font-mono text-[10px] text-ink-faint">{lineCount} lines</span>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 bg-void/30">
+        {activeTab === "source" && (
+          <div className="h-full overflow-auto custom-scrollbar">
+            <pre className="min-h-full p-4 font-mono text-xs leading-6 text-ink/90 selection:bg-cyan/30"><code>{code}</code></pre>
+          </div>
+        )}
+
+        {activeTab === "preview" && (
+          <div className="h-full overflow-auto p-4">
+            {isRenderable ? (
+              <div className="h-full min-h-[260px] overflow-hidden rounded-xl border border-edge bg-white shadow-inner">
+                <iframe title={`${fileName} safe preview`} srcDoc={previewSource} sandbox="" className="h-full min-h-[260px] w-full border-0" />
               </div>
-            </div>
-            <h3 className="text-lg font-black text-ink tracking-tight uppercase">Virtual Nexus Environment</h3>
-            <p className="mt-3 max-w-sm text-sm font-medium leading-relaxed text-ink-muted">
-              The BrainEx engine is simulating this architecture. Full deployment preview is currently optimized for Nexo Pro users.
-            </p>
-            <div className="mt-8 flex gap-3">
-              <div className="flex items-center gap-2 rounded-xl border border-edge bg-panel/50 px-4 py-2.5 text-xs font-bold text-ink-muted">
-                <Database className="h-3.5 w-3.5" /> DB Schema Valid
+            ) : kind === "database" ? (
+              <div className="rounded-xl border border-edge bg-panel/70 p-4">
+                <div className="flex items-center gap-2 text-cyan"><Table2 className="h-4 w-4" /><h3 className="text-sm font-semibold">Schema inspector</h3></div>
+                <p className="mt-2 text-xs leading-5 text-ink-muted">This workspace keeps database statements read-only in the preview. Review the affected targets before proposing any change.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {sqlTargets.length > 0 ? sqlTargets.map((target) => <span key={target} className="rounded-lg border border-edge bg-void/50 px-2 py-1 font-mono text-[11px] text-ink">{target}</span>) : <span className="text-xs text-ink-faint">No table or view target could be identified.</span>}
+                </div>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-edge bg-panel/50 px-4 py-2.5 text-xs font-bold text-ink-muted">
-                <Zap className="h-3.5 w-3.5 text-cyan" /> Optimized
+            ) : kind === "data" ? (
+              <div className="rounded-xl border border-edge bg-panel/70 p-4">
+                <div className="flex items-center gap-2 text-cyan"><Rows3 className="h-4 w-4" /><h3 className="text-sm font-semibold">Data inspector</h3></div>
+                <p className="mt-2 text-xs leading-5 text-ink-muted">Structured data stays in source form for safe review. Copy or inspect it without running anything in your workspace.</p>
+                <pre className="mt-4 max-h-48 overflow-auto rounded-lg border border-edge bg-void/60 p-3 font-mono text-[10px] leading-5 text-ink-muted">{code.slice(0, 2_000)}</pre>
               </div>
-            </div>
+            ) : (
+              <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-edge bg-panel/40 px-6 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan/10 text-cyan"><Monitor className="h-5 w-5" /></span>
+                <h3 className="mt-4 text-sm font-semibold text-ink">Safe preview is ready</h3>
+                <p className="mt-2 max-w-sm text-xs leading-5 text-ink-muted">This {language} file is shown as a source and change review to avoid executing untrusted code. HTML and stylesheets render in an isolated preview here.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "changes" && (
+          <div className="h-full overflow-auto p-4">
+            {kind === "diff" ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Additions</p><p className="mt-1 text-xl font-bold text-emerald-200">+{diff.additions}</p></div>
+                  <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-rose-300">Removals</p><p className="mt-1 text-xl font-bold text-rose-200">-{diff.removals}</p></div>
+                </div>
+                <pre className="overflow-auto rounded-xl border border-edge bg-void/60 p-3 font-mono text-[10px] leading-5 text-ink-muted">{code}</pre>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-edge bg-panel/60 p-4">
+                <div className="flex items-center gap-2 text-cyan"><ShieldCheck className="h-4 w-4" /><h3 className="text-sm font-semibold">Review-ready source</h3></div>
+                <p className="mt-2 text-xs leading-5 text-ink-muted">No patch was included with this file. When a proposed edit is available, its additions and removals appear here before any approval step.</p>
+                <div className="mt-4 flex items-center gap-2 text-[11px] text-ink-faint"><FileText className="h-3.5 w-3.5" /> {fileName} · {language}</div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Footer Info */}
-      <div className="border-t border-edge bg-panel/30 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-[10px] font-black text-ink-faint uppercase tracking-[0.15em]">
-              <Sparkles className="h-3 w-3 text-cyan" /> Advanced AI Architect
-            </div>
-            <div className="h-1 w-1 rounded-full bg-edge"></div>
-            <div className="text-[10px] font-black text-ink-faint uppercase tracking-[0.15em]">
-              {language}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-black text-cyan uppercase tracking-[0.15em]">
-            Processing <ChevronRight className="h-3 w-3" />
-          </div>
-        </div>
-      </div>
-    </div>
+      <footer className="flex items-center justify-between border-t border-edge bg-panel-raised/50 px-4 py-2.5">
+        <div className="flex items-center gap-1.5 text-[10px] text-ink-faint"><ShieldCheck className="h-3.5 w-3.5 text-emerald-300" /> Isolated preview</div>
+        <div className="flex items-center gap-1.5 text-[10px] text-ink-faint"><Sparkles className="h-3.5 w-3.5 text-cyan" /> Review before approval</div>
+      </footer>
+    </section>
   );
 }
