@@ -44,6 +44,7 @@ export function AgentTimeline({
   approvalState?: ApprovalState | null;
 }) {
   const items: TimelineItem[] = [];
+  const hasMeaningfulActivity = Boolean(attachmentState || searching || actions.length > 0 || approvalState);
 
   if (attachmentState === "preparing") {
     items.push({ id: "attachments", label: "Preparing attachment context", state: "active", icon: FileUp });
@@ -72,7 +73,9 @@ export function AgentTimeline({
     });
   });
 
-  if (streaming) {
+  // Plain chat generation already has its own Generating response status card.
+  // Keep this richer timeline for requests with observable work to report.
+  if (streaming && hasMeaningfulActivity) {
     items.push({ id: "response", label: "Drafting response", state: "active", icon: Sparkles });
   }
 
@@ -80,7 +83,7 @@ export function AgentTimeline({
   if (items.length === 0) return null;
 
   return (
-    <section className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel/90 shadow-sm" aria-label="Agent activity timeline">
+    <section className="mx-auto mb-2 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-xl border border-edge bg-panel/90 shadow-sm" aria-label="Agent activity timeline">
       <div className="flex items-center justify-between border-b border-edge/70 px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan/10 text-cyan">
