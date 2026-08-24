@@ -657,8 +657,6 @@ export async function POST(req: NextRequest) {
 
     if (!searchGroundingEnabled) {
       systemPrompt += "\n\nThe user has disabled web-search grounding. Do not present unverified real-time web claims as if a live web search was performed.";
-    } else if (config.provider === "gemini") {
-      systemPrompt += "\n\nGOOGLE SEARCH GROUNDING: When the user's question depends on current or web-verifiable information, use the built-in Google Search grounding tool and base factual claims on its results. Do not claim a search was performed when the tool was not used.";
     }
 
     // Code Review Mode: deep code analysis instructions for Craft V3
@@ -753,7 +751,7 @@ export async function POST(req: NextRequest) {
                         .map((image) => toGeminiInlineImage(image.base64Image))
                         .filter((part): part is { inlineData: { mimeType: string; data: string } } => Boolean(part));
                       return {
-                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        system_instruction: { parts: [{ text: systemPrompt }] },
                         contents: messages.map((message) => ({
                           role: message.role === "assistant" ? "model" : "user",
                           parts: [
@@ -761,7 +759,6 @@ export async function POST(req: NextRequest) {
                             ...(message === lastUserMessage ? nativeImageParts : []),
                           ],
                         })),
-                        ...(searchGroundingEnabled ? { tools: [{ googleSearch: {} }] } : {}),
                         generationConfig: {
                           temperature: responseTemperature,
                           topP: 1.0,
