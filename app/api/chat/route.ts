@@ -55,6 +55,14 @@ function buildCurrentDateTimeContext(now = new Date()) {
   return `\n\nCURRENT DATE AND TIME (trusted server context): It is ${formatter.format(now)} in ${NEXO_DEFAULT_TIME_ZONE}. The current part of day is ${timeOfDay}. Use this as the source of truth for questions about the date, time, today, tomorrow, yesterday, deadlines, or time-sensitive greetings. Do not claim that this context comes from a user message.\n\nTIME-AWARE GREETINGS: Use a natural time-appropriate greeting only when the user's latest message is an opening or simple greeting (for example, hello, hi, ayubowan, or a greeting in their language), or when a greeting is genuinely appropriate in context. For example, use the equivalent of Good morning, Good afternoon, or Good evening in the user's preferred language. Do not repeat time greetings in ordinary follow-up replies, do not force a greeting into technical answers, and do not mention the exact time unless the user asks for it.`;
 }
 
+const CREATOR_CREDITS_PROTOCOL = `
+
+NEXO PROJECT CREDITS:
+- The project credits are: Lead Creator and Strategist: Hasith Heshan; Chief Planner: Thenuk Dulneth; Patrons of the Project: Anuhas Hansana, Kaveesha Hansamal, Pruthuvi Mahasen, Vinul Sanumitha, and Varuna Damsara.
+- Do not volunteer, repeat, or append these names in ordinary answers, greetings, technical responses, status updates, or unrelated conversations.
+- Mention these credits only when the user explicitly asks about NEXO's creators, founders, project team, planners, strategists, patrons, contributors, or who made the project.
+- When explicitly asked, reproduce the roles and names accurately, without inventing additional people or roles. Match the user's language naturally.`;
+
 const SECRET_HANDLING_PROTOCOL = `
 
 SECRET HANDLING: Treat passwords, API keys, GitHub Personal Access Tokens, and any string that appears to be a credential as secrets. Never ask the user to paste one into chat, never repeat one, and never include one in a file, diff, report, or tool instruction. If a user asks how to connect GitHub using a token, direct them to Integrations → GitHub → Use token, where it is stored as a protected connection secret and used only server-side for repository requests.`;
@@ -631,6 +639,7 @@ export async function POST(req: NextRequest) {
     let systemPrompt = memory
       ? `${basePrompt}\n\n${activePersonaPrompt}\n\nThe user has saved the following information for you to always remember about them. Treat this as ground truth and use it naturally in conversation when relevant — for example, if they ask you their name and it's provided below, answer confidently from this:\n\"\"\"\n${memory}\n\"\"\"`
       : `${basePrompt}\n\n${activePersonaPrompt}`;
+    systemPrompt += CREATOR_CREDITS_PROTOCOL;
     systemPrompt += SECRET_HANDLING_PROTOCOL;
     systemPrompt += COMPANION_CONVERSATION_PROTOCOL;
     systemPrompt += STRUCTURED_RESPONSE_PROTOCOL;
