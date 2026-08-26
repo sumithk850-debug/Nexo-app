@@ -74,18 +74,15 @@ export async function GET(req: NextRequest) {
     ? await checkGitHubConnection(userId)
     : { connected: false, username: null, canWrite: false, selectedRepo: null };
 
+  // Connection state is always per signed-in user. Platform environment values
+  // are configuration, never proof that a visitor has connected an account.
   const vercel = userId
     ? await checkVercelConnection(userId)
-    : { connected: Boolean(process.env.VERCEL_TOKEN), username: null };
+    : { connected: false, username: null };
 
   const supabase = userId
     ? await checkSupabaseConnection(userId)
-    : {
-        connected: Boolean(
-          process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        ),
-        username: null,
-      };
+    : { connected: false, username: null };
 
   return Response.json({ github, vercel, supabase });
 }

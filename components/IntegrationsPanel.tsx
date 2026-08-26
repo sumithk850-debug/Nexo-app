@@ -422,7 +422,7 @@ export function IntegrationsPanel({
     setSupabaseDataError(null);
     setSupabaseSqlResult(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(projectId)}`,
         { cache: "no-store" }
       );
@@ -485,7 +485,7 @@ export function IntegrationsPanel({
     setSupabaseDataLoading(true);
     setSupabaseDataError(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/supabase/schema?userId=${encodeURIComponent(userId)}&projectId=${encodeURIComponent(projectId)}&table=${encodeURIComponent(tableName)}`,
         { cache: "no-store" }
       );

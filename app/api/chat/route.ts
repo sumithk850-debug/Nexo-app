@@ -429,17 +429,28 @@ export async function POST(req: NextRequest) {
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
     const isAutomaticContinuation = body.isAutomaticContinuation === true;
-    // The user's actual auth/user id, distinct from sessionId, used to look up
-    // their GitHub connection. Sent by the client alongside sessionId.
-    let userId = body.userId as string | undefined;
+    // The user's verified identity is used for every signed-in quota and
+    // connection lookup. A claimed body ID is checked only as a consistency
+    // assertion; it is never trusted as an identity source.
+    const claimedUserId = typeof body.userId === "string" ? body.userId : undefined;
+    let userId: string | undefined;
+    const hasBearerToken = /^Bearer\s+/i.test(req.headers.get("authorization") ?? "");
     // Passed from the signed-in browser only for the user's own Supabase RLS
     // context. It is never stored, logged, or sent to an AI provider.
     const userAccessToken = body.userAccessToken as string | undefined;
-    if (userId) {
-      const verified = await requireVerifiedUser(req, userId);
+    if (hasBearerToken || claimedUserId) {
+      const verified = await requireVerifiedUser(req, claimedUserId);
       if (verified.response) return verified.response;
       userId = verified.user.id;
     }
+    // Signed-in requests are counted by verified account, never by a browser
+    // controlled session ID. The separate anonymous key preserves anonymous
+    // limits without exposing another user's usage dashboard.
+    const usageScope = userId && sessionId
+      ? `user:${userId}`
+      : sessionId
+        ? `anonymous:${sessionId}`
+        : undefined;
     const userName = typeof body.userName === "string" ? body.userName.trim().slice(0, 120) : "";
     // The Integrations panel owns this user-controlled switch. When off, the
     // chat may still answer normally but it must not receive repository context.
@@ -482,10 +493,10 @@ export async function POST(req: NextRequest) {
     const usesCoderBudget = Boolean(isCoderMode || modelId === "craft-v3");
     let coderRemainingTokens: number | undefined;
 
-    if (sessionId) {
+    if (usageScope) {
       if (usesCoderBudget) {
         const coderAvailability = await checkCoderTokenAvailability(
-          sessionId,
+          usageScope,
           estimateTokens(lastUserMessage?.content ?? "")
         );
         if (!coderAvailability.allowed) {
@@ -501,7 +512,7 @@ export async function POST(req: NextRequest) {
         }
         coderRemainingTokens = coderAvailability.remainingTokens;
       } else if (!isAutomaticContinuation) {
-        const { allowed, remaining, limit } = await checkRateLimit(sessionId);
+        const { allowed, remaining, limit } = await checkRateLimit(usageScope);
         if (!allowed) {
           return new Response(
             JSON.stringify({
@@ -844,14 +855,14 @@ export async function POST(req: NextRequest) {
 
     // A provider has accepted the request, so this completed request now counts.
     // Failed/busy provider attempts do not consume a user's NEXO message allowance.
-    if (sessionId) {
+    if (usageScope) {
       if (!isAutomaticContinuation) {
-        await incrementRateLimit(sessionId, usesCoderBudget);
+        await incrementRateLimit(usageScope, usesCoderBudget);
       }
       // Persist prompt usage at acceptance time. Completion usage is added when
       // the stream ends, so dashboard totals remain truthful even if a provider
       // stalls after accepting a request.
-      await recordTokenUsage(sessionId, modelId, lastUserMessage?.content ?? "", "");
+      await recordTokenUsage(usageScope, modelId, lastUserMessage?.content ?? "", "");
     }
 
     const encoder = new TextEncoder();
@@ -869,9 +880,9 @@ export async function POST(req: NextRequest) {
         let continuationSent = false;
 
         const persistTokenUsage = async () => {
-          if (usageRecorded || !sessionId) return;
+          if (usageRecorded || !usageScope) return;
           usageRecorded = true;
-          await recordTokenUsage(sessionId, modelId, "", responseText);
+          await recordTokenUsage(usageScope, modelId, "", responseText);
         };
 
         try {
