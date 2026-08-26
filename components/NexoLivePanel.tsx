@@ -114,6 +114,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const [showStatus, setShowStatus] = useState(false);
 
   const mountedRef = useRef(true);
+  const mutedRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -123,8 +124,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const mutedRef = useRef(false);
   const closingRef = useRef(false);
+  const startingRef = useRef(false);
   const speechDetectedRef = useRef(false);
   const silenceStartedAtRef = useRef<number | null>(null);
 
@@ -238,6 +239,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   }, [clearRecordingTimer]);
 
   const startRecording = useCallback(async () => {
+    if (startingRef.current || sessionIdRef.current || recorderRef.current) return;
+    startingRef.current = true;
     closingRef.current = false;
     setErrorMessage(null);
     setResponseText("");
@@ -370,6 +373,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
         setErrorMessage(cause instanceof Error ? cause.message : "Microphone access was not available.");
         setVoiceState("error");
       }
+    } finally {
+      startingRef.current = false;
     }
   }, [cancelRemoteSession, resetAudioState, stopRecording, stopSpeech, submitRecording]);
 
@@ -421,7 +426,6 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const handleRetry = () => {
     setErrorMessage(null);
     setVoiceState("idle");
-    void startRecording();
   };
 
   const handleEnd = () => {

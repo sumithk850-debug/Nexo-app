@@ -70,6 +70,9 @@ assert(panel.includes("speechSynthesis.speak"), "The panel must play the Nexo re
 assert(panel.includes("setAudioLevel"), "The panel must update waveform state from microphone audio.");
 assert(panel.includes("closingRef"), "The panel must discard recorder callbacks after End Talk or cleanup.");
 assert(panel.includes("shouldDiscard"), "The panel must not submit audio after a session is closed.");
+assert(panel.includes("startingRef"), "The panel must serialize microphone-session startup attempts.");
+assert(panel.includes("if (startingRef.current || sessionIdRef.current || recorderRef.current) return;"), "Duplicate start attempts must be ignored while a start/session is in flight.");
+assert(panel.includes('setVoiceState("idle");\n  };'), "Retry must use the single auto-start path instead of starting a second session directly.");
 assert(panel.includes("speechDetectedRef"), "The panel must detect real user speech before auto-submitting.");
 assert(panel.includes("silenceStartedAtRef"), "The panel must finish a turn quickly after the user stops speaking.");
 assert(panel.includes("userIsSpeaking"), "Waveform and turn completion must react to microphone activity.");
