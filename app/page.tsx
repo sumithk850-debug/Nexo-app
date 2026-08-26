@@ -1527,12 +1527,7 @@ export default function ChatPage() {
   if (!user) {
     return (
       <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
-        <SearchModal
-        open={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-        onSelectChat={handleSelectChat}
-      />
-      <AuthModal
+        <AuthModal
           open
           mandatory
           onClose={() => {}}
@@ -1546,6 +1541,11 @@ export default function ChatPage() {
 
   return (
     <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
+      <SearchModal
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        onSelectChat={handleSelectChat}
+      />
       <ChatSidebar
         chats={chats}
         sessionId={sessionId}
