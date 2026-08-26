@@ -95,38 +95,6 @@ async function blobToVoicePayload(blob: Blob) {
   }
 }
 
-function selectMaleVoice(voices: SpeechSynthesisVoice[], language: "si" | "en") {
-  const languagePrefix = language === "si" ? "si" : "en";
-  const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
-  if (matching.length === 0) return undefined;
-
-  const maleHints = /male|man|david|mark|daniel|alex|george|james|ryan|guy|ravi|kumar|suresh|nimal|kasun|chamara/i;
-  return matching.find((voice) => maleHints.test(`${voice.name} ${voice.voiceURI}`)) ?? matching[0];
-}
-
-function chooseSpeechVoice(voices: SpeechSynthesisVoice[], text: string) {
-  const sinhalaCharacters = /[\u0D80-\u0DFF]/;
-  return selectMaleVoice(voices, sinhalaCharacters.test(text) ? "si" : "en");
-}
-
-function getSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
-  if (!("speechSynthesis" in window)) return Promise.resolve([]);
-  const current = window.speechSynthesis.getVoices();
-  if (current.length > 0) return Promise.resolve(current);
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      window.speechSynthesis.removeEventListener("voiceschanged", finish);
-      resolve(window.speechSynthesis.getVoices());
-    };
-    window.speechSynthesis.addEventListener("voiceschanged", finish, { once: true });
-    window.setTimeout(finish, 500);
-  });
-}
-
 function stateLabel(state: VoiceState) {
   if (state === "listening") return "Listening…";
   if (state === "processing") return "Processing your voice…";
@@ -236,18 +204,9 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       setErrorMessage(null);
       setVoiceState("speaking");
       if ("speechSynthesis" in window) {
-        const voices = await getSpeechVoices();
-        if (!mountedRef.current) return;
         const utterance = new SpeechSynthesisUtterance(payload.text);
-        const selectedVoice = chooseSpeechVoice(voices, payload.text);
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
-          utterance.lang = selectedVoice.lang;
-        } else {
-          utterance.lang = /[\u0D80-\u0DFF]/.test(payload.text) ? "si-LK" : "en-US";
-        }
-        utterance.rate = 0.96;
-        utterance.pitch = 0.82;
+        utterance.rate = 1;
+        utterance.pitch = 1;
         utterance.volume = 1;
         utterance.onend = () => {
           if (mountedRef.current) setVoiceState("idle");
