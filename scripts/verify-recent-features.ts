@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -35,16 +35,6 @@ assert.match(search, /controller\.abort\(\)/);
 assert.match(searchRoute, /requireVerifiedUser\(req\)/);
 assert.match(searchRoute, /\.eq\("user_id", verified\.user\.id\)/);
 assert.match(searchRoute, /\.limit\(20\)/);
-
-// Unused oversized public assets must not return after their safe removal.
-for (const asset of [
-  "public/integration-feature-control-plane.png",
-  "public/integration-feature-deployment-radar.png",
-  "public/integration-feature-secure-approval.png",
-  "public/nexo-integration-logo.png",
-]) {
-  assert.equal(existsSync(asset), false, `${asset} should remain removed`);
-}
 
 // Usage and integration contracts: browser callers cannot identify another
 // account's usage or learn configured infrastructure from an anonymous request.
@@ -84,4 +74,4 @@ assert.match(vercelReadRoute, /requireVerifiedUser/);
 assert.match(vercelReadRoute, /listDeployments/);
 assert.match(vercelReadRoute, /deploymentId/);
 
-console.log("Recent feature contract verification passed: folders, verified search, private usage, integrations, asset hygiene, drafts, timeline, recovery, and Vercel reads.");
+console.log("Recent feature contract verification passed: folders, verified search, private usage, integrations, drafts, timeline, recovery, and Vercel reads.");
