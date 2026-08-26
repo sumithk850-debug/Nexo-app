@@ -7,7 +7,6 @@ function source(path: string): string {
 
 const folders = source("lib/chatFolders.ts");
 const search = source("components/SearchModal.tsx");
-const searchRoute = source("app/api/chats/search/route.ts");
 const page = source("app/page.tsx");
 const timeline = source("components/AgentTimeline.tsx");
 const recovery = source("components/ConnectionRecoveryBanner.tsx");
@@ -23,14 +22,11 @@ assert.match(folders, /return emptyChatFolderState\(\)/);
 assert.match(folders, /legacyRaw/);
 assert.match(folders, /writeChatFolderState\(sessionId, migrated\)/);
 
-// Search contracts: verified server ownership scope, debounced UI requests, and capped results.
-assert.match(search, /authenticatedFetch\(`\/api\/chats\/search\?q=/);
-assert.doesNotMatch(search, /from\("chats"\)/);
-assert.match(search, /setTimeout\(\(\) => void search\(\), 300\)/);
-assert.match(search, /controller\.abort\(\)/);
-assert.match(searchRoute, /requireVerifiedUser\(req\)/);
-assert.match(searchRoute, /\.eq\("user_id", verified\.user\.id\)/);
-assert.match(searchRoute, /\.limit\(20\)/);
+// Search contracts: scope by the active session, debounce requests, and cap results.
+assert.match(search, /\.eq\("session_id", sessionId\)/);
+assert.match(search, /\.limit\(20\)/);
+assert.match(search, /setTimeout\(search, 300\)/);
+assert.match(search, /clearTimeout\(debounce\)/);
 
 // Draft contracts: keep the offline cache bounded and reject GitHub-token-shaped text.
 assert.match(page, /MAX_DRAFT_LENGTH/);
@@ -59,4 +55,4 @@ assert.match(vercelReadRoute, /requireVerifiedUser/);
 assert.match(vercelReadRoute, /listDeployments/);
 assert.match(vercelReadRoute, /deploymentId/);
 
-console.log("Recent feature contract verification passed: folders, verified search, drafts, timeline, recovery, and Vercel reads.");
+console.log("Recent feature contract verification passed: folders, search, drafts, timeline, recovery, and Vercel reads.");

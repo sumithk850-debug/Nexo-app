@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { BarChart3, X, Zap, Clock, TrendingUp, RefreshCw } from "lucide-react";
 import type { NexoModelId } from "@/lib/models";
-import { authenticatedFetch } from "@/lib/authFetch";
 
 interface ModelUsage {
   id: string;
@@ -43,6 +42,7 @@ interface Limits {
 }
 
 interface Props {
+  sessionId: string;
   theme: { edge: string };
   open: boolean;
   onClose: () => void;
@@ -106,7 +106,7 @@ function ModelRow({ config, used, limit }: { config: ModelUsage; used: number; l
   );
 }
 
-export default function RateLimitationPanel({ theme, open, onClose }: Props) {
+export default function RateLimitationPanel({ sessionId, theme, open, onClose }: Props) {
 
   const handleRefresh = async () => {
     await fetchUsage();
@@ -119,7 +119,10 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authenticatedFetch("/api/usage", { cache: "no-store" });
+      const res = await fetch("/api/usage", {
+        headers: { "x-session-id": sessionId },
+        cache: "no-store",
+      });
       if (res.ok) {
         const data = await res.json();
         setUsage(data.usage);
@@ -129,12 +132,12 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
       // silently fail
     }
     setLoading(false);
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
-    // Always refetch on open to get the latest verified account usage.
-    if (open) void fetchUsage();
-  }, [open, fetchUsage]);
+    // Always refetch on open to get the latest usage data
+    if (open && sessionId) fetchUsage();
+  }, [open, sessionId, fetchUsage]);
 
   // Countdown to midnight reset
   useEffect(() => {

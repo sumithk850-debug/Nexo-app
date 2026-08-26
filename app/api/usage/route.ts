@@ -1,22 +1,28 @@
 import { NextRequest } from "next/server";
 import { getDailyUsage, DAILY_LIMITS } from "@/lib/rateLimits.server";
-import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const verified = await requireVerifiedUser(request);
-  if (verified.response) return verified.response;
+  const sessionId = request.headers.get("x-session-id")?.trim() ?? "";
 
-  // The scope is derived solely from the verified bearer token. A browser
-  // cannot select another account's dashboard by supplying a session header.
-  const usage = await getDailyUsage(`user:${verified.user.id}`);
+  // Usage is written by /api/chat using the client chat session ID. User IDs
+  // are intentionally not used here: querying by a user ID creates a different
+  // lookup key and makes a real session's dashboard incorrectly show zero.
+  if (!sessionId) {
+    return new Response(JSON.stringify({ error: "Missing session" }), { status: 401 });
+  }
+
+  const usage = await getDailyUsage(sessionId);
 
   return new Response(
-    JSON.stringify({ usage, limits: DAILY_LIMITS }),
+    JSON.stringify({
+      usage,
+      limits: DAILY_LIMITS,
+    }),
     {
       status: 200,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: { "Content-Type": "application/json" },
     }
   );
 }

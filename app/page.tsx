@@ -1241,7 +1241,7 @@ export default function ChatPage() {
       const toDelete = messages.slice(idx + 1);
       await Promise.all(
         toDelete.map((m) =>
-          authenticatedFetch(`/api/chats/${encodeURIComponent(chatId)}/messages?id=${encodeURIComponent(m.id)}`, {
+          fetch(`/api/chats/${chatId}/messages?id=${m.id}`, {
             method: "DELETE",
           }).catch(() => {})
         )
@@ -1490,7 +1490,7 @@ export default function ChatPage() {
       setMessages([]);
     }
     try {
-      await authenticatedFetch(`/api/chats?id=${encodeURIComponent(chatId)}`, { method: "DELETE" });
+      await fetch(`/api/chats?id=${chatId}`, { method: "DELETE" });
     } catch {
       // list already updated optimistically
     }
@@ -1501,7 +1501,7 @@ export default function ChatPage() {
       prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c))
     );
     try {
-      await authenticatedFetch("/api/chats", {
+      await fetch("/api/chats", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: chatId, title: newTitle }),
@@ -1530,6 +1530,7 @@ export default function ChatPage() {
         <SearchModal
         open={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
+        sessionId={sessionId}
         onSelectChat={handleSelectChat}
       />
       <AuthModal
@@ -1618,6 +1619,7 @@ export default function ChatPage() {
         <AnnouncementBanner />
         <AnnouncementModal />
         <RateLimitationPanel
+          sessionId={sessionId}
           theme={{ edge: "" }}
           open={usagePanelOpen}
           onClose={() => setUsagePanelOpen(false)}
