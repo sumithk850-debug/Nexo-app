@@ -22,7 +22,7 @@ import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
 import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligencePanel";
 import { CoderModelSelector } from "@/components/CoderModelSelector";
-import { GeminiLiveTalkPanel } from "@/components/GeminiLiveTalkPanel";
+import { NexoLivePanel } from "@/components/NexoLivePanel";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -168,7 +168,7 @@ export default function ChatPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [geminiLiveOpen, setGeminiLiveOpen] = useState(false);
+  const [nexoLiveOpen, setNexoLiveOpen] = useState(false);
   const [activePersona, setActivePersona] = useState("general");
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
   const [chats, setChats] = useState<DbChat[]>([]);
@@ -1770,7 +1770,7 @@ export default function ChatPage() {
               onStop={handleStopGenerating}
               streamElapsedSeconds={streamElapsedSeconds}
               onSecretDetected={handleSecretDetected}
-              onOpenLiveTalk={() => setGeminiLiveOpen(true)}
+              onOpenLiveTalk={() => setNexoLiveOpen(true)}
             />
           </div>
 
@@ -1787,8 +1787,8 @@ export default function ChatPage() {
         </div>
       </main>
 
-      {geminiLiveOpen && (
-        <GeminiLiveTalkPanel onClose={() => setGeminiLiveOpen(false)} />
+      {nexoLiveOpen && (
+        <NexoLivePanel onClose={() => setNexoLiveOpen(false)} />
       )}
       <AuthModal
         open={authModalOpen}
