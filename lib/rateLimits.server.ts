@@ -1,7 +1,6 @@
 // NEXO AI — Token Usage Tracking (Server-only)
 // This file tracks per-model token usage and provides daily usage data.
 // It is only imported from app/api/** route handlers.
-import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import type { NexoModelId } from "./models";
 
@@ -43,18 +42,10 @@ export const CRAFT_TOKEN_LIMIT = DAILY_LIMITS.craft.tokens;
 export const CODER_PAUSE_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    throw new Error("Usage persistence is not configured.");
-  }
-
-  // This module is invoked only after the caller's identity or anonymous scope
-  // has been established by a route handler. The service client is necessary
-  // because rate-limit rows are intentionally not browser-accessible.
-  return createClient(url, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
 
 // Estimate tokens from text length (rough approximation: ~4 chars per token)
