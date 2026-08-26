@@ -33,6 +33,7 @@ export function ChatInput({
   onStop,
   streamElapsedSeconds = 0,
   onSecretDetected,
+  onOpenLiveTalk,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -49,6 +50,7 @@ export function ChatInput({
   onStop?: () => void;
   streamElapsedSeconds?: number;
   onSecretDetected?: (secret: string) => void;
+  onOpenLiveTalk?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,11 +165,7 @@ export function ChatInput({
   }
 
   function handleMicClick() {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
+    onOpenLiveTalk?.();
   }
 
   useEffect(() => {
@@ -312,8 +310,8 @@ export function ChatInput({
                     ? "border-cyan bg-cyan/10 text-cyan shadow-[0_0_15px_rgba(0,229,255,0.3)]"
                     : "border-edge text-ink-muted hover:border-cyan/40 hover:text-ink"
                 }`}
-                aria-label={isListening ? "Stop voice input" : "Start voice input"}
-                title={isListening ? "Stop" : "Speak"}
+                aria-label="Open Live Talk"
+                title="Live Talk"
               >
                 {isListening ? (
                   <Square className="h-3 w-3" />
