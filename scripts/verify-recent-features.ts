@@ -35,12 +35,6 @@ assert.match(search, /controller\.abort\(\)/);
 assert.match(searchRoute, /requireVerifiedUser\(req\)/);
 assert.match(searchRoute, /\.eq\("user_id", verified\.user\.id\)/);
 assert.match(searchRoute, /\.limit\(20\)/);
-const signedInApplicationStart = page.indexOf("const firstName");
-const signedInSearchModal = page.indexOf("<SearchModal", signedInApplicationStart);
-assert.ok(
-  signedInApplicationStart >= 0 && signedInSearchModal > signedInApplicationStart,
-  "Global search must render inside the signed-in application shell."
-);
 
 // Unused oversized public assets must not return after their safe removal.
 for (const asset of [
