@@ -67,6 +67,10 @@ assert(panel.includes("MediaRecorder"), "The panel must capture voice turns loca
 assert(panel.includes("createAnalyser"), "The panel must analyse microphone input for the live waveform.");
 assert(panel.includes("getByteTimeDomainData"), "The waveform must use the real microphone signal.");
 assert(panel.includes("speechSynthesis.speak"), "The panel must play the Nexo response aloud.");
+assert(panel.includes("preferredMaleVoice"), "Playback must prefer a male voice when available.");
+assert(panel.includes("si-LK"), "Sinhala playback must use a Sinhala language fallback.");
+assert(panel.includes("en-US"), "English playback must use an English language fallback.");
+assert(panel.includes("utterance.pitch = 0.84"), "Playback must use a professional lower voice pitch.");
 assert(panel.includes("setAudioLevel"), "The panel must update waveform state from microphone audio.");
 assert(panel.includes("closingRef"), "The panel must discard recorder callbacks after End Talk or cleanup.");
 assert(panel.includes("shouldDiscard"), "The panel must not submit audio after a session is closed.");

@@ -95,6 +95,20 @@ async function blobToVoicePayload(blob: Blob) {
   }
 }
 
+function preferredMaleVoice(text: string) {
+  if (!("speechSynthesis" in window)) return undefined;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) return undefined;
+
+  const isSinhala = /[\u0D80-\u0DFF]/.test(text);
+  const languagePrefix = isSinhala ? "si" : "en";
+  const languageVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
+  const maleHint = /male|man|david|mark|daniel|alex|george|james|ryan|guy|ravi|kumar|suresh|nimal|kasun|chamara/i;
+  return languageVoices.find((voice) => maleHint.test(`${voice.name} ${voice.voiceURI}`))
+    ?? languageVoices[0]
+    ?? voices.find((voice) => maleHint.test(`${voice.name} ${voice.voiceURI}`));
+}
+
 function stateLabel(state: VoiceState) {
   if (state === "listening") return "Listening…";
   if (state === "processing") return "Processing your voice…";
@@ -206,8 +220,15 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       setVoiceState("speaking");
       if ("speechSynthesis" in window) {
         const utterance = new SpeechSynthesisUtterance(payload.text);
-        utterance.rate = 1;
-        utterance.pitch = 1;
+        const voice = preferredMaleVoice(payload.text);
+        if (voice) {
+          utterance.voice = voice;
+          utterance.lang = voice.lang;
+        } else {
+          utterance.lang = /[\u0D80-\u0DFF]/.test(payload.text) ? "si-LK" : "en-US";
+        }
+        utterance.rate = 0.96;
+        utterance.pitch = 0.84;
         utterance.volume = 1;
         utterance.onend = () => {
           if (mountedRef.current) setVoiceState("idle");
