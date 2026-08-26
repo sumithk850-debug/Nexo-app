@@ -118,16 +118,20 @@ begin
   end if;
 
   if voice_session.ended_at is null then
-    duration := least(
-      greatest(floor(extract(epoch from (now() - voice_session.started_at)))::integer, 0),
-      voice_session.max_duration_seconds
-    );
+    if p_status = 'cancelled' then
+      duration := 0;
+    else
+      duration := least(
+        greatest(floor(extract(epoch from (now() - voice_session.started_at)))::integer, 0),
+        voice_session.max_duration_seconds
+      );
+    end if;
     update public.nexo_voice_sessions
     set ended_at = now(), duration_seconds = duration,
         status = case when p_status = 'cancelled' then 'cancelled' else 'completed' end
     where id = p_session_id;
 
-    if duration > 0 then
+    if duration > 0 and p_status <> 'cancelled' then
       insert into public.nexo_voice_daily_usage (user_id, usage_date, used_seconds)
       values (p_user_id, today, least(duration, 1200))
       on conflict (user_id, usage_date) do update

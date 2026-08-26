@@ -39,6 +39,8 @@ assert(usageMigration.includes("nexo_voice_sessions"), "Voice sessions must have
 assert(usageMigration.includes("used_seconds"), "Voice usage must be recorded in seconds.");
 assert(usageMigration.includes("start_nexo_voice_session"), "Voice starts must use the server database guard.");
 assert(usageMigration.includes("finish_nexo_voice_session"), "Voice completion must use the server database guard.");
+assert(usageMigration.includes("duration := 0"), "Cancelled voice sessions must not consume daily allowance.");
+assert(usageMigration.includes("p_status <> 'cancelled'"), "Only completed voice turns may add daily usage.");
 assert(usageMigration.includes("revoke all on table"), "Voice tables must not be browser-readable.");
 assert(voiceRoute.includes("process.env.GEMINI_API_KEY"), "Voice requests must use the primary Gemini API key on the server.");
 assert(!voiceRoute.includes("GEMINI_LIVE_API_KEY"), "Voice requests must not use the separate Live API key.");
