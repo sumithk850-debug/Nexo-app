@@ -31,6 +31,7 @@ type VoiceSessionResponse = {
 
 type NexoLivePanelProps = {
   onClose: () => void;
+  onVoiceTurnComplete?: (assistantText: string) => void;
 };
 
 const MAX_RECORDING_MS = 60_000;
@@ -117,7 +118,7 @@ function stateLabel(state: VoiceState) {
   return "Ready to talk";
 }
 
-export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
+export function NexoLivePanel({ onClose, onVoiceTurnComplete }: NexoLivePanelProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -137,11 +138,16 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const analysisFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const voiceTurnCompleteRef = useRef(onVoiceTurnComplete);
   const sessionIdRef = useRef<string | null>(null);
   const closingRef = useRef(false);
   const startingRef = useRef(false);
   const speechDetectedRef = useRef(false);
   const silenceStartedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    voiceTurnCompleteRef.current = onVoiceTurnComplete;
+  }, [onVoiceTurnComplete]);
 
   const clearRecordingTimer = useCallback(() => {
     if (recordingTimerRef.current !== null) {
@@ -217,6 +223,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
 
       setResponseText(payload.text);
       setErrorMessage(null);
+      voiceTurnCompleteRef.current?.(payload.text);
       setVoiceState("speaking");
       if ("speechSynthesis" in window) {
         const utterance = new SpeechSynthesisUtterance(payload.text);

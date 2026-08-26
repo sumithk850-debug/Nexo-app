@@ -214,6 +214,7 @@ export default function ChatPage() {
   const activeAssistantIdRef = useRef<string | null>(null);
   const streamStartedAtRef = useRef<number | null>(null);
   const streamingLockRef = useRef(false);
+  const liveHistorySaveLockRef = useRef(false);
   const attachmentPreparationLockRef = useRef(false);
   const draftHydrationKeyRef = useRef("");
   const skipNextDraftSaveRef = useRef(false);
@@ -733,6 +734,20 @@ export default function ChatPage() {
       });
     } catch {
       // non-critical
+    }
+  }
+
+  async function handleNexoLiveTurnComplete(assistantText: string) {
+    if (!assistantText.trim() || liveHistorySaveLockRef.current) return;
+    liveHistorySaveLockRef.current = true;
+    try {
+      const chatId = await ensureChat();
+      if (!chatId) return;
+      await saveMessage(chatId, "user", "[Voice message]");
+      await saveMessage(chatId, "assistant", assistantText.trim(), "nexio-1.1");
+      await loadMessages(chatId);
+    } finally {
+      liveHistorySaveLockRef.current = false;
     }
   }
 
@@ -1788,7 +1803,10 @@ export default function ChatPage() {
       </main>
 
       {nexoLiveOpen && (
-        <NexoLivePanel onClose={() => setNexoLiveOpen(false)} />
+        <NexoLivePanel
+          onClose={() => setNexoLiveOpen(false)}
+          onVoiceTurnComplete={handleNexoLiveTurnComplete}
+        />
       )}
       <AuthModal
         open={authModalOpen}

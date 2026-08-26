@@ -88,7 +88,10 @@ assert(usagePanel.includes("Daily voice allowance"), "The usage panel must show 
 assert(usagePanel.includes("20:00 available each day"), "The usage panel must show the 20-minute daily allowance.");
 
 assert(chatInput.includes("onOpenLiveTalk?.();"), "The chat microphone must open the isolated NEXO Live panel.");
-assert(page.includes("<NexoLivePanel onClose={() => setNexoLiveOpen(false)} />"), "The app shell must mount only the NEXO Live panel.");
+assert(page.includes("<NexoLivePanel"), "The app shell must mount only the NEXO Live panel.");
+assert(page.includes("onVoiceTurnComplete={handleNexoLiveTurnComplete}"), "The app shell must pass the isolated Live history callback.");
+assert(page.includes("liveHistorySaveLockRef"), "Live history persistence must prevent duplicate saves.");
+assert(page.includes('"[Voice message]"'), "Live history must persist a safe text-only user marker.");
 assert(!page.includes("GeminiLiveTalkPanel"), "The app shell must not reference the old panel.");
 
 console.log("NEXO Live panel checks passed: primary voice path, protected session accounting, real waveform/playback, NEXO-only UI, red errors, and visible daily allowance.");
