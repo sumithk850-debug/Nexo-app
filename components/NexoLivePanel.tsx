@@ -31,7 +31,6 @@ type VoiceSessionResponse = {
 
 type NexoLivePanelProps = {
   onClose: () => void;
-  onVoiceTurnComplete?: (responseText: string) => void | Promise<void>;
 };
 
 const MAX_RECORDING_MS = 60_000;
@@ -104,7 +103,7 @@ function stateLabel(state: VoiceState) {
   return "Ready to talk";
 }
 
-export function NexoLivePanel({ onClose, onVoiceTurnComplete }: NexoLivePanelProps) {
+export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -204,7 +203,6 @@ export function NexoLivePanel({ onClose, onVoiceTurnComplete }: NexoLivePanelPro
       setResponseText(payload.text);
       setErrorMessage(null);
       setVoiceState("speaking");
-      void onVoiceTurnComplete?.(payload.text);
       if ("speechSynthesis" in window) {
         const utterance = new SpeechSynthesisUtterance(payload.text);
         utterance.rate = 1;
@@ -230,7 +228,7 @@ export function NexoLivePanel({ onClose, onVoiceTurnComplete }: NexoLivePanelPro
         setVoiceState("error");
       }
     }
-  }, [cancelRemoteSession, onVoiceTurnComplete]);
+  }, [cancelRemoteSession]);
 
   const stopRecording = useCallback(() => {
     clearRecordingTimer();
