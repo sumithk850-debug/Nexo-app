@@ -73,6 +73,8 @@ assert(panel.includes("shouldDiscard"), "The panel must not submit audio after a
 assert(panel.includes("speechDetectedRef"), "The panel must detect real user speech before auto-submitting.");
 assert(panel.includes("silenceStartedAtRef"), "The panel must finish a turn quickly after the user stops speaking.");
 assert(panel.includes("userIsSpeaking"), "Waveform and turn completion must react to microphone activity.");
+assert(panel.includes("voiceState === \"idle\") void startRecording"), "The panel must automatically enter capture mode when opened.");
+assert(panel.includes("microphone starts automatically"), "The panel must tell the user that capture starts automatically.");
 assert(usagePanel.includes('authenticatedFetch("/api/nexo/voice/usage"'), "The usage panel must fetch NEXO Live usage through the protected route.");
 assert(usagePanel.includes("NEXO Live"), "The usage panel must show NEXO Live usage.");
 assert(usagePanel.includes("Daily voice allowance"), "The usage panel must show the voice allowance label.");

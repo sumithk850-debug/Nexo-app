@@ -393,6 +393,13 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
     };
   }, [cancelRemoteSession, clearRecordingTimer, stopAudioMonitor, stopSpeech, stopStream]);
 
+  useEffect(() => {
+    const autoStartTimer = window.setTimeout(() => {
+      if (mountedRef.current && voiceState === "idle") void startRecording();
+    }, 180);
+    return () => window.clearTimeout(autoStartTimer);
+  }, [startRecording, voiceState]);
+
   const handleMic = () => {
     if (voiceState === "listening") {
       stopRecording();
@@ -494,7 +501,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
             </div>
           )}
 
-          {!responseText && !isError && voiceState !== "listening" && <div className="mt-5 rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] px-4 py-3 text-center text-sm text-violet-100/90"><Sparkles className="mr-2 inline h-4 w-4 text-violet-300" /> Tap the microphone and speak naturally…</div>}
+          {!responseText && !isError && voiceState !== "listening" && <div className="mt-5 rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] px-4 py-3 text-center text-sm text-violet-100/90"><Sparkles className="mr-2 inline h-4 w-4 text-violet-300" /> Speak naturally — the microphone starts automatically…</div>}
         </main>
 
         <footer className="space-y-4">
