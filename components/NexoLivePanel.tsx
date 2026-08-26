@@ -125,6 +125,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const sessionIdRef = useRef<string | null>(null);
   const mutedRef = useRef(false);
   const closingRef = useRef(false);
+  const speechDetectedRef = useRef(false);
+  const silenceStartedAtRef = useRef<number | null>(null);
 
   const clearRecordingTimer = useCallback(() => {
     if (recordingTimerRef.current !== null) {
@@ -279,6 +281,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       recorderRef.current = recorder;
       chunksRef.current = [];
       recordingStartedAtRef.current = Date.now();
+      speechDetectedRef.current = false;
+      silenceStartedAtRef.current = null;
       setVoiceState("listening");
 
       const AudioContextConstructor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -301,6 +305,19 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
             sum += normalized * normalized;
           }
           const rms = Math.sqrt(sum / samples.length);
+          const now = Date.now();
+          const elapsed = now - recordingStartedAtRef.current;
+          const userIsSpeaking = rms > 0.035;
+          if (userIsSpeaking) {
+            speechDetectedRef.current = true;
+            silenceStartedAtRef.current = null;
+          } else if (speechDetectedRef.current && elapsed > 650) {
+            silenceStartedAtRef.current ??= now;
+            if (now - silenceStartedAtRef.current >= 850) {
+              stopRecording();
+              return;
+            }
+          }
           setAudioLevel(Math.max(0.14, Math.min(1, 0.14 + rms * 5.2)));
           analysisFrameRef.current = window.requestAnimationFrame(animateWaveform);
         };

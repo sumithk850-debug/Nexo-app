@@ -68,6 +68,9 @@ assert(panel.includes("speechSynthesis.speak"), "The panel must play the Nexo re
 assert(panel.includes("setAudioLevel"), "The panel must update waveform state from microphone audio.");
 assert(panel.includes("closingRef"), "The panel must discard recorder callbacks after End Talk or cleanup.");
 assert(panel.includes("shouldDiscard"), "The panel must not submit audio after a session is closed.");
+assert(panel.includes("speechDetectedRef"), "The panel must detect real user speech before auto-submitting.");
+assert(panel.includes("silenceStartedAtRef"), "The panel must finish a turn quickly after the user stops speaking.");
+assert(panel.includes("userIsSpeaking"), "Waveform and turn completion must react to microphone activity.");
 assert(usagePanel.includes('authenticatedFetch("/api/nexo/voice/usage"'), "The usage panel must fetch NEXO Live usage through the protected route.");
 assert(usagePanel.includes("NEXO Live"), "The usage panel must show NEXO Live usage.");
 assert(usagePanel.includes("Daily voice allowance"), "The usage panel must show the voice allowance label.");
