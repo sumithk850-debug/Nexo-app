@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { BarChart3, X, Zap, Clock, TrendingUp, RefreshCw } from "lucide-react";
 import type { NexoModelId } from "@/lib/models";
+import { authenticatedFetch } from "@/lib/authFetch";
 
 interface ModelUsage {
   id: string;
@@ -41,6 +42,13 @@ interface Limits {
   craft: { tokens: number; messages: number };
 }
 
+interface NexoLiveUsage {
+  usedSeconds: number;
+  remainingSeconds: number;
+  limitSeconds: number;
+  resetAt: string;
+}
+
 interface Props {
   sessionId: string;
   theme: { edge: string };
@@ -51,6 +59,12 @@ interface Props {
 function formatNumber(num: number): string {
   if (num >= 1000) return (num / 1000).toFixed(1) + "k";
   return num.toString();
+}
+
+function formatDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
 }
 
 function CircularProgress({ percentage, color, size = 48 }: { percentage: number; color: string; size?: number }) {
@@ -113,23 +127,33 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
   };
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
+  const [nexoLiveUsage, setNexoLiveUsage] = useState<NexoLiveUsage | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeUntilReset, setTimeUntilReset] = useState("");
 
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/usage", {
-        headers: { "x-session-id": sessionId },
-        cache: "no-store",
-      });
+      const [res, liveRes] = await Promise.all([
+        fetch("/api/usage", {
+          headers: { "x-session-id": sessionId },
+          cache: "no-store",
+        }),
+        authenticatedFetch("/api/nexo/voice/usage", { cache: "no-store" }),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setUsage(data.usage);
         setLimits(data.limits);
       }
+      if (liveRes.ok) {
+        const data = await liveRes.json() as { usage?: NexoLiveUsage };
+        setNexoLiveUsage(data.usage ?? null);
+      } else {
+        setNexoLiveUsage(null);
+      }
     } catch {
-      // silently fail
+      setNexoLiveUsage(null);
     }
     setLoading(false);
   }, [sessionId]);
@@ -159,6 +183,9 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
   const totalUsed = usage?.total ?? 0;
   const totalLimit = Object.values(limits ?? {}).reduce((sum, l) => sum + l.tokens, 0);
   const totalPct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
+  const livePct = nexoLiveUsage && nexoLiveUsage.limitSeconds > 0
+    ? (nexoLiveUsage.usedSeconds / nexoLiveUsage.limitSeconds) * 100
+    : 0;
   const coderResumeAt = usage?.coderPausedUntil ? new Date(usage.coderPausedUntil) : null;
   const coderIsPaused = Boolean(coderResumeAt && coderResumeAt.getTime() > Date.now());
 
@@ -209,6 +236,27 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
                 <p className="text-xs text-gray-500 mt-0.5">of {formatNumber(totalLimit)} tokens</p>
               </div>
               <CircularProgress percentage={totalPct} color="#06b6d4" size={56} />
+            </div>
+          </div>
+
+          {/* NEXO Live daily allowance */}
+          <div className="rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-500/15 to-indigo-500/10 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-violet-200">NEXO Live</p>
+                <p className="mt-1 text-sm font-semibold text-white">Daily voice allowance</p>
+                <p className="mt-1 text-xs text-violet-200/70">
+                  {nexoLiveUsage ? `${formatDuration(nexoLiveUsage.usedSeconds)} used of ${formatDuration(nexoLiveUsage.limitSeconds)}` : "20:00 available each day"}
+                </p>
+              </div>
+              <CircularProgress percentage={livePct} color="#8b5cf6" size={52} />
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-gradient-to-r from-violet-400 to-indigo-400 transition-all duration-700" style={{ width: `${Math.min(livePct, 100)}%` }} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-white/55">
+              <span>{nexoLiveUsage ? `${formatDuration(nexoLiveUsage.remainingSeconds)} remaining` : "Sign in to view usage"}</span>
+              <span>Resets daily</span>
             </div>
           </div>
 

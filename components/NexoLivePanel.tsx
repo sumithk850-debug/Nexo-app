@@ -22,6 +22,13 @@ type VoiceResponse = {
   error?: string;
 };
 
+type VoiceSessionResponse = {
+  sessionId?: string;
+  remainingSeconds?: number;
+  maxDurationSeconds?: number;
+  error?: string;
+};
+
 type NexoLivePanelProps = {
   onClose: () => void;
 };
@@ -40,7 +47,7 @@ function chooseRecordingMimeType() {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-function blobToBase64(blob: Blob) {
+function readBlobAsBase64(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -50,6 +57,42 @@ function blobToBase64(blob: Blob) {
     reader.onerror = () => reject(new Error("Voice recording could not be read."));
     reader.readAsDataURL(blob);
   });
+}
+
+async function blobToVoicePayload(blob: Blob) {
+  try {
+    const AudioContextConstructor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) throw new Error("Audio conversion is not supported.");
+    const audioContext = new AudioContextConstructor();
+    const decoded = await audioContext.decodeAudioData(await blob.arrayBuffer());
+    const channel = decoded.getChannelData(0);
+    const buffer = new ArrayBuffer(44 + channel.length * 2);
+    const view = new DataView(buffer);
+    const write = (offset: number, value: string) => {
+      [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
+    };
+    write(0, "RIFF");
+    view.setUint32(4, 36 + channel.length * 2, true);
+    write(8, "WAVE");
+    write(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, decoded.sampleRate, true);
+    view.setUint32(28, decoded.sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    write(36, "data");
+    view.setUint32(40, channel.length * 2, true);
+    for (let index = 0; index < channel.length; index += 1) {
+      const sample = Math.max(-1, Math.min(1, channel[index]));
+      view.setInt16(44 + index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    }
+    await audioContext.close();
+    return { audioData: await readBlobAsBase64(new Blob([buffer], { type: "audio/wav" })), mimeType: "audio/wav" };
+  } catch {
+    return { audioData: await readBlobAsBase64(blob), mimeType: blob.type || "audio/webm" };
+  }
 }
 
 function stateLabel(state: VoiceState) {
@@ -64,6 +107,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [maxRecordingSeconds, setMaxRecordingSeconds] = useState(60);
   const [audioLevel, setAudioLevel] = useState(0.22);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
@@ -75,8 +119,12 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const chunksRef = useRef<Blob[]>([]);
   const recordingStartedAtRef = useRef(0);
   const recordingTimerRef = useRef<number | null>(null);
+  const analysisFrameRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const mutedRef = useRef(false);
+  const closingRef = useRef(false);
 
   const clearRecordingTimer = useCallback(() => {
     if (recordingTimerRef.current !== null) {
@@ -85,26 +133,52 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
     }
   }, []);
 
+  const stopAudioMonitor = useCallback(() => {
+    if (analysisFrameRef.current !== null) {
+      window.cancelAnimationFrame(analysisFrameRef.current);
+      analysisFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    setAudioLevel(0.22);
+  }, []);
+
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
   }, []);
 
   const stopSpeech = useCallback(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     speechRef.current = null;
   }, []);
 
   const resetAudioState = useCallback(() => {
     clearRecordingTimer();
+    stopAudioMonitor();
     stopStream();
     recorderRef.current = null;
     setRecordingSeconds(0);
-    setAudioLevel(0.22);
-  }, [clearRecordingTimer, stopStream]);
+  }, [clearRecordingTimer, stopAudioMonitor, stopStream]);
 
-  const submitRecording = useCallback(async (blob: Blob, mimeType: string) => {
+  const cancelRemoteSession = useCallback((sessionId: string | null) => {
+    if (!sessionId) return;
+    void authenticatedFetch("/api/nexo/voice/session", {
+      method: "DELETE",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
+  const submitRecording = useCallback(async (blob: Blob, sessionId: string, fallbackMimeType: string) => {
     if (blob.size === 0) {
+      cancelRemoteSession(sessionId);
       if (mountedRef.current) {
         setErrorMessage("No voice was captured. Please try again.");
         setVoiceState("error");
@@ -113,12 +187,12 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
     }
 
     try {
-      const audioData = await blobToBase64(blob);
+      const { audioData, mimeType } = await blobToVoicePayload(blob);
       const response = await authenticatedFetch("/api/nexo/voice", {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioData, mimeType: mimeType || blob.type || "audio/webm" }),
+        body: JSON.stringify({ audioData, mimeType: mimeType || fallbackMimeType || "audio/wav", sessionId }),
       });
       const payload = await response.json().catch(() => ({})) as VoiceResponse;
       if (!response.ok || !payload.text) throw new Error(payload.error ?? "Nexo could not complete that voice turn.");
@@ -131,6 +205,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
         const utterance = new SpeechSynthesisUtterance(payload.text);
         utterance.rate = 1;
         utterance.pitch = 1;
+        utterance.volume = 1;
         utterance.onend = () => {
           if (mountedRef.current) setVoiceState("idle");
         };
@@ -139,17 +214,19 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
         };
         speechRef.current = utterance;
         window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
         window.speechSynthesis.speak(utterance);
       } else {
         setVoiceState("idle");
       }
     } catch (cause) {
+      cancelRemoteSession(sessionId);
       if (mountedRef.current) {
         setErrorMessage(cause instanceof Error ? cause.message : "Nexo could not complete that voice turn.");
         setVoiceState("error");
       }
     }
-  }, []);
+  }, [cancelRemoteSession]);
 
   const stopRecording = useCallback(() => {
     clearRecordingTimer();
@@ -159,14 +236,28 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   }, [clearRecordingTimer]);
 
   const startRecording = useCallback(async () => {
+    closingRef.current = false;
     setErrorMessage(null);
-    setVoiceState("listening");
     setResponseText("");
+    stopSpeech();
 
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
         throw new Error("Microphone recording is not supported on this device.");
       }
+
+      const sessionResponse = await authenticatedFetch("/api/nexo/voice/session", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const sessionPayload = await sessionResponse.json().catch(() => ({})) as VoiceSessionResponse;
+      if (!sessionResponse.ok || !sessionPayload.sessionId) {
+        throw new Error(sessionPayload.error ?? "Voice session could not start. Please retry.");
+      }
+      sessionIdRef.current = sessionPayload.sessionId;
+      const allowedSeconds = Math.max(1, Math.min(60, Math.floor(sessionPayload.maxDurationSeconds ?? 60)));
+      setMaxRecordingSeconds(allowedSeconds);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -177,6 +268,8 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       });
       if (!mountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
+        cancelRemoteSession(sessionIdRef.current);
+        sessionIdRef.current = null;
         return;
       }
 
@@ -186,10 +279,41 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       recorderRef.current = recorder;
       chunksRef.current = [];
       recordingStartedAtRef.current = Date.now();
+      setVoiceState("listening");
+
+      const AudioContextConstructor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextConstructor) {
+        const audioContext = new AudioContextConstructor();
+        await audioContext.resume().catch(() => {});
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.68;
+        source.connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        audioContextRef.current = audioContext;
+        const animateWaveform = () => {
+          if (audioContextRef.current !== audioContext) return;
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (const sample of samples) {
+            const normalized = (sample - 128) / 128;
+            sum += normalized * normalized;
+          }
+          const rms = Math.sqrt(sum / samples.length);
+          setAudioLevel(Math.max(0.14, Math.min(1, 0.14 + rms * 5.2)));
+          analysisFrameRef.current = window.requestAnimationFrame(animateWaveform);
+        };
+        animateWaveform();
+      }
+
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
+        const activeSession = sessionIdRef.current;
+        sessionIdRef.current = null;
+        cancelRemoteSession(activeSession);
         resetAudioState();
         if (mountedRef.current) {
           setErrorMessage("Microphone recording stopped unexpectedly. Please retry.");
@@ -199,40 +323,58 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       recorder.onstop = () => {
         const recordedMimeType = recorder.mimeType || mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: recordedMimeType });
+        const shouldDiscard = closingRef.current;
+        const activeSession = sessionIdRef.current;
+        sessionIdRef.current = null;
         resetAudioState();
+        if (shouldDiscard) return;
+        if (!activeSession) {
+          if (mountedRef.current) {
+            setErrorMessage("The voice session expired. Please retry.");
+            setVoiceState("error");
+          }
+          return;
+        }
         if (mountedRef.current) setVoiceState("processing");
-        void submitRecording(blob, recordedMimeType);
+        void submitRecording(blob, activeSession, recordedMimeType);
       };
-      recorder.start(250);
+      recorder.start(200);
       recordingTimerRef.current = window.setInterval(() => {
         const elapsed = Date.now() - recordingStartedAtRef.current;
-        setRecordingSeconds(Math.min(60, Math.floor(elapsed / 1_000)));
-        setAudioLevel(0.18 + ((Math.sin(elapsed / 170) + 1) / 2) * 0.62);
-        if (elapsed >= MAX_RECORDING_MS) stopRecording();
+        setRecordingSeconds(Math.min(allowedSeconds, Math.floor(elapsed / 1_000)));
+        if (elapsed >= allowedSeconds * 1_000) stopRecording();
       }, 120);
     } catch (cause) {
+      const activeSession = sessionIdRef.current;
+      sessionIdRef.current = null;
+      cancelRemoteSession(activeSession);
       resetAudioState();
       if (mountedRef.current) {
         setErrorMessage(cause instanceof Error ? cause.message : "Microphone access was not available.");
         setVoiceState("error");
       }
     }
-  }, [resetAudioState, stopRecording, submitRecording]);
+  }, [cancelRemoteSession, resetAudioState, stopRecording, stopSpeech, submitRecording]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      closingRef.current = true;
       clearRecordingTimer();
       try {
         if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
       } catch {
         // The recorder may already be closed by the browser.
       }
+      const activeSession = sessionIdRef.current;
+      sessionIdRef.current = null;
+      cancelRemoteSession(activeSession);
+      stopAudioMonitor();
       stopStream();
       stopSpeech();
     };
-  }, [clearRecordingTimer, stopSpeech, stopStream]);
+  }, [cancelRemoteSession, clearRecordingTimer, stopAudioMonitor, stopSpeech, stopStream]);
 
   const handleMic = () => {
     if (voiceState === "listening") {
@@ -240,14 +382,16 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
       return;
     }
     if (voiceState === "processing" || voiceState === "speaking") return;
-    stopSpeech();
     void startRecording();
   };
 
   const handleMute = () => {
     mutedRef.current = !mutedRef.current;
     setMuted(mutedRef.current);
-    if (mutedRef.current) stopSpeech();
+    if (mutedRef.current) {
+      stopSpeech();
+      if (voiceState === "speaking") setVoiceState("idle");
+    }
   };
 
   const handleRetry = () => {
@@ -257,7 +401,11 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   };
 
   const handleEnd = () => {
+    closingRef.current = true;
     if (voiceState === "listening") stopRecording();
+    const activeSession = sessionIdRef.current;
+    sessionIdRef.current = null;
+    cancelRemoteSession(activeSession);
     resetAudioState();
     stopSpeech();
     onClose();
@@ -266,6 +414,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
   const isError = voiceState === "error";
   const isConnected = voiceState === "listening" || voiceState === "processing" || voiceState === "speaking";
   const isBusy = voiceState === "processing" || voiceState === "speaking";
+  const maxWaveHeight = Math.max(1, maxRecordingSeconds);
 
   return (
     <section className="fixed inset-0 z-[100] overflow-y-auto bg-[#050615] text-white" aria-label="NEXO Live">
@@ -276,9 +425,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
 
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-5 pb-7 pt-[max(1.5rem,env(safe-area-inset-top))]">
         <header className="flex items-center justify-between">
-          <button onClick={handleEnd} className="grid h-10 w-10 place-items-center rounded-full text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-400" aria-label="Back to chat">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
+          <button onClick={handleEnd} className="grid h-10 w-10 place-items-center rounded-full text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-400" aria-label="Back to chat"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex items-center gap-2 text-base font-semibold tracking-tight"><AudioLines className="h-5 w-5 text-violet-400" /><span>NEXO Live</span></div>
           <button onClick={() => setShowStatus((value) => !value)} className="grid h-10 w-10 place-items-center rounded-full text-white/75 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-400" aria-label="Show voice session status"><EllipsisVertical className="h-5 w-5" /></button>
         </header>
@@ -286,7 +433,7 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
         {showStatus && (
           <div className="absolute right-5 top-16 z-20 w-56 rounded-2xl border border-violet-300/20 bg-[#121329]/95 p-3 text-xs text-white/75 shadow-2xl backdrop-blur-xl">
             <p className="font-semibold text-white">NEXO Live</p>
-            <p className="mt-1 leading-5">Speak naturally and stop the recording when you are ready.</p>
+            <p className="mt-1 leading-5">Speak naturally, then tap the microphone to send your voice message.</p>
           </div>
         )}
 
@@ -307,11 +454,11 @@ export function NexoLivePanel({ onClose }: NexoLivePanelProps) {
           </button>
 
           <h1 className="mt-10 text-center text-2xl font-semibold tracking-tight">{stateLabel(voiceState)}</h1>
-          {voiceState === "listening" && <p className="mt-2 text-xs text-white/55">Recording · {recordingSeconds}s / 60s</p>}
+          {voiceState === "listening" && <p className="mt-2 text-xs text-white/55">Recording · {recordingSeconds}s / {maxWaveHeight}s</p>}
           <div className="mt-6 flex h-16 items-center justify-center gap-1.5" aria-hidden="true">
             {WAVE_HEIGHTS.map((height, index) => {
               const liveMultiplier = voiceState === "listening" ? audioLevel : voiceState === "speaking" ? 0.82 + ((index % 3) * 0.12) : 0.5;
-              return <span key={index} className={`w-1 rounded-full transition-[height,background-color] duration-150 ${isError ? "bg-red-400/65" : "bg-violet-400"}`} style={{ height: `${Math.max(5, height * liveMultiplier)}px` }} />;
+              return <span key={index} className={`w-1 rounded-full transition-[height,background-color] duration-100 ${isError ? "bg-red-400/65" : "bg-violet-400"}`} style={{ height: `${Math.max(5, height * liveMultiplier)}px` }} />;
             })}
           </div>
 
