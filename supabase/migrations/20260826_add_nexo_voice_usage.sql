@@ -56,7 +56,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(p_user_id::text, 271826));
 
   -- Recover sessions orphaned by a closed tab, lost network, or browser crash.
-  -- A real turn is capped at 60 seconds, so five minutes is conservative.
+  -- A real turn is capped at 60 seconds, so two minutes safely recovers orphaned sessions.
   update public.nexo_voice_sessions
   set ended_at = now(), status = 'cancelled', duration_seconds = 0
   where id in (
@@ -64,7 +64,7 @@ begin
     from public.nexo_voice_sessions
     where user_id = p_user_id
       and ended_at is null
-      and started_at < now() - interval '5 minutes'
+      and started_at < now() - interval '2 minutes'
     order by started_at asc
     limit 50
   );
