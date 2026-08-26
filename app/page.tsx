@@ -24,6 +24,7 @@ import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligen
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
+import { LiveTalkScreen } from "@/components/LiveTalkScreen";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
@@ -165,6 +166,7 @@ export default function ChatPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [splashVisible, setSplashVisible] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [liveTalkOpen, setLiveTalkOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [activePersona, setActivePersona] = useState("general");
@@ -1777,6 +1779,7 @@ export default function ChatPage() {
               onStop={handleStopGenerating}
               streamElapsedSeconds={streamElapsedSeconds}
               onSecretDetected={handleSecretDetected}
+              onOpenLiveTalk={() => setLiveTalkOpen(true)}
             />
           </div>
 
@@ -1792,6 +1795,10 @@ export default function ChatPage() {
           )}
         </div>
       </main>
+
+      {liveTalkOpen && (
+        <LiveTalkScreen onClose={() => setLiveTalkOpen(false)} />
+      )}
 
       <AuthModal
         open={authModalOpen}
