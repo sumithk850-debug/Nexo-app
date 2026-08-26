@@ -45,6 +45,8 @@ assert(usageMigration.includes("revoke all on table"), "Voice tables must not be
 assert(voiceRoute.includes("process.env.GEMINI_API_KEY"), "Voice requests must use the primary Gemini API key on the server.");
 assert(!voiceRoute.includes("GEMINI_LIVE_API_KEY"), "Voice requests must not use the separate Live API key.");
 assert(voiceRoute.includes(":generateContent?key="), "Voice requests must use the primary generate-content endpoint.");
+assert(voiceRoute.includes("medium-length spoken reply"), "Voice replies must use medium-length guidance.");
+assert(voiceRoute.includes("maxOutputTokens: 420"), "Voice replies must allow a moderate response length.");
 assert(voiceRoute.includes("audioData"), "The primary voice route must accept in-memory audio data.");
 assert(voiceRoute.includes("Cache-Control\": \"no-store\""), "Voice responses must not be cached.");
 assert(!voiceRoute.includes("supabase"), "The isolated voice route must not introduce database changes.");
@@ -67,6 +69,10 @@ assert(panel.includes("MediaRecorder"), "The panel must capture voice turns loca
 assert(panel.includes("createAnalyser"), "The panel must analyse microphone input for the live waveform.");
 assert(panel.includes("getByteTimeDomainData"), "The waveform must use the real microphone signal.");
 assert(panel.includes("speechSynthesis.speak"), "The panel must play the Nexo response aloud.");
+assert(panel.includes("selectMaleVoice"), "Playback must prefer a male voice when available.");
+assert(panel.includes("si-LK"), "Sinhala playback must use a Sinhala language fallback.");
+assert(panel.includes("en-US"), "English playback must use an English language fallback.");
+assert(panel.includes("utterance.pitch = 0.82"), "Playback must use a professional lower voice pitch.");
 assert(panel.includes("setAudioLevel"), "The panel must update waveform state from microphone audio.");
 assert(panel.includes("closingRef"), "The panel must discard recorder callbacks after End Talk or cleanup.");
 assert(panel.includes("shouldDiscard"), "The panel must not submit audio after a session is closed.");

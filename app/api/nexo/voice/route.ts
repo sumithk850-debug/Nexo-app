@@ -66,7 +66,7 @@ export async function POST(req: Request) {
             role: "user",
             parts: [
               {
-                text: "Listen to the user's voice message and reply naturally as Nexo. Return only the concise spoken reply, without markdown, system details, service names, or API/key references. Reply in the language the user speaks.",
+                text: "Listen to the user's voice message and reply naturally as Nexo. Return only a professional, medium-length spoken reply without markdown, system details, service names, or API/key references. For a simple greeting, use 1–2 natural sentences; for a normal question, use about 2–5 useful sentences with enough context but no long essay. Reply in the language the user speaks.",
               },
               {
                 inline_data: {
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
           }],
           generationConfig: {
             temperature: 0.55,
-            maxOutputTokens: 500,
+            maxOutputTokens: 420,
           },
         }),
         cache: "no-store",
