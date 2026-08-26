@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatInput } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -698,7 +698,7 @@ export default function ChatPage() {
     }
   }
 
-  async function ensureChat(): Promise<string | null> {
+  async function ensureChat(title = "New chat"): Promise<string | null> {
     if (activeChatId) return activeChatId;
     if (!sessionId) return null;
 
@@ -708,7 +708,7 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          title: "New chat",
+          title,
           modelId: selectedModel,
         }),
       });
@@ -735,6 +735,33 @@ export default function ChatPage() {
       // non-critical
     }
   }
+
+  const handleNexoLiveTurn = useCallback(async (responseText: string) => {
+    const chatId = await ensureChat("NEXO Live");
+    if (!chatId || !responseText.trim()) return;
+
+    // Audio and transcripts remain ephemeral. History keeps a safe text marker
+    // for the user's turn plus the assistant's spoken response.
+    const userMessage: ChatMessage = {
+      id: `nexo-live-user-${Date.now()}`,
+      role: "user",
+      content: "Voice message",
+      modelId: selectedModel,
+      persisted: true,
+    };
+    const assistantMessage: ChatMessage = {
+      id: `nexo-live-assistant-${Date.now()}`,
+      role: "assistant",
+      content: responseText.trim(),
+      modelId: selectedModel,
+      persisted: true,
+    };
+
+    await saveMessage(chatId, "user", userMessage.content, selectedModel);
+    await saveMessage(chatId, "assistant", assistantMessage.content, selectedModel);
+    setMessages((current) => [...current, userMessage, assistantMessage]);
+    if (sessionId) void loadChats(sessionId);
+  }, [activeChatId, selectedModel, sessionId]);
 
   function handleAttach(files: File[]) {
     setAttachedFiles((current) => [...current, ...files].slice(0, MAX_ATTACHMENTS_PER_MESSAGE));
@@ -1788,7 +1815,10 @@ export default function ChatPage() {
       </main>
 
       {nexoLiveOpen && (
-        <NexoLivePanel onClose={() => setNexoLiveOpen(false)} />
+        <NexoLivePanel
+          onClose={() => setNexoLiveOpen(false)}
+          onVoiceTurnComplete={handleNexoLiveTurn}
+        />
       )}
       <AuthModal
         open={authModalOpen}
