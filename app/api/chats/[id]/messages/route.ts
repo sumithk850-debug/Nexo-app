@@ -1,13 +1,24 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { findOwnedChat, getChatAdminClient } from "@/lib/chatOwnership.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+function jsonError(error: string, status: number) {
+  return new Response(JSON.stringify({ error }), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+async function requireOwnedChat(req: NextRequest, chatId: string) {
+  const verified = await requireVerifiedUser(req);
+  if (verified.response) return { response: verified.response } as const;
+
+  const supabase = getChatAdminClient();
+  const chat = await findOwnedChat(supabase, verified.user.id, chatId);
+  if (!chat) return { response: jsonError("Chat not found.", 404) } as const;
+  return { supabase, userId: verified.user.id } as const;
 }
 
 export async function GET(
@@ -15,24 +26,22 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from("messages")
-    .select("id, role, content, model_id, created_at")
-    .eq("chat_id", id)
-    .order("created_at", { ascending: true })
-    .limit(200);
+  try {
+    const access = await requireOwnedChat(req, id);
+    if ("response" in access) return access.response;
 
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-    });
+    const { data, error } = await access.supabase
+      .from("messages")
+      .select("id, role, content, model_id, created_at")
+      .eq("chat_id", id)
+      .order("created_at", { ascending: true })
+      .limit(200);
+
+    if (error) return jsonError("Could not load messages.", 500);
+    return Response.json({ messages: data ?? [] }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return jsonError("Chat history is temporarily unavailable.", 503);
   }
-
-  return new Response(JSON.stringify({ messages: data }), {
-    status: 200,
-    headers: { "Cache-Control": "no-store" },
-  });
 }
 
 export async function POST(
@@ -40,40 +49,43 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await req.json();
-  const { role, content, modelId } = body;
-
-  if (!role || content === undefined) {
-    return new Response(JSON.stringify({ error: "Missing role or content" }), {
-      status: 400,
-    });
+  let body: { role?: unknown; content?: unknown; modelId?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return jsonError("Invalid request body", 400);
   }
 
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      chat_id: id,
-      role,
-      content,
-      model_id: modelId || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-    });
+  const role = body.role === "user" || body.role === "assistant" ? body.role : null;
+  const content = typeof body.content === "string" ? body.content : null;
+  const modelId = typeof body.modelId === "string" ? body.modelId.slice(0, 80) : null;
+  if (!role || content === null || content.length > 120_000) {
+    return jsonError("Missing or invalid message content", 400);
   }
 
-  await supabase
-    .from("chats")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", id);
+  try {
+    const access = await requireOwnedChat(req, id);
+    if ("response" in access) return access.response;
 
-  return new Response(JSON.stringify({ message: data }), { status: 201 });
+    const { data, error } = await access.supabase
+      .from("messages")
+      .insert({ chat_id: id, role, content, model_id: modelId })
+      .select("id, role, content, model_id, created_at")
+      .single();
+
+    if (error) return jsonError("Could not save message.", 500);
+
+    const { error: touchError } = await access.supabase
+      .from("chats")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", access.userId);
+    if (touchError) return jsonError("Message was saved but chat update failed.", 500);
+
+    return Response.json({ message: data }, { status: 201 });
+  } catch {
+    return jsonError("Chat history is temporarily unavailable.", 503);
+  }
 }
 
 export async function DELETE(
@@ -81,33 +93,33 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { searchParams } = new URL(req.url);
-  const messageId = searchParams.get("id");
+  const messageId = req.nextUrl.searchParams.get("id");
+  if (!messageId) return jsonError("Missing message id", 400);
 
-  if (!messageId) {
-    return new Response(JSON.stringify({ error: "Missing message id" }), {
-      status: 400,
-    });
+  try {
+    const access = await requireOwnedChat(req, id);
+    if ("response" in access) return access.response;
+
+    const { data, error } = await access.supabase
+      .from("messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("chat_id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) return jsonError("Could not delete message.", 500);
+    if (!data) return jsonError("Message not found.", 404);
+
+    const { error: touchError } = await access.supabase
+      .from("chats")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", access.userId);
+    if (touchError) return jsonError("Message was deleted but chat update failed.", 500);
+
+    return Response.json({ ok: true });
+  } catch {
+    return jsonError("Chat history is temporarily unavailable.", 503);
   }
-
-  const supabase = getSupabase();
-
-  const { error } = await supabase
-    .from("messages")
-    .delete()
-    .eq("id", messageId)
-    .eq("chat_id", id);
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-    });
-  }
-
-  await supabase
-    .from("chats")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", id);
-
-  return new Response(JSON.stringify({ ok: true }), { status: 200 });
 }

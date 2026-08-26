@@ -652,12 +652,17 @@ export default function ChatPage() {
   }, [messages, isStreaming]);
 
   async function loadChats(sid: string) {
+    if (!user) {
+      setChats([]);
+      return;
+    }
     try {
-      const res = await fetch(`/api/chats?sessionId=${sid}`);
+      const res = await authenticatedFetch(`/api/chats?sessionId=${encodeURIComponent(sid)}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.chats) setChats(data.chats);
+      if (res.ok && data.chats) setChats(data.chats);
+      else setChats([]);
     } catch {
-      // history is a nice-to-have, not critical path
+      setChats([]);
     }
   }
 
@@ -675,10 +680,14 @@ export default function ChatPage() {
     setMessagesLoading(true);
     setMessages([]);
     setPendingApproval(null);
+    if (!user) {
+      setMessagesLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`/api/chats/${chatId}/messages`);
+      const res = await authenticatedFetch(`/api/chats/${encodeURIComponent(chatId)}/messages`, { cache: "no-store" });
       const data = await res.json();
-      if (data.messages) {
+      if (res.ok && data.messages) {
         setMessages(
           data.messages.map((m: any) => ({
             id: m.id,
@@ -698,10 +707,10 @@ export default function ChatPage() {
 
   async function ensureChat(): Promise<string | null> {
     if (activeChatId) return activeChatId;
-    if (!sessionId) return null;
+    if (!sessionId || !user) return null;
 
     try {
-      const res = await fetch("/api/chats", {
+      const res = await authenticatedFetch("/api/chats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -711,7 +720,7 @@ export default function ChatPage() {
         }),
       });
       const data = await res.json();
-      if (data.chat) {
+      if (res.ok && data.chat) {
         setActiveChatId(data.chat.id);
         setChats((prev) => [data.chat, ...prev]);
         return data.chat.id;
@@ -723,8 +732,9 @@ export default function ChatPage() {
   }
 
   async function saveMessage(chatId: string, role: "user" | "assistant", content: string, modelId?: string) {
+    if (!user) return;
     try {
-      await fetch(`/api/chats/${chatId}/messages`, {
+      await authenticatedFetch(`/api/chats/${encodeURIComponent(chatId)}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, content, modelId }),
@@ -758,9 +768,10 @@ export default function ChatPage() {
     setActiveChatId(null);
     setMessages([]);
     setPendingApproval(null);
+    if (!user) return;
     try {
       for (const chat of chats) {
-        await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
+        await authenticatedFetch(`/api/chats?id=${encodeURIComponent(chat.id)}`, { method: "DELETE" });
       }
     } catch {
       // best-effort cleanup
