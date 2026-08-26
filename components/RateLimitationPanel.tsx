@@ -21,13 +21,6 @@ const MODEL_CONFIGS: ModelUsage[] = [
   { id: "craft-v3", name: "Craft V3", color: "#ef4444", gradient: "from-red-400 to-red-600", icon: "🛠️" },
 ];
 
-interface LiveTalkUsage {
-  usedSeconds: number;
-  remainingSeconds: number;
-  limitSeconds: number;
-  resetAt: string;
-}
-
 interface UsageData {
   nexio: number;
   spadec: number;
@@ -119,7 +112,6 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
     await fetchUsage();
   };
   const [usage, setUsage] = useState<UsageData | null>(null);
-  const [liveTalk, setLiveTalk] = useState<LiveTalkUsage | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeUntilReset, setTimeUntilReset] = useState("");
@@ -131,7 +123,6 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
       if (res.ok) {
         const data = await res.json();
         setUsage(data.usage);
-        setLiveTalk(data.liveTalk ?? null);
         setLimits(data.limits);
       }
     } catch {
@@ -167,11 +158,6 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
   const totalPct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
   const coderResumeAt = usage?.coderPausedUntil ? new Date(usage.coderPausedUntil) : null;
   const coderIsPaused = Boolean(coderResumeAt && coderResumeAt.getTime() > Date.now());
-  const liveLimitSeconds = liveTalk?.limitSeconds ?? 20 * 60;
-  const liveUsedSeconds = liveTalk?.usedSeconds ?? 0;
-  const liveRemainingSeconds = liveTalk?.remainingSeconds ?? liveLimitSeconds;
-  const livePercent = liveLimitSeconds > 0 ? (liveUsedSeconds / liveLimitSeconds) * 100 : 0;
-  const formatMinutes = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)} min`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
@@ -256,19 +242,6 @@ export default function RateLimitationPanel({ theme, open, onClose }: Props) {
               </p>
             </div>
           )}
-
-          <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] p-3">
-            <div className="flex items-center gap-3">
-              <CircularProgress percentage={livePercent} color="#22d3ee" size={40} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold text-cyan-50">NEXO Live</p>
-                  <p className="text-xs font-bold text-cyan-100">{formatMinutes(liveRemainingSeconds)} left</p>
-                </div>
-                <p className="mt-1 text-[11px] text-slate-400">{formatMinutes(liveUsedSeconds)} used of {formatMinutes(liveLimitSeconds)} today. Resets at midnight.</p>
-              </div>
-            </div>
-          </div>
 
           {/* Per-model breakdown */}
           <div className="rounded-xl bg-white/5 border border-white/5 p-3">

@@ -15,12 +15,10 @@
     "test:response-completion": "rm -rf .tmp-response-completion-test && tsc scripts/verify-response-completion.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-response-completion-test && node .tmp-response-completion-test/scripts/verify-response-completion.js",
     "test:github-commit-fallback": "rm -rf .tmp-github-commit-fallback-test && tsc scripts/verify-github-commit-fallback.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-commit-fallback-test && node .tmp-github-commit-fallback-test/verify-github-commit-fallback.js",
     "test:recent-features": "rm -rf .tmp-recent-features-test && tsc scripts/verify-recent-features.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-recent-features-test && node .tmp-recent-features-test/verify-recent-features.js",
-    "test:creator-credits": "rm -rf .tmp-creator-credits-test && tsc scripts/verify-creator-credits.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-creator-credits-test && node .tmp-creator-credits-test/verify-creator-credits.js",
-    "test:live-talk": "rm -rf .tmp-live-talk-test && tsc scripts/verify-live-talk.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-live-talk-test && node .tmp-live-talk-test/verify-live-talk.js"
+    "test:creator-credits": "rm -rf .tmp-creator-credits-test && tsc scripts/verify-creator-credits.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-creator-credits-test && node .tmp-creator-credits-test/verify-creator-credits.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
-    "@google/genai": "^2.19.0",
     "@supabase/supabase-js": "^2.45.0",
     "@vercel/analytics": "^2.0.1",
     "lucide-react": "^0.400.0",
