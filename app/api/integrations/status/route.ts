@@ -11,6 +11,7 @@ import {
   resolveGithubOAuthToken,
 } from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
+import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
 
 export const runtime = "nodejs";
 
@@ -87,7 +88,11 @@ export async function GET(req: NextRequest) {
         username: null,
       };
 
-  return Response.json({ github, vercel, supabase });
+  const wikipedia = userId
+    ? { enabled: await getWikipediaEnabled(userId) }
+    : { enabled: false };
+
+  return Response.json({ github, vercel, supabase, wikipedia });
 }
 
 async function checkVercelConnection(userId: string) {
