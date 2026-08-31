@@ -5,15 +5,12 @@ export const runtime = "nodejs";
 
 const PRIMARY_VOICE_MODEL = "gemini-2.5-flash";
 const TTS_MODEL = "gemini-2.5-flash-preview-tts";
-const TTS_VOICE = "Charon";
+const TTS_VOICES = ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede"] as const;
 const MAX_AUDIO_BASE64_LENGTH = 12_000_000;
 const MAX_RESPONSE_TOKENS = 700;
 
 function errorResponse(message: string, status: number) {
-  return Response.json({ error: message }, {
-    status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
 function pcmToWavBase64(base64Pcm: string, sampleRate = 24_000, channels = 1, bitsPerSample = 16) {
@@ -21,184 +18,83 @@ function pcmToWavBase64(base64Pcm: string, sampleRate = 24_000, channels = 1, bi
   const header = Buffer.alloc(44);
   const byteRate = sampleRate * channels * (bitsPerSample / 8);
   const blockAlign = channels * (bitsPerSample / 8);
-
-  header.write("RIFF", 0);
-  header.writeUInt32LE(36 + pcm.length, 4);
-  header.write("WAVE", 8);
-  header.write("fmt ", 12);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(channels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(byteRate, 28);
-  header.writeUInt16LE(blockAlign, 32);
-  header.writeUInt16LE(bitsPerSample, 34);
-  header.write("data", 36);
-  header.writeUInt32LE(pcm.length, 40);
-
+  header.write("RIFF", 0); header.writeUInt32LE(36 + pcm.length, 4); header.write("WAVE", 8); header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(channels, 22); header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28); header.writeUInt16LE(blockAlign, 32); header.writeUInt16LE(bitsPerSample, 34); header.write("data", 36); header.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([header, pcm]).toString("base64");
 }
 
 async function finalizeSession(userId: string, sessionId: string, status: "completed" | "cancelled" = "completed") {
-  try {
-    return await finishNexoVoiceSession(userId, sessionId, status);
-  } catch (cause) {
-    console.error("NEXO voice session finalization failed", {
-      userId,
-      sessionId,
-      cause: cause instanceof Error ? cause.message : "unknown",
-    });
-    return null;
-  }
+  try { return await finishNexoVoiceSession(userId, sessionId, status); }
+  catch (cause) { console.error("NEXO voice session finalization failed", { userId, sessionId, cause: cause instanceof Error ? cause.message : "unknown" }); return null; }
 }
 
-async function synthesizeGeminiVoice(apiKey: string, text: string) {
+function chooseVoice(userName: string) {
+  // Best-effort presentation choice only; users can change it later when voice preferences are added.
+  const female = /(?:a|i|e|ya|ia|ine|elle|ella|isha|sha|thi|ni)$/i.test(userName.trim());
+  const maleVoices = ["Charon", "Puck", "Fenrir", "Orus"];
+  const femaleVoices = ["Kore", "Aoede", "Leda", "Zephyr"];
+  const pool = female ? femaleVoices : maleVoices;
+  return pool[Math.abs([...userName].reduce((n, c) => n + c.charCodeAt(0), 0)) % pool.length] ?? TTS_VOICES[2];
+}
+
+async function synthesizeGeminiVoice(apiKey: string, text: string, userName: string) {
+  const voice = chooseVoice(userName);
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
       model: TTS_MODEL,
       input: [
         "Speak naturally as NEXO, a calm and helpful AI assistant.",
-        "Use a clear, warm, confident male-presenting voice.",
+        "Use a warm, clear, confident conversational voice.",
         "Keep a normal conversational pace with natural pauses.",
+        "Read the complete transcript. Do not omit, summarize, or shorten any part of it.",
         "Do not add words, explanations, or sound effects that are not in the transcript.",
-        "Transcript:",
-        text,
+        "Transcript:", text,
       ].join("\n"),
       response_format: { type: "audio" },
-      generation_config: {
-        speech_config: [{ voice: TTS_VOICE }],
-      },
+      generation_config: { speech_config: [{ voice }] },
     }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(30_000),
+    cache: "no-store", signal: AbortSignal.timeout(30_000),
   });
-
-  const payload = await response.json().catch(() => ({})) as {
-    output_audio?: { data?: string; mime_type?: string };
-    error?: { message?: string };
-  };
-
-  if (!response.ok || !payload.output_audio?.data) {
-    throw new Error(payload.error?.message ?? `Gemini TTS failed with status ${response.status}.`);
-  }
-
-  return {
-    audioData: pcmToWavBase64(payload.output_audio.data),
-    audioMimeType: "audio/wav",
-  };
+  const payload = await response.json().catch(() => ({})) as { output_audio?: { data?: string; mime_type?: string }; error?: { message?: string } };
+  if (!response.ok || !payload.output_audio?.data) throw new Error(payload.error?.message ?? `Voice synthesis failed with status ${response.status}.`);
+  return { audioData: pcmToWavBase64(payload.output_audio.data), audioMimeType: "audio/wav" };
 }
 
-/**
- * Converts one short voice recording into a normal-length NEXO response.
- * Gemini TTS is attempted for natural speech; browser TTS remains the client fallback.
- * Audio is processed in memory and is never persisted.
- */
 export async function POST(req: Request) {
   const verified = await requireVerifiedUser(req);
   if (verified.response) return verified.response;
-
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return errorResponse("Voice service is unavailable right now. Please try again later.", 503);
-  }
-
+  if (!apiKey) return errorResponse("Voice service is unavailable right now. Please try again later.", 503);
   let body: { audioData?: unknown; mimeType?: unknown; sessionId?: unknown };
-  try {
-    body = await req.json() as { audioData?: unknown; mimeType?: unknown; sessionId?: unknown };
-  } catch {
-    return errorResponse("The voice message could not be read. Please try again.", 400);
-  }
-
+  try { body = await req.json(); } catch { return errorResponse("The voice message could not be read. Please try again.", 400); }
   const audioData = typeof body.audioData === "string" ? body.audioData : "";
   const mimeType = typeof body.mimeType === "string" ? body.mimeType : "";
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
   if (!sessionId) return errorResponse("The voice session is no longer active. Please retry.", 409);
   if (!audioData || !mimeType.startsWith("audio/") || audioData.length > MAX_AUDIO_BASE64_LENGTH) {
-    await finalizeSession(verified.user.id, sessionId);
-    return errorResponse("That voice message is too large or could not be read. Please try a shorter message.", 400);
+    await finalizeSession(verified.user.id, sessionId); return errorResponse("That voice message is too large or could not be read. Please try a shorter message.", 400);
   }
-
   try {
-    const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_VOICE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            role: "user",
-            parts: [
-              {
-                text: "Listen to the user's voice message and reply naturally as Nexo. Give a normal conversational answer with enough detail to be genuinely useful. Do not shorten the answer just because this is voice mode. Avoid unnecessary repetition, markdown formatting, system details, service names, or API/key references. Usually answer in a few natural sentences or short paragraphs, matching the user's language and the complexity of the question. Reply in the language the user speaks.",
-              },
-              {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: audioData,
-                },
-              },
-            ],
-          }],
-          generationConfig: {
-            temperature: 0.55,
-            maxOutputTokens: MAX_RESPONSE_TOKENS,
-          },
-        }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(45_000),
-      },
-    );
-
-    const payload = await upstream.json().catch(() => ({})) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = payload.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text ?? "")
-      .join(" ")
-      .trim();
-
-    if (!upstream.ok || !text) {
-      await finalizeSession(verified.user.id, sessionId);
-      console.error("Nexo voice response failed", {
-        status: upstream.status,
-        userId: verified.user.id,
-      });
-      return errorResponse("Nexo could not understand that message. Please try again.", upstream.status === 429 ? 429 : 502);
-    }
-
-    let audioDataResponse: string | undefined;
-    let audioMimeType: string | undefined;
-    try {
-      const tts = await synthesizeGeminiVoice(apiKey, text);
-      audioDataResponse = tts.audioData;
-      audioMimeType = tts.audioMimeType;
-    } catch (ttsError) {
-      console.warn("NEXO Gemini TTS unavailable; browser voice fallback will be used.", {
-        cause: ttsError instanceof Error ? ttsError.message : "unknown",
-      });
-    }
-
+    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_VOICE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [
+        { text: "Listen to the user's voice message and reply naturally as Nexo. Give a normal conversational answer with enough detail to be genuinely useful. Do not shorten the answer just because this is voice mode. Usually answer in a few natural sentences or short paragraphs, matching the user's language and the complexity of the question. Reply in the language the user speaks." },
+        { inline_data: { mime_type: mimeType, data: audioData } },
+      ] }], generationConfig: { temperature: 0.55, maxOutputTokens: MAX_RESPONSE_TOKENS } }),
+      cache: "no-store", signal: AbortSignal.timeout(45_000),
+    });
+    const payload = await upstream.json().catch(() => ({})) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const text = payload.candidates?.[0]?.content?.parts?.map(part => part.text ?? "").join(" ").trim();
+    if (!upstream.ok || !text) { await finalizeSession(verified.user.id, sessionId); return errorResponse("Nexo could not understand that message. Please try again.", upstream.status === 429 ? 429 : 502); }
+    let audioDataResponse: string | undefined; let audioMimeType: string | undefined;
+    try { const tts = await synthesizeGeminiVoice(apiKey, text, verified.user.email ?? ""); audioDataResponse = tts.audioData; audioMimeType = tts.audioMimeType; }
+    catch (ttsError) { console.warn("NEXO voice synthesis unavailable; browser fallback will be used.", { cause: ttsError instanceof Error ? ttsError.message : "unknown" }); }
     const usage = await finalizeSession(verified.user.id, sessionId);
-    return Response.json({
-      text,
-      audioData: audioDataResponse,
-      audioMimeType,
-      voiceProvider: audioDataResponse ? "gemini-tts" : "browser-fallback",
-      usage,
-    }, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return Response.json({ text, audioData: audioDataResponse, audioMimeType, voiceProvider: audioDataResponse ? "voice" : "browser-fallback", usage }, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
-    await finalizeSession(verified.user.id, sessionId);
-    console.error("Nexo voice request failed", {
-      userId: verified.user.id,
-      cause: cause instanceof Error ? cause.message : "unknown",
-    });
+    await finalizeSession(verified.user.id, sessionId); console.error("Nexo voice request failed", { userId: verified.user.id, cause: cause instanceof Error ? cause.message : "unknown" });
     return errorResponse("Voice response could not start. Please check your connection and retry.", 502);
   }
 }
