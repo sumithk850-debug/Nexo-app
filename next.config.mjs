@@ -1,13 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // NEXO keeps the large production IntegrationsPanel untouched. This small
-  // adapter extends the existing panel with Wikipedia while preserving all
-  // GitHub, Vercel, and Supabase behavior.
+  // Keep the production IntegrationsPanel untouched while extending its
+  // existing content area with Wikipedia through the compatibility adapter.
   turbopack: {
     resolveAlias: {
       "@/components/IntegrationsPanel": "./components/IntegrationsPanelWithWikipedia.tsx",
     },
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      "@/components/IntegrationsPanel": "./components/IntegrationsPanelWithWikipedia.tsx",
+    };
+    return config;
   },
 };
 
