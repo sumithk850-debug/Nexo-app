@@ -4,13 +4,39 @@ import { finishNexoVoiceSession } from "@/lib/nexoVoice.server";
 export const runtime = "nodejs";
 
 const PRIMARY_VOICE_MODEL = "gemini-2.5-flash";
+const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const TTS_VOICE = "Charon";
 const MAX_AUDIO_BASE64_LENGTH = 12_000_000;
+const MAX_RESPONSE_TOKENS = 700;
 
 function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, {
     status,
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+function pcmToWavBase64(base64Pcm: string, sampleRate = 24_000, channels = 1, bitsPerSample = 16) {
+  const pcm = Buffer.from(base64Pcm, "base64");
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * channels * (bitsPerSample / 8);
+  const blockAlign = channels * (bitsPerSample / 8);
+
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+
+  return Buffer.concat([header, pcm]).toString("base64");
 }
 
 async function finalizeSession(userId: string, sessionId: string, status: "completed" | "cancelled" = "completed") {
@@ -26,9 +52,51 @@ async function finalizeSession(userId: string, sessionId: string, status: "compl
   }
 }
 
+async function synthesizeGeminiVoice(apiKey: string, text: string) {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      model: TTS_MODEL,
+      input: [
+        "Speak naturally as NEXO, a calm and helpful AI assistant.",
+        "Use a clear, warm, confident male-presenting voice.",
+        "Keep a normal conversational pace with natural pauses.",
+        "Do not add words, explanations, or sound effects that are not in the transcript.",
+        "Transcript:",
+        text,
+      ].join("\n"),
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: [{ voice: TTS_VOICE }],
+      },
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const payload = await response.json().catch(() => ({})) as {
+    output_audio?: { data?: string; mime_type?: string };
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !payload.output_audio?.data) {
+    throw new Error(payload.error?.message ?? `Gemini TTS failed with status ${response.status}.`);
+  }
+
+  return {
+    audioData: pcmToWavBase64(payload.output_audio.data),
+    audioMimeType: "audio/wav",
+  };
+}
+
 /**
- * Converts one short voice recording into a Nexo response using the primary
- * Gemini API path. Audio is processed in memory and is never persisted.
+ * Converts one short voice recording into a normal-length NEXO response.
+ * Gemini TTS is attempted for natural speech; browser TTS remains the client fallback.
+ * Audio is processed in memory and is never persisted.
  */
 export async function POST(req: Request) {
   const verified = await requireVerifiedUser(req);
@@ -66,7 +134,7 @@ export async function POST(req: Request) {
             role: "user",
             parts: [
               {
-                text: "Listen to the user's voice message and reply naturally as Nexo. Return only the concise spoken reply, without markdown, system details, service names, or API/key references. Reply in the language the user speaks.",
+                text: "Listen to the user's voice message and reply naturally as Nexo. Give a normal conversational answer with enough detail to be genuinely useful. Do not shorten the answer just because this is voice mode. Avoid unnecessary repetition, markdown formatting, system details, service names, or API/key references. Usually answer in a few natural sentences or short paragraphs, matching the user's language and the complexity of the question. Reply in the language the user speaks.",
               },
               {
                 inline_data: {
@@ -78,7 +146,7 @@ export async function POST(req: Request) {
           }],
           generationConfig: {
             temperature: 0.55,
-            maxOutputTokens: 500,
+            maxOutputTokens: MAX_RESPONSE_TOKENS,
           },
         }),
         cache: "no-store",
@@ -94,8 +162,8 @@ export async function POST(req: Request) {
       .join(" ")
       .trim();
 
-    const usage = await finalizeSession(verified.user.id, sessionId);
     if (!upstream.ok || !text) {
+      await finalizeSession(verified.user.id, sessionId);
       console.error("Nexo voice response failed", {
         status: upstream.status,
         userId: verified.user.id,
@@ -103,7 +171,26 @@ export async function POST(req: Request) {
       return errorResponse("Nexo could not understand that message. Please try again.", upstream.status === 429 ? 429 : 502);
     }
 
-    return Response.json({ text, usage }, {
+    let audioDataResponse: string | undefined;
+    let audioMimeType: string | undefined;
+    try {
+      const tts = await synthesizeGeminiVoice(apiKey, text);
+      audioDataResponse = tts.audioData;
+      audioMimeType = tts.audioMimeType;
+    } catch (ttsError) {
+      console.warn("NEXO Gemini TTS unavailable; browser voice fallback will be used.", {
+        cause: ttsError instanceof Error ? ttsError.message : "unknown",
+      });
+    }
+
+    const usage = await finalizeSession(verified.user.id, sessionId);
+    return Response.json({
+      text,
+      audioData: audioDataResponse,
+      audioMimeType,
+      voiceProvider: audioDataResponse ? "gemini-tts" : "browser-fallback",
+      usage,
+    }, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (cause) {
