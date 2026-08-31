@@ -14,7 +14,7 @@ type ExistingProps = React.ComponentProps<typeof ExistingIntegrationsPanel>;
  * mounts the Wikipedia card into the panel's existing content area so the
  * feature can be added without rewriting the large production component.
  */
-export function IntegrationsPanelWithWikipedia(props: ExistingProps) {
+export function IntegrationsPanel(props: ExistingProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -43,12 +43,7 @@ export function IntegrationsPanelWithWikipedia(props: ExistingProps) {
   return (
     <>
       <ExistingIntegrationsPanel {...props} />
-      {host
-        ? createPortal(
-            <WikipediaIntegrationPanel />,
-            host
-          )
-        : null}
+      {host ? createPortal(<WikipediaIntegrationPanel />, host) : null}
     </>
   );
 }
