@@ -7,13 +7,6 @@ import { WikipediaIntegrationPanel } from "./WikipediaIntegrationPanel";
 
 type ExistingProps = React.ComponentProps<typeof ExistingIntegrationsPanel>;
 
-/**
- * Compatibility adapter for the existing integrations panel.
- *
- * The original GitHub/Vercel/Supabase panel remains untouched. This adapter
- * mounts the Wikipedia card into the panel's existing content area so the
- * feature can be added without rewriting the large production component.
- */
 export function IntegrationsPanel(props: ExistingProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
 
@@ -23,9 +16,7 @@ export function IntegrationsPanel(props: ExistingProps) {
       return;
     }
 
-    const content = document.querySelector<HTMLElement>(
-      'section[aria-label="Integrations"] > div'
-    );
+    const content = document.querySelector<HTMLElement>('section[aria-label="Integrations"] > div');
     if (!content) return;
 
     const mount = document.createElement("div");
@@ -43,7 +34,7 @@ export function IntegrationsPanel(props: ExistingProps) {
   return (
     <>
       <ExistingIntegrationsPanel {...props} />
-      {host ? createPortal(<WikipediaIntegrationPanel />, host) : null}
+      {host ? createPortal(<WikipediaIntegrationPanel userId={props.userId} />, host) : null}
     </>
   );
 }
