@@ -6,12 +6,14 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       "@/components/IntegrationsPanel": "./components/IntegrationsPanelWithWikipedia.tsx",
+      "@/lib/providers.server": "./lib/providersWithWikipedia.server.ts",
     },
   },
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
       "@/components/IntegrationsPanel": "./components/IntegrationsPanelWithWikipedia.tsx",
+      "@/lib/providers.server": "./lib/providersWithWikipedia.server.ts",
     };
     return config;
   },
