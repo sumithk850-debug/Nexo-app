@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 export type VerifiedRequestUser = {
   id: string;
   email: string | null;
+  displayName: string | null;
 };
 
 function unauthorized(message: string) {
@@ -42,5 +43,10 @@ export async function requireVerifiedUser(req: Request, claimedUserId?: string |
     return { response: unauthorized("The requested integration account does not match your signed-in user.") };
   }
 
-  return { user: { id: data.user.id, email: data.user.email ?? null } };
+  const metadata = data.user.user_metadata as Record<string, unknown> | null | undefined;
+  const displayName = [metadata?.full_name, metadata?.name, metadata?.display_name]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ?.trim() ?? null;
+
+  return { user: { id: data.user.id, email: data.user.email ?? null, displayName } };
 }
