@@ -10,21 +10,46 @@ export type WikipediaResult = {
   thumbnail?: string;
 };
 
-function clean(value: unknown, max: number) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
+function clean(value: unknown, max: number): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-async function request(params: URLSearchParams) {
+function stripWikiMarkup(value: unknown, max: number): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function articleUrl(title: string, fullUrl?: unknown): string {
+  if (typeof fullUrl === "string" && /^https:\/\/en\.wikipedia\.org\/wiki\//.test(fullUrl)) return fullUrl;
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+}
+
+async function request(params: URLSearchParams): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const response = await fetch(`${WIKIPEDIA_API}?${params.toString()}`, {
-      headers: { Accept: "application/json", "User-Agent": "NEXO-AI/1.0 (knowledge integration)" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "NEXO-AI/1.0 (Wikipedia knowledge integration)",
+      },
       cache: "no-store",
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`Wikipedia request failed (${response.status}).`);
-    return await response.json();
+    const data = await response.json();
+    if (!data || typeof data !== "object") throw new Error("Wikipedia returned an invalid response.");
+    return data;
   } finally {
     clearTimeout(timer);
   }
@@ -33,32 +58,62 @@ async function request(params: URLSearchParams) {
 export async function searchWikipedia(query: string): Promise<WikipediaResult[]> {
   const q = clean(query, 200);
   if (!q) return [];
-  const params = new URLSearchParams({ action: "query", list: "search", srsearch: q, srlimit: String(SEARCH_LIMIT), format: "json", formatversion: "2", origin: "*" });
+
+  const params = new URLSearchParams({
+    action: "query",
+    list: "search",
+    srsearch: q,
+    srlimit: String(SEARCH_LIMIT),
+    srprop: "snippet",
+    format: "json",
+    formatversion: "2",
+  });
   const data = await request(params);
   const rows = Array.isArray(data?.query?.search) ? data.query.search : [];
-  return rows.slice(0, SEARCH_LIMIT).map((row: any) => {
-    const title = clean(row?.title, 200);
-    return {
-      pageId: Number(row?.pageid) || 0,
-      title,
-      extract: clean(row?.snippet, 500).replace(/<[^>]*>/g, ""),
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
-    };
-  }).filter((item: WikipediaResult) => item.title && item.url);
+
+  return rows
+    .slice(0, SEARCH_LIMIT)
+    .map((row: any) => {
+      const pageId = Number(row?.pageid);
+      const title = clean(row?.title, 200);
+      return {
+        pageId: Number.isInteger(pageId) && pageId > 0 ? pageId : 0,
+        title,
+        extract: stripWikiMarkup(row?.snippet, 500),
+        url: articleUrl(title),
+      } satisfies WikipediaResult;
+    })
+    .filter((item: WikipediaResult) => item.pageId > 0 && Boolean(item.title));
 }
 
 export async function getWikipediaArticle(pageId: number): Promise<WikipediaResult | null> {
   if (!Number.isInteger(pageId) || pageId <= 0) return null;
-  const params = new URLSearchParams({ action: "query", pageids: String(pageId), prop: "extracts|pageimages", exintro: "1", explaintext: "1", exchars: "3500", piprop: "thumbnail", pithumbsize: "480", format: "json", formatversion: "2" });
+
+  const params = new URLSearchParams({
+    action: "query",
+    pageids: String(pageId),
+    prop: "extracts|pageimages|info",
+    inprop: "url",
+    exintro: "1",
+    explaintext: "1",
+    exchars: "3500",
+    piprop: "thumbnail",
+    pithumbsize: "480",
+    format: "json",
+    formatversion: "2",
+  });
   const data = await request(params);
   const page = data?.query?.pages?.[0];
   if (!page || page.missing) return null;
+
   const title = clean(page.title, 200);
+  if (!title) return null;
+
   return {
     pageId,
     title,
     extract: clean(page.extract, 3500),
-    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
+    url: articleUrl(title, page.fullurl),
     thumbnail: clean(page?.thumbnail?.source, 1000) || undefined,
   };
 }
