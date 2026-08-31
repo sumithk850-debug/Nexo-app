@@ -1,11 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { searchWikipedia, getWikipediaArticle } from "@/lib/wikipedia.server";
+import { requireVerifiedUser } from "@/lib/requestAuth.server";
+import { requireWikipediaAccess, wikipediaAccessErrorMessage } from "@/lib/wikipediaGate.server";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  const requestedUserId = typeof body?.userId === "string" ? body.userId : null;
+  const verified = requestedUserId ? await requireVerifiedUser(request, requestedUserId) : null;
+  if (verified?.response) return verified.response;
+  if (!verified?.user.id) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
   try {
-    const body = await request.json().catch(() => null);
+    await requireWikipediaAccess(verified.user.id);
+
     const query = typeof body?.query === "string" ? body.query.trim() : "";
     const pageId = body?.pageId;
     if (query.length > 200) return NextResponse.json({ error: "Wikipedia query is too long." }, { status: 400 });
@@ -20,8 +29,14 @@ export async function POST(request: Request) {
     const results = await searchWikipedia(query);
     return NextResponse.json({ results }, { headers: { "Cache-Control": "private, max-age=120" } });
   } catch (error) {
-    const message = error instanceof Error && error.name === "AbortError" ? "Wikipedia request timed out." : "Wikipedia is temporarily unavailable.";
-    console.error("Wikipedia integration error:", error);
-    return NextResponse.json({ error: message }, { status: 502 });
+    const message = wikipediaAccessErrorMessage(error);
+    if (message.includes("disabled")) {
+      return NextResponse.json({ error: message, code: "WIKIPEDIA_DISABLED" }, { status: 403 });
+    }
+    const timeout = error instanceof Error && error.name === "AbortError";
+    return NextResponse.json(
+      { error: timeout ? "Wikipedia request timed out." : "Wikipedia is temporarily unavailable." },
+      { status: 502 }
+    );
   }
 }
