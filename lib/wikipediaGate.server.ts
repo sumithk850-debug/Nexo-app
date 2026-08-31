@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { decryptIntegrationToken } from "@/lib/integrationToken.server";
 
 const DEFAULT_ENABLED = true;
 const USER_METADATA_KEY = "nexoWikipediaEnabled";
