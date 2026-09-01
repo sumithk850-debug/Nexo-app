@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const DEFAULT_ENABLED = true;
+const FAIL_SAFE_ENABLED = false;
 const USER_METADATA_KEY = "nexoWikipediaEnabled";
 
 function getSupabaseAdmin() {
@@ -18,10 +19,10 @@ export async function getWikipediaEnabled(userId: string): Promise<boolean> {
   try {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin.auth.admin.getUserById(userId);
-    if (error || !data.user) return DEFAULT_ENABLED;
+    if (error || !data.user) return FAIL_SAFE_ENABLED;
     return parseEnabled(data.user.user_metadata?.[USER_METADATA_KEY]) ?? DEFAULT_ENABLED;
   } catch {
-    return DEFAULT_ENABLED;
+    return FAIL_SAFE_ENABLED;
   }
 }
 
