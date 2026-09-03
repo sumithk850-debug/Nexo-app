@@ -14,6 +14,7 @@ import { stripSupabaseReadToolBlocks } from "@/lib/supabaseToolParser";
 import { parseVercelReadBlocks, stripVercelReadBlocks } from "@/lib/vercelReadParser";
 import { stripVercelReadToolBlocks } from "@/lib/vercelToolParser";
 import { parseClarificationBlocks, stripClarificationBlocks } from "@/lib/clarificationParser";
+import { hasWikipediaSearchMarker, parseWikipediaSources, stripWikipediaChatMarkers } from "@/lib/wikipediaChatParser";
 import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SupabaseReadCard } from "./SupabaseReadCard";
@@ -40,7 +41,7 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2, BookOpen, ExternalLink } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
 import { authenticatedFetch } from "@/lib/authFetch";
@@ -192,7 +193,9 @@ export function MessageBubble({
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
   const vercelReadCards = parseVercelReadBlocks(message.content);
   const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
-  const displayContent = stripClarificationBlocks(stripVercelReadBlocks(stripSupabaseReadBlocks(message.content)));
+  const wikipediaSearching = !isUser && isStreaming && hasWikipediaSearchMarker(message.content);
+  const wikipediaSources = isUser ? [] : parseWikipediaSources(message.content);
+  const displayContent = stripWikipediaChatMarkers(stripClarificationBlocks(stripVercelReadBlocks(stripSupabaseReadBlocks(message.content))));
 
   useEffect(() => {
     return () => {
@@ -350,6 +353,12 @@ export function MessageBubble({
         {/* Repository operation markers and file bodies belong exclusively in
             the activity panel above the composer. Only normal prose/report
             segments remain in the transcript. */}
+        {wikipediaSearching && (
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200 shadow-sm">
+            <Loader2 className="h-3 w-3 animate-spin text-sky-300" aria-hidden="true" />
+            <span className="font-medium">Searching Wikipedia…</span>
+          </div>
+        )}
         {coderMode ? (
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
@@ -450,6 +459,27 @@ export function MessageBubble({
                 userId={userId}
                 onApprove={onSupabaseApprove}
               />
+            ))}
+          </div>
+        )}
+
+        {!isStreaming && wikipediaSources.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Wikipedia sources">
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold text-sky-200">
+              <BookOpen className="h-3 w-3" aria-hidden="true" /> Wikipedia
+            </span>
+            {wikipediaSources.map((source) => (
+              <a
+                key={source.url}
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex max-w-[16rem] items-center gap-1 rounded-full border border-edge bg-panel px-2 py-1 text-[10px] text-ink-muted transition hover:border-sky-400/40 hover:text-sky-200"
+                title={source.title}
+              >
+                <span className="truncate">{source.title}</span>
+                <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
+              </a>
             ))}
           </div>
         )}
