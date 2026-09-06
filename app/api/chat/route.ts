@@ -4,7 +4,7 @@ import {
   PROVIDER_CONFIG,
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
-} from "@/lib/providers.server";
+} from "@/lib/providersWithWikipedia.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
@@ -19,7 +19,7 @@ import {
 } from "@/lib/rateLimits.server";
 import { RESPONSE_CONTINUATION_MARKER } from "@/lib/responseContinuation";
 import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
-import { searchWikipedia } from "@/lib/wikipedia.server";
+import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 
 export const runtime = "nodejs";
 // Long AI generations and repository tasks can legitimately take several
@@ -641,7 +641,7 @@ export async function POST(req: NextRequest) {
       try {
         if (await getWikipediaEnabled(userId)) {
           wikipediaSearchRequested = true;
-          const results = await searchWikipedia(latestUserText);
+          const results = await searchWikipediaWithVerifiedArticles(latestUserText);
           wikipediaSources = results.map(({ title, url }) => ({ title, url }));
           if (results.length > 0) {
             wikipediaContext = results
@@ -679,6 +679,7 @@ export async function POST(req: NextRequest) {
     systemPrompt += STRUCTURED_RESPONSE_PROTOCOL;
     systemPrompt += SUPABASE_VERCEL_INTEGRATION_PROTOCOL;
     systemPrompt += CLARIFICATION_BOARD_PROTOCOL;
+    systemPrompt += `\n\nWIKIPEDIA ORCHESTRATION RULE: Wikipedia retrieval is completed server-side before your generation begins. Never emit <wikipedia-searching>, <wikipedia-sources>, XML/HTML tags, JSON query payloads, tool-call text, or a promise to search later. If verified Wikipedia context is supplied below, use it now; if it is not supplied, do not claim that Wikipedia was searched. The user must receive the answer in this response, not a deferred search result.`;
     systemPrompt += buildCurrentDateTimeContext();
     systemPrompt += projectBrainContext;
 

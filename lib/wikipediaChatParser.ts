@@ -3,8 +3,10 @@ export type WikipediaChatSource = {
   url: string;
 };
 
-const SEARCH_MARKER = /<wikipedia-searching\s*\/?>/i;
+const SEARCH_MARKER = /<\/?wikipedia-searching\b[^>]*>/i;
+const SEARCH_MARKER_GLOBAL = /<\/?wikipedia-searching\b[^>]*>/gi;
 const SOURCES_MARKER = /<wikipedia-sources>([\s\S]*?)<\/wikipedia-sources>/gi;
+const SEARCH_PAYLOAD = /\{\s*["']query["']\s*:\s*["'][^"']{1,240}["']\s*\}/gi;
 
 function isSource(value: unknown): value is WikipediaChatSource {
   if (!value || typeof value !== "object") return false;
@@ -35,8 +37,9 @@ export function parseWikipediaSources(content: string): WikipediaChatSource[] {
 
 export function stripWikipediaChatMarkers(content: string): string {
   return content
-    .replace(SEARCH_MARKER, "")
+    .replace(SEARCH_MARKER_GLOBAL, "")
     .replace(SOURCES_MARKER, "")
+    .replace(SEARCH_PAYLOAD, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

@@ -1,5 +1,6 @@
 const WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php";
 const SEARCH_LIMIT = 5;
+const ARTICLE_VERIFY_LIMIT = 3;
 const TIMEOUT_MS = 7000;
 
 export type WikipediaResult = {
@@ -45,6 +46,16 @@ export async function searchWikipedia(query: string): Promise<WikipediaResult[]>
       url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
     };
   }).filter((item: WikipediaResult) => item.title && item.url);
+}
+
+export async function searchWikipediaWithVerifiedArticles(query: string): Promise<WikipediaResult[]> {
+  const searchResults = await searchWikipedia(query);
+  const candidates = searchResults.filter((result) => result.pageId > 0).slice(0, ARTICLE_VERIFY_LIMIT);
+  const verified = await Promise.all(candidates.map((result) => getWikipediaArticle(result.pageId)));
+  const verifiedByPageId = new Map(
+    verified.filter((article): article is WikipediaResult => Boolean(article)).map((article) => [article.pageId, article])
+  );
+  return searchResults.map((result) => verifiedByPageId.get(result.pageId) ?? result);
 }
 
 export async function getWikipediaArticle(pageId: number): Promise<WikipediaResult | null> {

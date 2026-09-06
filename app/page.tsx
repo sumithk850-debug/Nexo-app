@@ -35,6 +35,7 @@ import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type Supabas
 import { createVercelReadBlock, type VercelReadCardData } from "@/lib/vercelReadParser";
 import { parseVercelReadToolIntents, stripVercelReadToolBlocks, type VercelReadToolIntent } from "@/lib/vercelToolParser";
 import { getSessionId } from "@/lib/session";
+import { stripWikipediaChatMarkers } from "@/lib/wikipediaChatParser";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -1090,7 +1091,7 @@ export default function ChatPage() {
         needsAutomaticContinuation ||= marker.shouldContinue;
         accumulated += marker.content;
         recordStreamText(marker.content);
-        const displayContent = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
+        const displayContent = stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
@@ -1108,7 +1109,7 @@ export default function ChatPage() {
       ) {
         const continuationContext: ChatMessage[] = [
           ...conversationSoFar,
-          { id: `partial-${assistantId}-${responseContinuationDepth}`, role: "assistant", content: accumulated },
+          { id: `partial-${assistantId}-${responseContinuationDepth}`, role: "assistant", content: stripWikipediaChatMarkers(accumulated) },
           {
             id: `continue-${assistantId}-${responseContinuationDepth}`,
             role: "user",
