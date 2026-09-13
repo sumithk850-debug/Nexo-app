@@ -1,0 +1,54 @@
+name: NEXO Final UI Polish
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply final UI polish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('components/MessageBubble.tsx')
+          s = p.read_text()
+          s = s.replace('Volume2 } from "lucide-react";', 'Volume2, MoreHorizontal, ExternalLink } from "lucide-react";')
+          if 'const [actionsOpen, setActionsOpen]' not in s:
+              s = s.replace('const [isSpeaking, setIsSpeaking] = useState(false);', 'const [isSpeaking, setIsSpeaking] = useState(false);\n  const [actionsOpen, setActionsOpen] = useState(false);')
+          old = '''        {message.content && (\n          <div className="mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">'''
+          new = '''        {message.content && (\n          <div className="relative mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">'''
+          s = s.replace(old, new, 1)
+          marker = '''            <button\n              onClick={() => handleFeedback("down")}'''
+          menu = '''            <div className="relative">\n              <button\n                onClick={() => setActionsOpen((value) => !value)}\n                className="flex h-8 w-8 items-center justify-center rounded-md text-ink-faint transition hover:bg-panel hover:text-ink"\n                aria-label="More message actions"\n                aria-expanded={actionsOpen}\n                title="More actions"\n              >\n                <MoreHorizontal className="h-4 w-4" />\n              </button>\n              {actionsOpen && (\n                <div className="absolute bottom-10 left-0 z-50 min-w-44 overflow-hidden rounded-xl border border-edge bg-panel/95 p-1.5 shadow-2xl backdrop-blur-xl">\n                  <button onClick={() => { handleCopy(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><Copy className="h-3.5 w-3.5" /> Copy response</button>\n                  <button onClick={() => { handleReadAloud(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><Volume2 className="h-3.5 w-3.5" /> Read aloud</button>\n                  {isLast && onRegenerate && <button onClick={() => { onRegenerate(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><RotateCw className="h-3.5 w-3.5" /> Regenerate</button>}\n                  {wikipediaSources.length > 0 && <button onClick={() => setActionsOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><ExternalLink className="h-3.5 w-3.5" /> Sources available above</button>}\n                </div>\n              )}\n            </div>\n\n            <button\n              onClick={() => handleFeedback("down")}'''
+          if marker in s and 'More message actions' not in s:
+              s = s.replace(marker, menu, 1)
+          p.write_text(s)
+
+          css = Path('app/globals.css')
+          c = css.read_text()
+          block = '''\n/* NEXO final mobile + visual polish */\nhtml, body {\n  min-height: 100%;\n  overscroll-behavior-y: none;\n}\nbutton, a, input, textarea, select {\n  -webkit-tap-highlight-color: transparent;\n}\n@media (max-width: 640px) {\n  body { padding-bottom: env(safe-area-inset-bottom); }\n  .prose-nexo { overflow-wrap: anywhere; }\n  .prose-nexo pre { max-width: calc(100vw - 2rem); font-size: 12px; }\n  .prose-nexo table { min-width: 28rem; }\n  button { touch-action: manipulation; }\n}\n@media (max-width: 420px) {\n  .prose-nexo table { min-width: 24rem; }\n}\n@media (min-width: 641px) {\n  .nexo-surface { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }\n}\n'''
+          if 'NEXO final mobile + visual polish' not in c:
+              css.write_text(c + block)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/MessageBubble.tsx app/globals.css
+          git diff --cached --quiet || git commit -m "feat: finish message actions and mobile theme polish"
+          git push
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          rm -f .github/workflows/nexo-final-polish.yml
+          git add .github/workflows/nexo-final-polish.yml
+          git commit -m "chore: remove temporary final polish workflow" || true
+          git push || true
