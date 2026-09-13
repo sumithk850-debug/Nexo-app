@@ -1,0 +1,89 @@
+name: Apply semantic Wikipedia intent fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'feat: improve semantic Wikipedia intent detection') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace detector safely
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/api/chat/route.ts')
+          text = path.read_text(encoding='utf-8')
+
+          start_marker = 'function shouldSearchWikipedia(query: string): boolean {'
+          end_marker = '\n\nfunction buildCurrentDateTimeContext'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Wikipedia detector boundaries not found')
+
+          new_function = '''function shouldSearchWikipedia(query: string): boolean {
+  const value = query.trim();
+  if (!value || value.length > 1000) return false;
+
+  const normalized = value
+    .toLocaleLowerCase('en-US')
+    .replace(/[“”‘’]/g, "'")
+    .replace(/\\s+/g, ' ')
+    .trim();
+
+  // Explicit encyclopedic requests always qualify.
+  if (/\\b(wikipedia|encyclopedia|wiki page|wiki article)\\b|විකිපීඩියා|විශ්වකෝෂ/i.test(normalized)) {
+    return true;
+  }
+
+  // Keep implementation, debugging, translation, and creative-writing requests
+  // in their normal NEXO flows instead of sending them to Wikipedia.
+  const nonWikipediaIntent = /\\b(?:code|coding|program|programming|debug|debugging|error|bug|fix|implement|implementation|typescript|javascript|python|react|next\\.js|nextjs|sql|supabase|vercel|github|api|api route|component|function|regex|terminal|npm|package|compile|build|deploy|deployment|translate|translation|rewrite|rephrase|proofread|email|caption|poem|poetry|song|lyrics|story|creative writing|roleplay|math|mathematics|calculate|calculation)\\b|පරිවර්තනය|පරිවර්තනය කරන්න|කෝඩ්|කේතය|කේත|වැරැද්ද|දෝෂය|ඩිබග්|ක්‍රමලේඛ|කතාවක් ලිය|කවියක් ලිය|ගණනය|ගණිත/i;
+  if (nonWikipediaIntent.test(normalized)) return false;
+
+  const currentness = /\\b(?:current|currently|right now|now|today|latest|recent|recently|present|at present|as of|this year|this month|this week|in \\d{4}|\\d{4})\\b|\\b(?:president|prime minister|king|queen|leader|governor|minister|ceo|chairperson)\\b|දැනට|වත්මන්|වර්තමානයේ|අලුත්ම|නවතම|මෑතකදී|මේ වසරේ|මේ මාසේ|මේ මාසයේ|මේ සතියේ|\\b20\\d{2}\\b|ජනාධිපති|අගමැති|රජු|රැජින|නායකයා|ආණ්ඩුකාර|ඇමති/i;
+
+  const factualQuestion = /\\b(?:who is|who was|who were|what is|what are|what was|what were|where is|where was|where are|when was|when were|which|whose|how did|why did|what happened|tell me about|information about|facts about|history of|biography of|define|definition of|meaning of|explain)\\b|\\b(?:who|what|where|when)\\b|කවුද|කවුරුද|මොකක්ද|මොකක්|මොනවාද|මොනවද|කොහෙද|කොහේද|කවදාද|කවදා|ගැන කියන්න|ගැන විස්තර|විස්තර කරන්න|තොරතුරු|ඉතිහාසය|ජීවිත කතාව|අර්ථය|නිර්වචනය|පැහැදිලි කරන්න|සිදුවුණේ|සිදු වුණේ|ඇයි|කොහොමද/i;
+
+  const encyclopedicTopic = /\\b(?:history|historical|biography|person|people|country|city|capital|president|prime minister|government|politician|scientist|artist|actor|actress|author|book|film|movie|company|organization|university|landmark|monument|war|battle|empire|kingdom|religion|language|culture|science|technology|planet|moon|star|animal|species|disease|event|invention|founder|born|died|population|geography|physics|chemistry|biology|photosynthesis|evolution)\\b|ඉතිහාස|ජීවිත|පුද්ගල|රට|නගර|අගනුවර|රජය|දේශපාල|විද්‍යා|කලා|නළුව|නිළිය|කර්තෘ|පොත|චිත්‍රපට|සමාගම|සංවිධානය|විශ්වවිද්‍යාල|ස්මාරක|යුද්ධ|රාජධානි|භාෂාව|සංස්කෘති|විද්‍යාව|තාක්ෂණ|ග්‍රහලෝක|සත්ත්ව|විශේෂ|ජනගහනය|භූගෝල|නව නිපැයුම්/i;
+
+  const isQuestion = /\\?/.test(normalized);
+  const hasCurrentness = currentness.test(normalized);
+  const hasFactualQuestion = factualQuestion.test(normalized);
+  const hasEncyclopedicTopic = encyclopedicTopic.test(normalized);
+
+  // Question marks are only supporting evidence; they never trigger Wikipedia alone.
+  // Current/year-specific factual questions are high-confidence Wikipedia intent.
+  if (hasCurrentness && (hasFactualQuestion || hasEncyclopedicTopic)) return true;
+
+  // Ordinary who/what/where/when and explanatory knowledge questions qualify.
+  if (hasFactualQuestion && (isQuestion || hasEncyclopedicTopic)) return true;
+
+  // Encyclopedic topics phrased as short questions qualify even without an
+  // English question-word prefix, including Sinhala and mixed-language input.
+  if (hasEncyclopedicTopic && isQuestion) return true;
+
+  return false;
+}'''
+
+          patched = text[:start] + new_function + text[end:]
+          path.write_text(patched, encoding='utf-8')
+          PY
+      - name: Verify, commit, and remove temporary workflow
+        run: |
+          grep -q "const encyclopedicTopic" app/api/chat/route.ts
+          grep -q "Current/year-specific factual questions" app/api/chat/route.ts
+          git diff --check
+          rm -f .github/workflows/nexo-wikipedia-intent-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/chat/route.ts .github/workflows/nexo-wikipedia-intent-fix.yml
+          git commit -m "feat: improve semantic Wikipedia intent detection"
+          git push
