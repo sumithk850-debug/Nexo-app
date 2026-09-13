@@ -2,18 +2,25 @@ name: Temporary Semantic Wikipedia Intent Patch
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, 'feat: improve semantic Wikipedia intent detection') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Skip after patch is already applied
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == *"feat: improve semantic Wikipedia intent detection"* ]]; then
+            echo "Semantic Wikipedia intent patch already applied."
+            exit 0
+          fi
 
       - name: Patch semantic Wikipedia intent detection
         run: |
@@ -34,9 +41,7 @@ jobs:
               .replace(/\s+/g, ' ')
               .trim();
 
-            if (/\b(wikipedia|encyclopedia|wiki page|wiki article)\b|විකිපීඩියා|විශ්වකෝෂ/i.test(normalized)) {
-              return true;
-            }
+            if (/\b(wikipedia|encyclopedia|wiki page|wiki article)\b|විකිපීඩියා|විශ්වකෝෂ/i.test(normalized)) return true;
 
             const nonWikipediaIntent = /\b(?:code|coding|program|programming|debug|debugging|error|bug|fix|implement|implementation|typescript|javascript|python|react|next\.js|nextjs|sql|supabase|vercel|github|api|api route|component|function|regex|terminal|npm|package|compile|build|deploy|deployment|translate|translation|translate this|rewrite|rephrase|proofread|email|caption|poem|poetry|song|lyrics|story|creative writing|write a story|roleplay)\b|පරිවර්තනය|පරිවර්තනය කරන්න|කෝඩ්|කේතය|කේත|වැරැද්ද|දෝෂය|ඩිබග්|ක්‍රමලේඛ|කතාවක් ලිය|කවියක් ලිය/i;
             if (nonWikipediaIntent.test(normalized)) return false;
@@ -66,7 +71,7 @@ jobs:
           path.write_text(patched, encoding='utf-8')
           PY
 
-      - name: Commit and remove temporary workflow
+      - name: Commit patch and remove temporary workflow
         run: |
           rm -f .github/workflows/nexo-wikipedia-intent-patch.yml
           git config user.name "github-actions[bot]"
