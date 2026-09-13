@@ -41,7 +41,7 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2, MoreHorizontal, ExternalLink } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
 import { authenticatedFetch } from "@/lib/authFetch";
@@ -190,6 +190,7 @@ export function MessageBubble({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
   const vercelReadCards = parseVercelReadBlocks(message.content);
@@ -471,7 +472,7 @@ export function MessageBubble({
         )}
 
         {message.content && (
-          <div className="mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+          <div className="relative mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
             <button
               onClick={handleReadAloud}
               className={`flex items-center gap-1 rounded-md p-1.5 transition hover:bg-panel ${isSpeaking ? "text-rose-400" : "text-ink-faint hover:text-ink"}`}
@@ -514,6 +515,26 @@ export function MessageBubble({
             >
               <ThumbsUp className="h-3.5 w-3.5" />
             </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setActionsOpen((value) => !value)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-ink-faint transition hover:bg-panel hover:text-ink"
+                aria-label="More message actions"
+                aria-expanded={actionsOpen}
+                title="More actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {actionsOpen && (
+                <div className="absolute bottom-10 left-0 z-50 min-w-44 overflow-hidden rounded-xl border border-edge bg-panel/95 p-1.5 shadow-2xl backdrop-blur-xl">
+                  <button onClick={() => { handleCopy(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><Copy className="h-3.5 w-3.5" /> Copy response</button>
+                  <button onClick={() => { handleReadAloud(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><Volume2 className="h-3.5 w-3.5" /> Read aloud</button>
+                  {isLast && onRegenerate && <button onClick={() => { onRegenerate(); setActionsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><RotateCw className="h-3.5 w-3.5" /> Regenerate</button>}
+                  {wikipediaSources.length > 0 && <button onClick={() => setActionsOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-void hover:text-ink"><ExternalLink className="h-3.5 w-3.5" /> Sources available above</button>}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => handleFeedback("down")}

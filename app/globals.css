@@ -361,3 +361,25 @@ textarea:focus-visible {
   0%, 82% { opacity: 1; transform: none; }
   100% { opacity: 0; }
 }
+
+/* NEXO final mobile + visual polish */
+html, body {
+  min-height: 100%;
+  overscroll-behavior-y: none;
+}
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 640px) {
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .prose-nexo { overflow-wrap: anywhere; }
+  .prose-nexo pre { max-width: calc(100vw - 2rem); font-size: 12px; }
+  .prose-nexo table { min-width: 28rem; }
+  button { touch-action: manipulation; }
+}
+@media (max-width: 420px) {
+  .prose-nexo table { min-width: 24rem; }
+}
+@media (min-width: 641px) {
+  .nexo-surface { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
+}
