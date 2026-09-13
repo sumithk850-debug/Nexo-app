@@ -41,10 +41,11 @@ import "prismjs/components/prism-sql";
 import "prismjs/components/prism-xml-doc";
 import "prismjs/components/prism-toml";
 import "prismjs/components/prism-ini";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2, BookOpen, ExternalLink } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Pencil, CheckCheck, X, Loader2, Square, Play, Volume2 } from "lucide-react";
 import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
 import { authenticatedFetch } from "@/lib/authFetch";
+import { WikipediaSourcesDrawer } from "./WikipediaSourcesDrawer";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -465,22 +466,7 @@ export function MessageBubble({
 
         {!isStreaming && wikipediaSources.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Wikipedia sources">
-            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold text-sky-200">
-              <BookOpen className="h-3 w-3" aria-hidden="true" /> Wikipedia
-            </span>
-            {wikipediaSources.map((source) => (
-              <a
-                key={source.url}
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex max-w-[16rem] items-center gap-1 rounded-full border border-edge bg-panel px-2 py-1 text-[10px] text-ink-muted transition hover:border-sky-400/40 hover:text-sky-200"
-                title={source.title}
-              >
-                <span className="truncate">{source.title}</span>
-                <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
-              </a>
-            ))}
+            <WikipediaSourcesDrawer sources={wikipediaSources} />
           </div>
         )}
 
