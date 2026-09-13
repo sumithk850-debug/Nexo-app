@@ -1,10 +1,9 @@
 "use client";
 
-import { Check, Circle, FileSearch, FileUp, GitPullRequest, Loader2, Pencil, Search, ShieldCheck, Sparkles, XCircle } from "lucide-react";
+import { Check, Circle, FileSearch, FileUp, Loader2, Pencil, Search, ShieldCheck, Sparkles, XCircle, Clock3 } from "lucide-react";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
 
 type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error";
-
 type AttachmentState = "preparing" | "error" | null;
 
 type TimelineItem = {
@@ -62,8 +61,8 @@ export function AgentTimeline({
     });
   }
 
-  actions.slice(-4).forEach((action, index) => {
-    const isLatest = index === Math.min(actions.length, 4) - 1;
+  actions.slice(-4).forEach((action, index, visibleActions) => {
+    const isLatest = index === visibleActions.length - 1;
     items.push({
       id: `${action.type}:${action.filePath}:${index}`,
       label: actionLabel(action),
@@ -73,45 +72,72 @@ export function AgentTimeline({
     });
   });
 
-  // Plain chat generation already has its own Generating response status card.
-  // Keep this richer timeline for requests with observable work to report.
   if (streaming && hasMeaningfulActivity) {
-    items.push({ id: "response", label: "Drafting response", state: "active", icon: Sparkles });
+    items.push({ id: "response", label: "Drafting response", detail: "NEXO is combining the results", state: "active", icon: Sparkles });
   }
 
   if (approvalState) items.push(approvalLabel(approvalState));
   if (items.length === 0) return null;
 
+  const activeItem = [...items].reverse().find((item) => item.state === "active");
+  const completedCount = items.filter((item) => item.state === "complete").length;
+  const hasError = items.some((item) => item.state === "error");
+
   return (
-    <section className="mx-auto mb-2 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-xl border border-edge bg-panel/90 shadow-sm" aria-label="Agent activity timeline">
-      <div className="flex items-center justify-between border-b border-edge/70 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan/10 text-cyan">
-            <Sparkles className="h-3 w-3" />
+    <section
+      className="mx-auto mb-2 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl border border-edge/80 bg-panel/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+      aria-label="NEXO activity timeline"
+      aria-live="polite"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-edge/70 px-3.5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${
+            hasError ? "bg-rose-400/10 text-rose-300" : streaming ? "bg-cyan/10 text-cyan" : "bg-emerald-400/10 text-emerald-300"
+          }`}>
+            {hasError ? <XCircle className="h-3.5 w-3.5" /> : streaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           </span>
-          <p className="text-xs font-semibold text-ink">Agent timeline</p>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold tracking-wide text-ink">NEXO Activity</p>
+            <p className="truncate text-[9px] text-ink-faint">
+              {activeItem?.label ?? (hasError ? "Action needs attention" : "Task completed")}
+            </p>
+          </div>
         </div>
-        <span className="font-mono text-[10px] text-ink-faint">{streaming ? "LIVE" : "LATEST"}</span>
+        <div className="flex shrink-0 items-center gap-2 text-[9px] font-mono text-ink-faint">
+          {completedCount > 0 && <span>{completedCount} done</span>}
+          {streaming ? (
+            <span className="flex items-center gap-1 text-cyan"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan" />LIVE</span>
+          ) : (
+            <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />LATEST</span>
+          )}
+        </div>
       </div>
-      <ol className="space-y-0 px-3 py-2">
+
+      <ol className="space-y-0 px-3.5 py-2.5">
         {items.map((item, index) => {
           const Icon = item.icon;
           const isActive = item.state === "active";
           const isError = item.state === "error";
           const isWaiting = item.state === "waiting";
+          const isLast = index === items.length - 1;
+
           return (
             <li key={item.id} className="relative flex min-w-0 gap-2.5 py-1.5">
-              {index < items.length - 1 && <span className="absolute left-[9px] top-6 h-[calc(100%-8px)] w-px bg-edge" aria-hidden="true" />}
-              <span className={`relative z-10 flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-full border ${
+              {!isLast && <span className="absolute left-[10px] top-7 h-[calc(100%-7px)] w-px bg-edge/80" aria-hidden="true" />}
+              <span className={`relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                 isActive ? "border-cyan/40 bg-cyan/10 text-cyan" : isError ? "border-rose-400/40 bg-rose-400/10 text-rose-300" : isWaiting ? "border-amber-300/40 bg-amber-300/10 text-amber-300" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
               }`}>
                 {isActive ? <Loader2 className="h-3 w-3 animate-spin" /> : isError ? <XCircle className="h-3 w-3" /> : isWaiting ? <Circle className="h-2.5 w-2.5" /> : <Check className="h-3 w-3" />}
               </span>
-              <div className="min-w-0 pb-0.5">
-                <p className={`truncate text-xs font-medium ${isError ? "text-rose-200" : isWaiting ? "text-amber-200" : "text-ink"}`}>{item.label}</p>
-                {item.detail && <p className="truncate font-mono text-[10px] text-ink-faint" title={item.detail}>{item.detail}</p>}
+
+              <div className="min-w-0 flex-1 pb-0.5">
+                <div className="flex items-center gap-2">
+                  <p className={`truncate text-[11px] font-semibold ${isError ? "text-rose-200" : isWaiting ? "text-amber-200" : "text-ink"}`}>{item.label}</p>
+                  {isActive && <span className="shrink-0 rounded-full bg-cyan/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-cyan">active</span>}
+                </div>
+                {item.detail && <p className="mt-0.5 truncate font-mono text-[9px] text-ink-faint" title={item.detail}>{item.detail}</p>}
               </div>
-              <Icon className={`ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 ${isActive ? "text-cyan" : "text-ink-faint"}`} />
+              <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${isActive ? "text-cyan" : isError ? "text-rose-300" : "text-ink-faint"}`} />
             </li>
           );
         })}
