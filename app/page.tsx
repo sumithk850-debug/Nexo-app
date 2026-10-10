@@ -204,6 +204,7 @@ export default function ChatPage() {
   const [secretSaving, setSecretSaving] = useState(false);
   const [secretSaveError, setSecretSaveError] = useState<string | null>(null);
   const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
+  const [commitProgressStep, setCommitProgressStep] = useState(0);
 
   // Typing speed tracking starts at the first provider text chunk, not at
   // request start. A short rolling window makes the badge responsive while
@@ -643,6 +644,8 @@ export default function ChatPage() {
             // Don't recreate the card if we already have one for this message
             // (e.g. avoid resetting an in-progress approve/reject state).
             if (prev?.messageId === lastAssistantMsg.id) return prev;
+            setCommitResult(null);
+            setCommitProgressStep(0);
             return {
               messageId: lastAssistantMsg.id,
               actions: parsed.fileActions,
@@ -827,6 +830,8 @@ export default function ChatPage() {
 
   async function handleApproveChanges(mode: "direct" | "pr", branchName?: string) {
     if (!pendingApproval || !user) return;
+    setCommitResult(null);
+    setCommitProgressStep(0);
     if (!githubIntegrationEnabled) {
       setCommitErrorDetail("GitHub integration is turned off. Turn it on in Integrations before approving repository changes.");
       setPendingApproval({ ...pendingApproval, status: "error" });
@@ -834,6 +839,7 @@ export default function ChatPage() {
     }
 
     setPendingApproval({ ...pendingApproval, status: "approving" });
+    setCommitProgressStep(1);
 
     // Resolve each approved action to its final file content:
     // - diffs: apply against the last known content of the file (fetched live
@@ -903,10 +909,12 @@ export default function ChatPage() {
     // the commit API so we never push a blank file to the repository.
     if (filesToCommit.length === 0) {
       setPendingApproval({ ...pendingApproval, status: "rejected" });
+      setCommitProgressStep(0);
       return;
     }
 
     try {
+      setCommitProgressStep(3);
       const res = await authenticatedFetch("/api/github/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -935,6 +943,11 @@ export default function ChatPage() {
         console.error("[approve] Commit failed:", data.error ?? data.message);
       } else {
         setCommitErrorDetail(null);
+        setCommitProgressStep(5);
+        setCommitResult({
+          commitUrl: typeof data.commitUrl === "string" ? data.commitUrl : undefined,
+          prUrl: typeof data.prHtmlUrl === "string" ? data.prHtmlUrl : undefined,
+        });
       }
       setPendingApproval({
         ...pendingApproval,
@@ -943,6 +956,7 @@ export default function ChatPage() {
     } catch {
       setCommitErrorDetail("Network error — the commit request could not be sent");
       setPendingApproval({ ...pendingApproval, status: "error" });
+      setCommitProgressStep(0);
     }
   }
 
@@ -951,6 +965,7 @@ export default function ChatPage() {
     setPendingApproval({ ...pendingApproval, status: "rejected" });
     setCommitErrorDetail(null);
     setCommitResult(null);
+    setCommitProgressStep(0);
   }
 
   function handleRetryChanges() {
@@ -958,6 +973,7 @@ export default function ChatPage() {
     setPendingApproval({ ...pendingApproval, status: "pending" });
     setCommitErrorDetail(null);
     setCommitResult(null);
+    setCommitProgressStep(0);
   }
 
   async function streamResponse(
@@ -1713,6 +1729,9 @@ export default function ChatPage() {
                                 repoFullName={selectedRepo}
                                 status={pendingApproval.status}
                                 errorDetail={commitErrorDetail}
+                                progressStep={commitProgressStep}
+                                commitUrl={commitResult?.commitUrl}
+                                prUrl={commitResult?.prUrl}
                                 onApprove={handleApproveChanges}
                                 onReject={handleRejectChanges}
                               />
