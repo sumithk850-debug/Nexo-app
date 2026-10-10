@@ -15,6 +15,7 @@ import {
   ExternalLink,
   RefreshCw,
   GitCommit,
+  ShieldCheck,
 } from "lucide-react";
 import type { FileAction, FileActionType } from "@/lib/craftParser";
 
@@ -91,6 +92,16 @@ export function ApprovalCard({
 
   if (proposalActions.length === 0) return null;
 
+  const affectedPaths = Array.from(new Set(proposalActions.map((action) => action.filePath)));
+  const hasDeletion = proposalActions.some((action) => action.type === "deleting");
+  const hasCreation = proposalActions.some((action) => action.type === "creating");
+  const risk = hasDeletion ? "High" : hasCreation || affectedPaths.length > 3 ? "Medium" : "Low";
+  const riskClass = risk === "High"
+    ? "border-red-400/30 bg-red-400/5 text-red-300"
+    : risk === "Medium"
+      ? "border-amber-300/30 bg-amber-300/5 text-amber-200"
+      : "border-emerald-400/30 bg-emerald-400/5 text-emerald-300";
+
   const requiresDiffReview = !proposalActions.every((action) => action.type === "deleting");
   const canApprove = (!requiresDiffReview || diffReviewed) && (selectedMode !== "direct" || directAcknowledged);
 
@@ -150,6 +161,24 @@ export function ApprovalCard({
               );
             })}
           </div>
+        </div>
+
+        {/* Read-only evidence summary for the approval decision. */}
+        <div className="rounded-xl border border-cyan/20 bg-cyan/5 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-cyan" />
+              <p className="text-xs font-semibold text-ink">Kyvorix Reality Receipt</p>
+            </div>
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${riskClass}`}>Risk: {risk}</span>
+          </div>
+          <div className="mt-2 grid gap-2 text-[10px] text-ink-faint sm:grid-cols-2">
+            <p><span className="text-ink-muted">Affected files:</span> {affectedPaths.length}</p>
+            <p><span className="text-ink-muted">Approval scope:</span> listed files only</p>
+          </div>
+          <p className="mt-2 border-t border-cyan/10 pt-2 text-[10px] leading-relaxed text-ink-faint">
+            This approval does not include credentials, unlisted files, database operations, or unrelated repositories.
+          </p>
         </div>
 
         {/* Commit message */}
