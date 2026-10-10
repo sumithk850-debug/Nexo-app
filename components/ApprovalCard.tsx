@@ -72,8 +72,10 @@ export function ApprovalCard({
   prUrl?: string | null;
   onRetry?: () => void;
 }) {
-  const [diffOpen, setDiffOpen] = useState(false);
-  const [diffReviewed, setDiffReviewed] = useState(false);
+  // The proposed diff is the evidence behind approval, so keep it visible
+  // instead of hiding the actual change behind a secondary click.
+  const [diffOpen, setDiffOpen] = useState(true);
+  const [diffReviewed, setDiffReviewed] = useState(true);
   const [selectedMode, setSelectedMode] = useState<"direct" | "pr">("pr");
   const [showBranchInput, setShowBranchInput] = useState(true);
   const [branchName, setBranchName] = useState(`kyvorix-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`);
@@ -225,7 +227,7 @@ Create review branch
           </div>
         )}
 
-        {/* Diff viewer */}
+        {/* Exact diff preview */}
         {!proposalActions.every((a) => a.type === "deleting") && (
           <button
             onClick={() => {
@@ -235,7 +237,7 @@ Create review branch
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-edge py-2 text-xs font-medium text-ink-muted transition hover:border-cyan/40 hover:text-ink"
           >
             {diffOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            {diffOpen ? "Hide change details" : "Review change details"}
+            {diffOpen ? "Hide exact change preview" : "Show exact change preview"}
           </button>
         )}
 

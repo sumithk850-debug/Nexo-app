@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
 import { emptyChatFolderState, readChatFolderState, writeChatFolderState, type ChatFolderState } from "@/lib/chatFolders";
+import { AboutKyvorix } from "@/components/AboutKyvorix";
 
 const NEXO_THEMES: { id: Theme; color: string; name: string }[] = [
   { id: "dark", color: "#0A0E1A", name: "Deep Void" },
@@ -76,6 +77,7 @@ export function ChatSidebar({
   const [themesOpen, setThemesOpen] = useState(false);
   const [personasOpen, setPersonasOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Project folders are local to the active Kyvorix browser session. This keeps the feature
   // useful immediately without changing the current chat schema or its access model.
@@ -559,6 +561,14 @@ export function ChatSidebar({
         </div>
 
         <div className="border-t border-edge p-4 space-y-3">
+          <button
+            type="button"
+            onClick={() => setAboutOpen(true)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-ink-faint transition hover:bg-panel hover:text-cyan"
+          >
+            <Info className="h-3.5 w-3.5" />
+            About Kyvorix
+          </button>
           {user ? (
             <div className="flex items-center justify-between rounded-lg border border-edge bg-panel px-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
@@ -586,6 +596,7 @@ export function ChatSidebar({
           )}
         </div>
       </aside>
+      <AboutKyvorix open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>
   );
 }

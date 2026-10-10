@@ -15,10 +15,10 @@ type TimelineItem = {
 };
 
 function actionLabel(action: FileAction): string {
-  if (action.type === "reading") return "Inspecting project context";
-  if (action.type === "editing") return "Preparing a change";
-  if (action.type === "creating") return "Preparing a new file";
-  return "Preparing a removal";
+  if (action.type === "reading") return "Reading file";
+  if (action.type === "editing") return "Editing selected section";
+  if (action.type === "creating") return "Creating new file";
+  return "Removing file";
 }
 
 function approvalLabel(state: ApprovalState): TimelineItem {
@@ -66,7 +66,9 @@ export function AgentTimeline({
     items.push({
       id: `${action.type}:${action.filePath}:${index}`,
       label: actionLabel(action),
-      detail: action.filePath,
+      detail: action.linesChanged !== undefined
+        ? `${action.filePath} · ${action.linesChanged} changed lines`
+        : action.filePath,
       state: streaming && isLatest ? "active" : "complete",
       icon: action.type === "reading" ? FileSearch : Pencil,
     });
