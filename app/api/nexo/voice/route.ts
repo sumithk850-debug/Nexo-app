@@ -30,11 +30,11 @@ function pcmToWavBase64(base64Pcm: string, sampleRate = 24_000, channels = 1, bi
 
 async function finalizeSession(userId: string, sessionId: string, status: "completed" | "cancelled" = "completed") {
   try { return await finishNexoVoiceSession(userId, sessionId, status); }
-  catch (cause) { console.error("NEXO voice session finalization failed", { userId, sessionId, cause: cause instanceof Error ? cause.message : "unknown" }); return null; }
+  catch (cause) { console.error("KYVORIX voice session finalization failed", { userId, sessionId, cause: cause instanceof Error ? cause.message : "unknown" }); return null; }
 }
 
 function stableVoiceForUser(displayName: string | null) {
-  const seed = (displayName?.trim() || "NEXO").normalize("NFKC");
+  const seed = (displayName?.trim() || "KYVORIX").normalize("NFKC");
   let hash = 2166136261;
   for (const char of seed) { hash ^= char.codePointAt(0) ?? 0; hash = Math.imul(hash, 16777619); }
   return TTS_VOICES[(hash >>> 0) % TTS_VOICES.length] ?? "Kore";
@@ -51,7 +51,7 @@ async function synthesizeGeminiVoice(apiKey: string, text: string, displayName: 
         body: JSON.stringify({
           model: TTS_MODEL,
           input: [
-            "Synthesize speech for NEXO's complete response.",
+            "Synthesize speech for KYVORIX's complete response.",
             "Use a natural, calm, clear, confident conversational delivery.",
             "Read the transcript exactly and completely. Do not summarize, omit, repeat, or invent words.",
             "Use natural pauses between sentences and a comfortable speaking pace.",
@@ -92,21 +92,21 @@ export async function POST(req: Request) {
     const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_VOICE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ role: "user", parts: [
-        { text: "Listen to the user's voice message and reply naturally as Nexo. Give a normal conversational answer with enough detail to be genuinely useful. Do not shorten the answer just because this is voice mode. Usually answer in a few natural sentences or short paragraphs, matching the user's language and the complexity of the question. Reply in the language the user speaks." },
+        { text: "Listen to the user's voice message and reply naturally as Kyvorix. Give a normal conversational answer with enough detail to be genuinely useful. Do not shorten the answer just because this is voice mode. Usually answer in a few natural sentences or short paragraphs, matching the user's language and the complexity of the question. Reply in the language the user speaks." },
         { inline_data: { mime_type: mimeType, data: audioData } },
       ] }], generationConfig: { temperature: 0.55, maxOutputTokens: MAX_RESPONSE_TOKENS } }),
       cache: "no-store", signal: AbortSignal.timeout(45_000),
     });
     const payload = await upstream.json().catch(() => ({})) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const text = payload.candidates?.[0]?.content?.parts?.map(part => part.text ?? "").join(" ").trim();
-    if (!upstream.ok || !text) { await finalizeSession(verified.user.id, sessionId); return errorResponse("Nexo could not understand that message. Please try again.", upstream.status === 429 ? 429 : 502); }
+    if (!upstream.ok || !text) { await finalizeSession(verified.user.id, sessionId); return errorResponse("Kyvorix could not understand that message. Please try again.", upstream.status === 429 ? 429 : 502); }
     let audioDataResponse: string | undefined; let audioMimeType: string | undefined;
     try { const tts = await synthesizeGeminiVoice(apiKey, text, verified.user.displayName); audioDataResponse = tts.audioData; audioMimeType = tts.audioMimeType; }
-    catch (ttsError) { console.warn("NEXO voice synthesis unavailable; browser fallback will be used.", { cause: ttsError instanceof Error ? ttsError.message : "unknown" }); }
+    catch (ttsError) { console.warn("KYVORIX voice synthesis unavailable; browser fallback will be used.", { cause: ttsError instanceof Error ? ttsError.message : "unknown" }); }
     const usage = await finalizeSession(verified.user.id, sessionId);
     return Response.json({ text, audioData: audioDataResponse, audioMimeType, voiceProvider: audioDataResponse ? "voice" : "browser-fallback", usage }, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
-    await finalizeSession(verified.user.id, sessionId); console.error("Nexo voice request failed", { userId: verified.user.id, cause: cause instanceof Error ? cause.message : "unknown" });
+    await finalizeSession(verified.user.id, sessionId); console.error("Kyvorix voice request failed", { userId: verified.user.id, cause: cause instanceof Error ? cause.message : "unknown" });
     return errorResponse("Voice response could not start. Please check your connection and retry.", 502);
   }
 }

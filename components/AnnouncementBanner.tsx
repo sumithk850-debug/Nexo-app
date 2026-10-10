@@ -101,7 +101,7 @@ export function AnnouncementBanner() {
               </h2>
             </div>
 
-            <div className="prose-nexo mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
+            <div className="prose-kyvorix mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
               {announcement.message}
             </div>
 

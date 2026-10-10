@@ -73,7 +73,7 @@ export function AgentTimeline({
   });
 
   if (streaming && hasMeaningfulActivity) {
-    items.push({ id: "response", label: "Drafting response", detail: "NEXO is combining the results", state: "active", icon: Sparkles });
+    items.push({ id: "response", label: "Drafting response", detail: "KYVORIX is combining the results", state: "active", icon: Sparkles });
   }
 
   if (approvalState) items.push(approvalLabel(approvalState));
@@ -86,7 +86,7 @@ export function AgentTimeline({
   return (
     <section
       className="mx-auto mb-2 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl border border-edge/80 bg-panel/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] backdrop-blur-xl"
-      aria-label="NEXO activity timeline"
+      aria-label="KYVORIX activity timeline"
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-3 border-b border-edge/70 px-3.5 py-2.5">
@@ -97,7 +97,7 @@ export function AgentTimeline({
             {hasError ? <XCircle className="h-3.5 w-3.5" /> : streaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-wide text-ink">NEXO Activity</p>
+            <p className="text-[11px] font-bold tracking-wide text-ink">KYVORIX Activity</p>
             <p className="truncate text-[9px] text-ink-faint">
               {activeItem?.label ?? (hasError ? "Action needs attention" : "Task completed")}
             </p>

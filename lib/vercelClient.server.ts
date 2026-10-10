@@ -15,7 +15,7 @@ export interface VercelConnection {
 }
 
 /**
- * Resolves a decrypted Vercel access token for a NEXO user. Returns null when
+ * Resolves a decrypted Vercel access token for a KYVORIX user. Returns null when
  * the user has no Vercel connection. Throws only on infrastructure failures,
  * never on a bad stored secret (that is reported as disconnected).
  */

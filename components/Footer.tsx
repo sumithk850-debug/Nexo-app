@@ -8,11 +8,11 @@ export function Footer() {
         <div className="flex items-center gap-2.5">
           <Signal size="sm" />
           <span className="font-display text-base font-bold text-ink">
-            NEXO<span className="text-cyan">AI</span>
+            KYVORIX<span className="text-cyan">AI</span>
           </span>
         </div>
         <p className="text-xs text-ink-faint">
-          Made in Sri Lanka 🇱🇰 · © {new Date().getFullYear()} NEXO AI
+          Made in Sri Lanka 🇱🇰 · © {new Date().getFullYear()} KYVORIX AI
         </p>
         <div className="flex gap-6 text-xs text-ink-muted">
           <Link href="/pricing" className="hover:text-ink">

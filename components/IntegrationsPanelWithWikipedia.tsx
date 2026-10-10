@@ -21,7 +21,7 @@ export function IntegrationsPanel(props: ExistingProps) {
 
     const mount = document.createElement("div");
     mount.className = "rounded-2xl border border-edge bg-void/40 p-4";
-    mount.setAttribute("data-nexo-wikipedia-integration", "true");
+    mount.setAttribute("data-kyvorix-wikipedia-integration", "true");
     content.appendChild(mount);
     setHost(mount);
 

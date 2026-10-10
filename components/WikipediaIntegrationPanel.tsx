@@ -130,7 +130,7 @@ export function WikipediaIntegrationPanel({ userId }: Props) {
       <div className="flex items-center justify-between border-t border-edge pt-3">
         <div className="flex items-center gap-2 text-xs text-ink-muted">
           <Power className="h-3.5 w-3.5" />
-          Allow NEXO to use Wikipedia
+          Allow KYVORIX to use Wikipedia
         </div>
         <button
           type="button"
@@ -146,7 +146,7 @@ export function WikipediaIntegrationPanel({ userId }: Props) {
       </div>
 
       <p className="text-[11px] leading-relaxed text-ink-faint">
-        When ON, relevant knowledge questions may use Wikipedia through NEXO's research orchestration. Wikipedia text is treated as untrusted external data and never as system instructions.
+        When ON, relevant knowledge questions may use Wikipedia through KYVORIX's research orchestration. Wikipedia text is treated as untrusted external data and never as system instructions.
       </p>
 
       {enabled && (

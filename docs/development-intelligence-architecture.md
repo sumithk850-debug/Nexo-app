@@ -1,4 +1,4 @@
-# Nexo Development Intelligence Architecture
+# Kyvorix Development Intelligence Architecture
 
 ## Scope
 
@@ -8,7 +8,7 @@ This extension adds Project Brain, task planning, feedback preferences, codebase
 
 Every record is owned by one authenticated Supabase user. Each API route verifies the bearer token with `requireVerifiedUser` and always scopes reads, updates, and deletes to that verified user ID. The browser never supplies a trusted ownership value. RLS policies provide a database-level defence in depth layer, while privileged server routes use the service-role client only after request verification.
 
-Repository source content, OAuth credentials, secrets, database values, deployment tokens, and raw tool output are not stored in this workspace. Repository analysis and regression status are calculated on demand from the user’s existing connected integration. Every action that could write to a repository, database, or deployment is represented as a proposal and must remain explicitly approved through Nexo’s existing approval flow.
+Repository source content, OAuth credentials, secrets, database values, deployment tokens, and raw tool output are not stored in this workspace. Repository analysis and regression status are calculated on demand from the user’s existing connected integration. Every action that could write to a repository, database, or deployment is represented as a proposal and must remain explicitly approved through Kyvorix’s existing approval flow.
 
 | Capability | Persistent user data | Read-only input | Write behaviour |
 |---|---|---|---|
@@ -32,7 +32,7 @@ A compact Development Intelligence workspace will open from the top bar. It prov
 
 ## Prompt context
 
-Only the active Project Brain’s concise user-authored summary, conventions, and active task titles may be added to the selected model’s system prompt. This context is clearly labelled as reference data, bounded in length, and cannot override Nexo’s security or approval instructions. Knowledge entries, feedback notes, source content, and tool outputs are not silently injected into model prompts.
+Only the active Project Brain’s concise user-authored summary, conventions, and active task titles may be added to the selected model’s system prompt. This context is clearly labelled as reference data, bounded in length, and cannot override Kyvorix’s security or approval instructions. Knowledge entries, feedback notes, source content, and tool outputs are not silently injected into model prompts.
 
 ## Existing user experience
 

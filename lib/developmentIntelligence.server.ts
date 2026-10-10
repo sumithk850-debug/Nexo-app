@@ -20,7 +20,7 @@ function safePromptText(value: unknown, limit: number) {
 /**
  * Returns a deliberately bounded, user-authored Project Brain reference block.
  * It never includes repository source, uploaded knowledge, OAuth credentials,
- * external tool output, or instructions that may override Nexo safeguards.
+ * external tool output, or instructions that may override Kyvorix safeguards.
  */
 export async function buildProjectBrainContext(userId: string) {
   if (!userId) return "";

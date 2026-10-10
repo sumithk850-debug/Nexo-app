@@ -138,7 +138,7 @@ export function AuthModal({
             )}
             <Signal size="sm" />
             <span className="font-display text-lg font-black tracking-tight text-ink">
-              NEXO<span className="text-cyan">AI</span>
+              KYVORIX<span className="text-cyan">AI</span>
             </span>
           </div>
           {!mandatory && (
@@ -151,7 +151,7 @@ export function AuthModal({
         {mode === "login" ? (
           <>
             <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Welcome back</h2>
-            <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Sign in to continue your journey with NEXO.</p>
+            <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Sign in to continue your journey with KYVORIX.</p>
 
             <form onSubmit={handleLogin} className="mt-7 space-y-4">
               <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50 focus-within:ring-1 focus-within:ring-cyan/50">
@@ -199,7 +199,7 @@ export function AuthModal({
                 <div className="mt-4 flex items-start gap-3 rounded-2xl border border-cyan/20 bg-cyan/5 p-4">
                   <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
                   <p className="text-[11px] font-medium leading-relaxed text-ink-muted">
-                    Security protocol: Use a <span className="font-bold text-ink underline decoration-cyan/30">unique password</span> for NEXO AI. Do not reuse your email password.
+                    Security protocol: Use a <span className="font-bold text-ink underline decoration-cyan/30">unique password</span> for KYVORIX AI. Do not reuse your email password.
                   </p>
                 </div>
 

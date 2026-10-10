@@ -15,7 +15,7 @@ export interface SupabaseConnection {
 }
 
 /**
- * Resolves a decrypted Supabase management token for a NEXO user. Returns
+ * Resolves a decrypted Supabase management token for a KYVORIX user. Returns
  * null when the user has no Supabase connection or the stored secret cannot
  * be decrypted.
  */

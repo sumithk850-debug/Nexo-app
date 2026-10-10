@@ -1,4 +1,4 @@
-// NEXO AI — Craft V3 response parser
+// KYVORIX AI — Craft V3 response parser
 // Parses Craft V3's structured output to detect file operations (read,
 // create, edit, delete) so the chat UI can render live status cards and
 // build an approval card summarizing all proposed changes.
@@ -431,7 +431,7 @@ export function stripTaskSummaryBlocks(text: string): string {
 // Server-injected marker for Gemini's built-in Google Search: emitted by
 // app/api/chat/route.ts whenever the Gemini stream emits a googleSearchCall
 // part. Rendered by the UI as a live "Searching..." pill in the status bar.
-export const SEARCHING_MARKER = /\[NEXO:SEARCHING ([^\]]*)\]/g;
+export const SEARCHING_MARKER = /\[KYVORIX:SEARCHING ([^\]]*)\]/g;
 
 export interface SearchingAction {
   type: "searching";
@@ -445,7 +445,7 @@ export type CraftSegment =
   | { kind: "summary"; summary: TaskSummary; streaming: boolean };
 
 const SEGMENT_SCANNER =
-  /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)|\[NEXO:SEARCHING ([^\]]*)\]/gi;
+  /```diff:([^\n`]+)\n([\s\S]*?)(?:```|$)|```([A-Za-z0-9#_+-]+):([^\n`]+)\n([\s\S]*?)(?:```|$)|\[(READING|CREATING|EDITING|DELETING)\s+FILE\][ \t]*([^\n]*)|\[KYVORIX:SEARCHING ([^\]]*)\]/gi;
 
 function isClosed(text: string, endIndex: number): boolean {
   // A block is complete when the scanner consumed a closing fence.
@@ -562,7 +562,7 @@ export function parseCraftSegments(text: string): CraftSegment[] {
         },
       });
     } else if (match[8] !== undefined) {
-      // [NEXO:SEARCHING query1, query2] — Gemini performed a real web search
+      // [KYVORIX:SEARCHING query1, query2] — Gemini performed a real web search
       // (built-in Google Search grounding). Show it as a live "Searching"
       // pill in the status bar; collapse to "Searched" when the response
       // finished.

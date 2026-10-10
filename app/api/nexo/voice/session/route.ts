@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       maxDurationSeconds: session.maxDurationSeconds,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
-    console.error("NEXO Live session start failed", {
+    console.error("KYVORIX Live session start failed", {
       userId: verified.user.id,
       cause: cause instanceof Error ? cause.message : "unknown",
     });
@@ -51,7 +51,7 @@ export async function DELETE(req: Request) {
     const result = await finishNexoVoiceSession(verified.user.id, sessionId, "cancelled");
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
-    console.error("NEXO Live session cancel failed", {
+    console.error("KYVORIX Live session cancel failed", {
       userId: verified.user.id,
       cause: cause instanceof Error ? cause.message : "unknown",
     });

@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
   const baseTreeSha = baseCommitData.tree?.sha;
   if (!baseTreeSha) return json({ error: "GitHub did not provide the base repository tree." }, 400);
 
-  // A recursive tree lets Nexo verify the approved diff against the current
+  // A recursive tree lets Kyvorix verify the approved diff against the current
   // repository state and preserve the original executable mode when editing.
   const treeResponse = await githubRequest(api(`git/trees/${baseTreeSha}?recursive=1`), { headers });
   if (!treeResponse.response.ok) {
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
 
   const message = typeof commitMessage === "string" && commitMessage.trim()
     ? commitMessage.trim().slice(0, 500)
-    : `chore: approved Nexo repository update (${files.length} files)`;
+    : `chore: approved Kyvorix repository update (${files.length} files)`;
   const newCommitResponse = await githubRequest(api("git/commits"), {
     method: "POST",
     headers,
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
         title: message,
         head: targetBranch,
         base: defaultBranch,
-        body: "This pull request was created from an approved Nexo repository change. Please review before merging.",
+        body: "This pull request was created from an approved Kyvorix repository change. Please review before merging.",
       }),
     });
     if (pullRequestResponse.response.ok) {

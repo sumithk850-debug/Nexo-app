@@ -1,4 +1,4 @@
-// NEXO AI — Anonymous session identity
+// KYVORIX AI — Anonymous session identity
 // Since auth hasn't shipped yet, we generate a random ID per browser and
 // store it in localStorage. This scopes chat history to "this device" until
 // a real login system replaces it. Once auth ships, this can be swapped for

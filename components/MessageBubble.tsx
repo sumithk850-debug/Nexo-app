@@ -378,7 +378,7 @@ export function MessageBubble({
             {parseCraftSegments(displayContent).map((seg, i) =>
               seg.kind === "text" ? (
                 seg.text.trim() ? (
-                  <div key={i} className="prose-nexo text-sm text-ink">
+                  <div key={i} className="prose-kyvorix text-sm text-ink">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {normalizeMarkdownForDisplay(seg.text)}
                     </ReactMarkdown>
@@ -437,7 +437,7 @@ export function MessageBubble({
             ))}
           </div>
         ) : (
-          <div className="prose-nexo text-sm text-ink">
+          <div className="prose-kyvorix text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
             {clarificationCards.map((card) => (

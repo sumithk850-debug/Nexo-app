@@ -43,7 +43,7 @@ function SmartToolsMenu({
     {
       id: "web",
       label: "Web search",
-      description: "Ask NEXO to find current web information",
+      description: "Ask KYVORIX to find current web information",
       icon: Search,
       prompt: "Search the web and answer this: ",
     },
@@ -79,7 +79,7 @@ function SmartToolsMenu({
     <div
       className="absolute bottom-[calc(100%+10px)] left-2 z-50 w-[min(330px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-edge bg-panel/95 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl animate-fade-up"
       role="menu"
-      aria-label="NEXO tools"
+      aria-label="KYVORIX tools"
     >
       <div className="border-b border-edge px-4 py-3">
         <div className="flex items-center gap-2">
@@ -87,8 +87,8 @@ function SmartToolsMenu({
             <Sparkles className="h-3.5 w-3.5" />
           </div>
           <div>
-            <p className="text-xs font-bold text-ink">NEXO Tools</p>
-            <p className="text-[10px] text-ink-faint">Choose how NEXO should help</p>
+            <p className="text-xs font-bold text-ink">KYVORIX Tools</p>
+            <p className="text-[10px] text-ink-faint">Choose how KYVORIX should help</p>
           </div>
         </div>
       </div>
@@ -127,11 +127,11 @@ function SmartToolsMenu({
           className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-ink-muted transition hover:bg-void/40 hover:text-ink"
         >
           <Mic className="h-3.5 w-3.5 text-cyan" />
-          Open NEXO Live Talk
+          Open KYVORIX Live Talk
         </button>
         <div className="mt-1 flex items-center gap-2 px-2 text-[9px] text-ink-faint">
           <Code2 className="h-3 w-3" />
-          <span>NEXO Coder Agent stays available from the sidebar.</span>
+          <span>KYVORIX Coder Agent stays available from the sidebar.</span>
         </div>
       </div>
     </div>
@@ -281,7 +281,7 @@ export function ChatInput({
     if (!toolsOpen) return;
     const close = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
-      if (!target?.closest("[data-nexo-tools]")) setToolsOpen(false);
+      if (!target?.closest("[data-kyvorix-tools]")) setToolsOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -324,7 +324,7 @@ export function ChatInput({
   return (
     <div className="px-4 py-2">
       <div className="mx-auto max-w-3xl">
-        <div className="relative rounded-2xl border border-edge bg-panel px-3 pb-2.5 pt-3 shadow-sm focus-within:border-cyan/50 transition-all duration-300" data-nexo-tools>
+        <div className="relative rounded-2xl border border-edge bg-panel px-3 pb-2.5 pt-3 shadow-sm focus-within:border-cyan/50 transition-all duration-300" data-kyvorix-tools>
           {toolsOpen && (
             <SmartToolsMenu
               onAttach={() => fileInputRef.current?.click()}
@@ -360,7 +360,7 @@ export function ChatInput({
               {waveLevels.map((height, i) => <span key={i} className="w-[3px] flex-shrink-0 rounded-full bg-cyan shadow-[0_0_10px_rgba(0,229,255,0.5)] transition-[height] duration-75" style={{ height: `${height}px` }} />)}
             </div>
           ) : (
-            <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)} onPaste={handlePaste} onKeyDown={handleKeyDown} placeholder="Chat with NEXO AI…" className="max-h-40 w-full resize-none bg-transparent px-1 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none" />
+            <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)} onPaste={handlePaste} onKeyDown={handleKeyDown} placeholder="Chat with KYVORIX AI…" className="max-h-40 w-full resize-none bg-transparent px-1 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none" />
           )}
 
           <div className="mt-2 flex items-center justify-between gap-2">
@@ -372,9 +372,9 @@ export function ChatInput({
               <button
                 onClick={() => setToolsOpen((open) => !open)}
                 className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-all ${toolsOpen ? "border-cyan/50 bg-cyan/10 text-cyan shadow-[0_0_12px_rgba(0,229,255,0.18)]" : "border-edge text-ink-muted hover:border-cyan/40 hover:text-ink"}`}
-                aria-label="Open NEXO tools"
+                aria-label="Open KYVORIX tools"
                 aria-expanded={toolsOpen}
-                title="NEXO Tools"
+                title="KYVORIX Tools"
               >
                 <Plus className={`h-4 w-4 transition-transform duration-200 ${toolsOpen ? "rotate-45" : ""}`} />
               </button>

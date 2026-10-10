@@ -42,7 +42,7 @@ const STATUS_STYLE: Record<
 };
 
 // Manus-style task completion report card: rendered at the END of a coder
-// message, summarizing exactly what Nexo did during the task (files read,
+// message, summarizing exactly what Kyvorix did during the task (files read,
 // changed, deleted) and its outcome — instead of a wall of prose.
 export function SummaryCard({
   summary,

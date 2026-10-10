@@ -54,7 +54,7 @@ export function ModelSelectorChip({
         <div className="absolute bottom-full left-0 z-50 mb-2 w-72 rounded-xl border border-edge bg-panel-raised p-1.5 shadow-2xl">
           <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan">
             <Zap className="h-3 w-3" aria-hidden="true" />
-            Nexo UltraSpeed
+            Kyvorix UltraSpeed
           </div>
           {NEXO_MODELS.map((model) => {
             const isLocked = !unlockedTiers.includes(model.tier);

@@ -236,7 +236,7 @@ export function IntegrationsPanel({
   // Remember the last Supabase project the user browsed so the schema viewer
   // and SQL console do not depend on a hardcoded project id.
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("nexo:supabaseProjectId") : null;
+    const saved = typeof window !== "undefined" ? localStorage.getItem("kyvorix:supabaseProjectId") : null;
     if (saved) setSupabaseProjectId(saved);
   }, []);
 
@@ -246,7 +246,7 @@ export function IntegrationsPanel({
 
   useEffect(() => {
     if (supabaseProjectId) {
-      localStorage.setItem("nexo:supabaseProjectId", supabaseProjectId);
+      localStorage.setItem("kyvorix:supabaseProjectId", supabaseProjectId);
     }
   }, [supabaseProjectId]);
 
@@ -455,7 +455,7 @@ export function IntegrationsPanel({
       }
       const projects = (data.projects ?? []) as SupabaseProject[];
       setSupabaseProjects(projects);
-      const savedProjectId = typeof window !== "undefined" ? localStorage.getItem("nexo:supabaseProjectId") : null;
+      const savedProjectId = typeof window !== "undefined" ? localStorage.getItem("kyvorix:supabaseProjectId") : null;
       const selectedProjectId = projects.some((project) => project.id === savedProjectId)
         ? savedProjectId
         : projects[0]?.id ?? null;
@@ -619,7 +619,7 @@ export function IntegrationsPanel({
               </button>
             ) : disconnectConfirm ? (
               <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                <p className="text-xs text-red-300">Disconnect GitHub? Nexo will lose repository access until you connect again.</p>
+                <p className="text-xs text-red-300">Disconnect GitHub? Kyvorix will lose repository access until you connect again.</p>
                 <div className="mt-2 flex justify-end gap-2">
                   <button onClick={() => setDisconnectConfirm(false)} className="rounded-md px-2 py-1 text-xs text-ink-muted hover:bg-panel">Cancel</button>
                   <button onClick={disconnectGithub} className="rounded-md bg-red-500 px-2 py-1 text-xs font-semibold text-white">Disconnect</button>
@@ -964,7 +964,7 @@ export function IntegrationsPanel({
             ) : (
               <>
                 <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-                  Supabase access is automatically active through your own nexo-app database — no token is ever required or stored. Schema inspection is read-only, and every SQL statement needs your approval first.
+                  Supabase access is automatically active through your own kyvorix-app database — no token is ever required or stored. Schema inspection is read-only, and every SQL statement needs your approval first.
                 </p>
                 <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-ink-faint">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />

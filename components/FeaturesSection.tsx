@@ -4,7 +4,7 @@ const features = [
   {
     icon: Zap,
     title: "176 words / sec",
-    desc: "Groq-powered streaming makes NEXO feel instant, not just fast.",
+    desc: "Groq-powered streaming makes KYVORIX feel instant, not just fast.",
   },
   {
     icon: Globe2,
@@ -34,7 +34,7 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-14 max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-widest text-cyan">
-            Why NEXO
+            Why KYVORIX
           </span>
           <h2 className="mt-3 font-display text-3xl font-bold text-ink md:text-4xl">
             Everything ChatGPT has.

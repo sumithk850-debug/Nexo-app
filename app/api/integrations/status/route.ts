@@ -141,7 +141,7 @@ async function checkSupabaseConnection(userId: string) {
     const projects = (await response.json()) as Array<{ id: string; name?: string }> | undefined;
     return {
       connected: true,
-      username: (projects?.[0]?.name as string | null) ?? "nexo-app",
+      username: (projects?.[0]?.name as string | null) ?? "kyvorix-app",
     };
   } catch {
     return { connected: false, username: null };

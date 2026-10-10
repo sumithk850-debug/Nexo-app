@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { createOAuthState, verifyOAuthState } from "../lib/oauthState.server";
 
-process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "nexo-local-security-regression-key";
+process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "kyvorix-local-security-regression-key";
 
 const userId = "11111111-2222-3333-4444-555555555555";
 const state = createOAuthState(userId, "github");

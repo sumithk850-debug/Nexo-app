@@ -1,4 +1,4 @@
-// NEXO AI — GitHub context helper
+// KYVORIX AI — GitHub context helper
 // CRITICAL: server-only. This reads the user's GitHub connection (access token +
 // selected repo) from Supabase and optionally pulls file contents from the
 // GitHub API, so that this context can be injected into the chat model's
@@ -247,7 +247,7 @@ ${treeSummary}
     fileContentsBlock
       ? `\n\n===== FETCHED FILE CONTENTS =====\nThe user's message appears to reference the following file(s). Their current real content is provided below — use it as ground truth when discussing, explaining, or proposing changes to these files.\n\n${fileContentsBlock}\n===== END FETCHED FILE CONTENTS =====`
       : unreadableFilePaths.length > 0
-        ? `\n\n===== VERIFIED REPOSITORY READ FAILURE =====\nThe requested file read did not complete after ${GITHUB_READ_MAX_ATTEMPTS} server-side attempts: ${unreadableFilePaths.join(", ")}. Do not infer, summarize, explain, or propose unrelated work from this unread file. State only that NEXO could not complete the verified read and offer to retry the same path.\n===== END REPOSITORY READ FAILURE =====`
+        ? `\n\n===== VERIFIED REPOSITORY READ FAILURE =====\nThe requested file read did not complete after ${GITHUB_READ_MAX_ATTEMPTS} server-side attempts: ${unreadableFilePaths.join(", ")}. Do not infer, summarize, explain, or propose unrelated work from this unread file. State only that KYVORIX could not complete the verified read and offer to retry the same path.\n===== END REPOSITORY READ FAILURE =====`
         : `\n\nNo specific file was fetched for this message. If the user asks about a particular file's contents and you need to see it, ask them to name the exact file path, or tell them you'll need it referenced by name so it can be fetched.`
   }`;
 

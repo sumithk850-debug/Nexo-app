@@ -22,9 +22,9 @@ export default function IntegrationPublicPage({
           <Link
             href="/"
             className="font-mono text-sm font-semibold tracking-[0.24em] text-[rgb(var(--color-cyan))]"
-            aria-label="Go to Nexo"
+            aria-label="Go to Kyvorix"
           >
-            NEXO
+            KYVORIX
           </Link>
           <span className="rounded-full border border-[rgb(var(--color-edge))] bg-[rgb(var(--color-panel))] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--color-ink-muted))]">
             Public information
@@ -39,7 +39,7 @@ export default function IntegrationPublicPage({
           <p className="mt-5 max-w-2xl text-base leading-7 text-[rgb(var(--color-ink-muted))] sm:text-lg">
             {summary}
           </p>
-          <div className="prose-nexo mt-10 max-w-none text-[rgb(var(--color-ink-muted))]">{children}</div>
+          <div className="prose-kyvorix mt-10 max-w-none text-[rgb(var(--color-ink-muted))]">{children}</div>
         </section>
 
         <footer className="mt-6 flex flex-col gap-3 border-t border-[rgb(var(--color-edge))] pt-6 font-mono text-xs text-[rgb(var(--color-ink-muted))] sm:flex-row sm:items-center sm:justify-between">

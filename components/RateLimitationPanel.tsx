@@ -239,11 +239,11 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
             </div>
           </div>
 
-          {/* NEXO Live daily allowance */}
+          {/* KYVORIX Live daily allowance */}
           <div className="rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-500/15 to-indigo-500/10 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold text-violet-200">NEXO Live</p>
+                <p className="text-xs font-semibold text-violet-200">KYVORIX Live</p>
                 <p className="mt-1 text-sm font-semibold text-white">Daily voice allowance</p>
                 <p className="mt-1 text-xs text-violet-200/70">
                   {nexoLiveUsage ? `${formatDuration(nexoLiveUsage.usedSeconds)} used of ${formatDuration(nexoLiveUsage.limitSeconds)}` : "20:00 available each day"}
@@ -287,7 +287,7 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
 
           {coderIsPaused && coderResumeAt && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-              <p className="text-xs font-semibold text-red-300">NEXO Coder is paused</p>
+              <p className="text-xs font-semibold text-red-300">KYVORIX Coder is paused</p>
               <p className="mt-1 text-[11px] leading-relaxed text-red-200/80">
                 Craft V3&apos;s 3K-token budget is exhausted. This chat can continue at {coderResumeAt.toLocaleString()}.
               </p>

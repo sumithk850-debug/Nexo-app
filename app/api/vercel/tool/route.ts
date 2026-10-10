@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /**
  * Executes the deliberately small, read-only Vercel vocabulary used by chat.
- * The OAuth connection is resolved from the verified Nexo user, never from
+ * The OAuth connection is resolved from the verified Kyvorix user, never from
  * client-provided credentials or a client-provided team scope.
  */
 export async function POST(req: NextRequest) {

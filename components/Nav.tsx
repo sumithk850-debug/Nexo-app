@@ -8,7 +8,7 @@ export function Nav() {
         <Link href="/" className="flex items-center gap-2.5 group">
           <Signal size="sm" />
           <span className="font-display text-lg font-bold tracking-tight text-ink">
-            NEXO<span className="text-cyan">AI</span>
+            KYVORIX<span className="text-cyan">AI</span>
           </span>
         </Link>
 
@@ -28,7 +28,7 @@ export function Nav() {
           href="/chat"
           className="rounded-full bg-cyan px-5 py-2 text-sm font-semibold text-white transition hover:bg-cyan-dim"
         >
-          Try NEXO free
+          Try KYVORIX free
         </Link>
       </div>
     </header>

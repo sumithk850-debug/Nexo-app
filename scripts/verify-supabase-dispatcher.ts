@@ -75,11 +75,11 @@ const projectsCard = createSupabaseReadBlock({
   title: "Verified Supabase projects",
   message: "2 connected project(s) returned.",
   projects: [
-    { id: projectId, name: "Nexo", region: "ap-southeast-1" },
+    { id: projectId, name: "Kyvorix", region: "ap-southeast-1" },
     { id: "zyxwvutsrqponmlkjihg", name: "Sandbox", region: null },
   ],
 });
-assert.deepEqual(parseSupabaseReadBlocks(projectsCard)[0]?.projects?.map((project) => project.name), ["Nexo", "Sandbox"], "verified project data must survive the live-card transport");
+assert.deepEqual(parseSupabaseReadBlocks(projectsCard)[0]?.projects?.map((project) => project.name), ["Kyvorix", "Sandbox"], "verified project data must survive the live-card transport");
 
 const errorCard = createSupabaseReadBlock({
   state: "error",

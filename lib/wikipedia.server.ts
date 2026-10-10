@@ -20,7 +20,7 @@ async function request(params: URLSearchParams) {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const response = await fetch(`${WIKIPEDIA_API}?${params.toString()}`, {
-      headers: { Accept: "application/json", "User-Agent": "NEXO-AI/1.0 (knowledge integration)" },
+      headers: { Accept: "application/json", "User-Agent": "KYVORIX-AI/1.0 (knowledge integration)" },
       cache: "no-store",
       signal: controller.signal,
     });

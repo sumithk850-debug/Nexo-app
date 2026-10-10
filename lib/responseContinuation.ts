@@ -1,4 +1,4 @@
-export const RESPONSE_CONTINUATION_MARKER = "[NEXO:CONTINUE_RESPONSE]";
+export const RESPONSE_CONTINUATION_MARKER = "[KYVORIX:CONTINUE_RESPONSE]";
 export const MAX_AUTOMATIC_RESPONSE_CONTINUATIONS = 6;
 
 export function consumeResponseContinuationMarker(text: string): {

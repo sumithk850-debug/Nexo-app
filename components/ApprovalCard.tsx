@@ -76,7 +76,7 @@ export function ApprovalCard({
   const [diffReviewed, setDiffReviewed] = useState(false);
   const [selectedMode, setSelectedMode] = useState<"direct" | "pr">("pr");
   const [showBranchInput, setShowBranchInput] = useState(true);
-  const [branchName, setBranchName] = useState(`nexo-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`);
+  const [branchName, setBranchName] = useState(`kyvorix-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`);
   const [directAcknowledged, setDirectAcknowledged] = useState(false);
 
   const proposalActions = actions.filter((a) => {
@@ -186,7 +186,7 @@ Apply directly
                   setSelectedMode("pr");
                   setShowBranchInput(true);
                   setBranchName(
-                    `nexo-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`
+                    `kyvorix-review/${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`
                   );
                 }}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition ${

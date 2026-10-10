@@ -32,7 +32,7 @@
   --color-ink-faint: 90 100 130;
 }
 
-/* Nexo Signature Themes */
+/* Kyvorix Signature Themes */
 .theme-nebula {
   --color-void: 10 10 32;
   --color-panel: 18 18 48;
@@ -160,14 +160,14 @@ textarea:focus-visible {
   border-radius: 4px;
 }
 
-.prose-nexo p {
+.prose-kyvorix p {
   margin: 0 0 0.75em 0;
   line-height: 1.7;
 }
-.prose-nexo p:last-child {
+.prose-kyvorix p:last-child {
   margin-bottom: 0;
 }
-.prose-nexo pre {
+.prose-kyvorix pre {
   background: rgb(var(--color-void));
   border: 1px solid rgb(var(--color-edge));
   border-radius: 10px;
@@ -175,57 +175,57 @@ textarea:focus-visible {
   overflow-x: auto;
   margin: 0.75em 0;
 }
-.prose-nexo code {
+.prose-kyvorix code {
   font-family: var(--font-jetbrains), monospace;
   font-size: 0.875em;
 }
-.prose-nexo :not(pre) > code {
+.prose-kyvorix :not(pre) > code {
   background: rgb(var(--color-cyan) / 0.1);
   color: rgb(var(--color-cyan-dim));
   padding: 2px 6px;
   border-radius: 4px;
 }
-.prose-nexo ul,
-.prose-nexo ol {
+.prose-kyvorix ul,
+.prose-kyvorix ol {
   margin: 0.5em 0 0.75em 1.25em;
 }
-.prose-nexo li {
+.prose-kyvorix li {
   margin-bottom: 0.3em;
 }
-.prose-nexo a {
+.prose-kyvorix a {
   color: rgb(var(--color-cyan));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.prose-nexo strong {
+.prose-kyvorix strong {
   color: rgb(var(--color-ink));
   font-weight: 600;
 }
-.prose-nexo h1,
-.prose-nexo h2,
-.prose-nexo h3 {
+.prose-kyvorix h1,
+.prose-kyvorix h2,
+.prose-kyvorix h3 {
   font-family: var(--font-space-grotesk), sans-serif;
   margin: 0.9em 0 0.4em 0;
   color: rgb(var(--color-ink));
 }
-.prose-nexo table p,
-.prose-nexo table ul,
-.prose-nexo table ol {
+.prose-kyvorix table p,
+.prose-kyvorix table ul,
+.prose-kyvorix table ol {
   margin: 0;
 }
-.prose-nexo table ul,
-.prose-nexo table ol {
+.prose-kyvorix table ul,
+.prose-kyvorix table ol {
   padding-left: 1em;
 }
 
-.nexo-splash {
+.kyvorix-splash {
   background:
     radial-gradient(circle at 50% 42%, rgb(var(--color-cyan) / 0.12), transparent 28%),
     radial-gradient(circle at 15% 90%, rgb(var(--color-indigo) / 0.12), transparent 32%),
     rgb(var(--color-void));
 }
 
-.nexo-splash-grid {
+.kyvorix-splash-grid {
   background-image:
     linear-gradient(rgb(var(--color-edge) / 0.45) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--color-edge) / 0.45) 1px, transparent 1px);
@@ -234,7 +234,7 @@ textarea:focus-visible {
   opacity: 0.4;
 }
 
-.nexo-splash-orb {
+.kyvorix-splash-orb {
   width: 22rem;
   height: 22rem;
   border-radius: 999px;
@@ -244,24 +244,24 @@ textarea:focus-visible {
   animation: nexo_splash_orb 5s ease-in-out infinite alternate;
 }
 
-.nexo-splash-orb-left {
+.kyvorix-splash-orb-left {
   left: -11rem;
   bottom: -10rem;
   background: rgb(var(--color-indigo));
 }
 
-.nexo-splash-orb-right {
+.kyvorix-splash-orb-right {
   right: -11rem;
   top: -10rem;
   background: rgb(var(--color-cyan));
   animation-delay: -2.2s;
 }
 
-.nexo-splash-mark {
+.kyvorix-splash-mark {
   animation: nexo_splash_mark 1.8s ease-in-out infinite alternate;
 }
 
-.nexo-splash-dot {
+.kyvorix-splash-dot {
   width: 5px;
   height: 5px;
   border-radius: 999px;
@@ -270,8 +270,8 @@ textarea:focus-visible {
   animation: nexo_splash_dot 1.2s ease-in-out infinite;
 }
 
-.nexo-splash-dot-delay-1 { animation-delay: 160ms; }
-.nexo-splash-dot-delay-2 { animation-delay: 320ms; }
+.kyvorix-splash-dot-delay-1 { animation-delay: 160ms; }
+.kyvorix-splash-dot-delay-2 { animation-delay: 320ms; }
 
 @keyframes nexo_splash_mark {
   from { transform: translateY(3px) scale(0.98); opacity: 0.82; }
@@ -288,35 +288,35 @@ textarea:focus-visible {
   50% { transform: scale(1.25); opacity: 1; }
 }
 
-/* Text-free Nexo splash sequence: ribbon draws first, then the outer ring, then the mark exits into the app. */
-.nexo-splash-mark {
+/* Text-free Kyvorix splash sequence: ribbon draws first, then the outer ring, then the mark exits into the app. */
+.kyvorix-splash-mark {
   animation: nexo_splash_complete 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: center;
 }
 
-.nexo-splash-logo {
+.kyvorix-splash-logo {
   display: block;
   width: clamp(11.5rem, 45vw, 17.5rem);
   height: auto;
   overflow: visible;
 }
 
-.nexo-splash-ribbon,
-.nexo-splash-ribbon-highlight {
+.kyvorix-splash-ribbon,
+.kyvorix-splash-ribbon-highlight {
   stroke-dasharray: 430;
   stroke-dashoffset: 430;
 }
 
-.nexo-splash-ribbon {
+.kyvorix-splash-ribbon {
   animation: nexo_ribbon_draw 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
 }
 
-.nexo-splash-ribbon-highlight {
+.kyvorix-splash-ribbon-highlight {
   opacity: 0;
   animation: nexo_ribbon_highlight 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
 }
 
-.nexo-splash-ring {
+.kyvorix-splash-ring {
   stroke-dasharray: 585;
   stroke-dashoffset: 585;
   opacity: 0;
@@ -347,10 +347,10 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nexo-splash-mark { animation: nexo_splash_reduced_exit 2.6s ease forwards; }
-  .nexo-splash-ribbon,
-  .nexo-splash-ribbon-highlight,
-  .nexo-splash-ring {
+  .kyvorix-splash-mark { animation: nexo_splash_reduced_exit 2.6s ease forwards; }
+  .kyvorix-splash-ribbon,
+  .kyvorix-splash-ribbon-highlight,
+  .kyvorix-splash-ring {
     animation: none;
     stroke-dashoffset: 0;
     opacity: 1;
@@ -362,7 +362,7 @@ textarea:focus-visible {
   100% { opacity: 0; }
 }
 
-/* NEXO final mobile + visual polish */
+/* KYVORIX final mobile + visual polish */
 html, body {
   min-height: 100%;
   overscroll-behavior-y: none;
@@ -372,14 +372,14 @@ button, a, input, textarea, select {
 }
 @media (max-width: 640px) {
   body { padding-bottom: env(safe-area-inset-bottom); }
-  .prose-nexo { overflow-wrap: anywhere; }
-  .prose-nexo pre { max-width: calc(100vw - 2rem); font-size: 12px; }
-  .prose-nexo table { min-width: 28rem; }
+  .prose-kyvorix { overflow-wrap: anywhere; }
+  .prose-kyvorix pre { max-width: calc(100vw - 2rem); font-size: 12px; }
+  .prose-kyvorix table { min-width: 28rem; }
   button { touch-action: manipulation; }
 }
 @media (max-width: 420px) {
-  .prose-nexo table { min-width: 24rem; }
+  .prose-kyvorix table { min-width: 24rem; }
 }
 @media (min-width: 641px) {
-  .nexo-surface { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
+  .kyvorix-surface { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
 }

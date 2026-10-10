@@ -252,11 +252,11 @@ export function SettingsPanel({
                 <h3 className="font-display text-sm font-semibold">GitHub</h3>
               </div>
               <p className="mt-1 text-xs text-ink-muted">
-                Connect your GitHub account so NEXO Craft V3 can read your repositories and propose code changes for your approval.
+                Connect your GitHub account so KYVORIX Craft V3 can read your repositories and propose code changes for your approval.
               </p>
 
               {!userId ? (
-                <p className="mt-2 text-xs text-ink-faint">Sign in to your NEXO account first to connect GitHub.</p>
+                <p className="mt-2 text-xs text-ink-faint">Sign in to your KYVORIX account first to connect GitHub.</p>
               ) : githubLoading ? (
                 <p className="mt-2 text-xs text-ink-faint">Checking connection…</p>
               ) : githubUsername ? (
@@ -292,7 +292,7 @@ export function SettingsPanel({
                 <h3 className="font-display text-sm font-semibold">Long-term Memory</h3>
               </div>
               <p className="mt-1 text-xs text-ink-muted">
-                Add anything you want NEXO to always remember about you — your name, preferences, or context. Tap Save to store it permanently.
+                Add anything you want KYVORIX to always remember about you — your name, preferences, or context. Tap Save to store it permanently.
               </p>
               <textarea
                 value={memoryDraft}
@@ -326,7 +326,7 @@ export function SettingsPanel({
                 <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
                 <div>
                   <h3 className="font-display text-sm font-semibold text-ink">Web Search Grounding</h3>
-                  <p className="text-xs text-ink-muted">Allow NEXO to search the web for fresh, up-to-date information when answering your questions.</p>
+                  <p className="text-xs text-ink-muted">Allow KYVORIX to search the web for fresh, up-to-date information when answering your questions.</p>
                 </div>
               </div>
               <button
@@ -373,8 +373,8 @@ export function SettingsPanel({
               <div className="flex items-start gap-2">
                 <ScreenShare className="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan" />
                 <div>
-                  <h3 className="font-display text-sm font-semibold text-ink">Share screen with NEXO</h3>
-                  <p className="text-xs text-ink-muted">Allow NEXO to request screen access during chats.</p>
+                  <h3 className="font-display text-sm font-semibold text-ink">Share screen with KYVORIX</h3>
+                  <p className="text-xs text-ink-muted">Allow KYVORIX to request screen access during chats.</p>
                 </div>
               </div>
               <button

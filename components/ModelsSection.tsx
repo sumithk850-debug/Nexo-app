@@ -19,7 +19,7 @@ export function ModelsSection() {
             One platform, five minds
           </h2>
           <p className="mt-4 text-ink-muted">
-            Each NEXO model is tuned for a different job — from quick replies
+            Each KYVORIX model is tuned for a different job — from quick replies
             to deep research to production code. Switch anytime, mid-conversation.
           </p>
         </div>
@@ -51,7 +51,7 @@ export function ModelsSection() {
               Not sure which one?
             </p>
             <p className="mt-2 text-sm text-ink-muted">
-              Start with Nexio — it&apos;s free, and NEXO will suggest an
+              Start with Nexio — it&apos;s free, and KYVORIX will suggest an
               upgrade only when a question actually needs it.
             </p>
           </div>

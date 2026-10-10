@@ -15,7 +15,7 @@ export default function NotFound() {
         href="/"
         className="mt-8 rounded-full bg-cyan px-6 py-2.5 text-sm font-semibold text-void transition hover:bg-cyan-glow"
       >
-        Back to NEXO
+        Back to KYVORIX
       </Link>
     </main>
   );

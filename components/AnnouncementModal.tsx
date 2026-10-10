@@ -100,7 +100,7 @@ export function AnnouncementModal() {
             </div>
             <div>
               <h3 className="font-display text-base font-bold text-ink">
-                {announcement?.title ?? "Nexo AI Update"}
+                {announcement?.title ?? "Kyvorix AI Update"}
               </h3>
               {announcement.version && (
                 <span className="font-mono text-xs text-cyan">

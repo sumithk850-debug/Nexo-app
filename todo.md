@@ -14,7 +14,7 @@
 - [x] Keep locked Craft V3/V4 cards and open an accessible Pro upgrade popup when either card is selected.
 - [x] Store user-approved conversation and project memory as GitHub version-controlled files and load relevant memory for future tasks without using a database.
 - [x] Give all five models shared structured-response rules and render Markdown tables responsively without malformed pseudo-tables or literal HTML break text.
-- [x] Audit the complete Nexo repository for production build, TypeScript, lint, dependency, and configuration issues.
+- [x] Audit the complete Kyvorix repository for production build, TypeScript, lint, dependency, and configuration issues.
 - [x] Fix only the audited Next.js/PostCSS security issues, TypeScript/ESLint compatibility warning, and two React Hook dependency warnings.
 - [x] Diagnose and fix only the Vercel integration connection or deployment-status issue.
 - [x] Give all five models comprehensive, structured, and approval-safe Supabase and Vercel integration operating instructions.
@@ -35,7 +35,7 @@
 - [x] Unify Supabase `list_projects` under one structured tool protocol with verified result/error cards that never terminate the chat stream.
 - [x] Prevent read-only Supabase requests from emitting false approval prose with deterministic verified-card routing, parser coverage, lint, and production-build validation.
 - [ ] Verify the deployed authenticated `describe_table` card execution when a Supabase-connected session is available without requiring phone-side setup.
-- [x] Perform a full Nexo App production-readiness audit across source, API routes, integrations, security, dependency/configuration, UI states, tests, and deployment paths; fix all confirmed safe issues without removing existing features.
+- [x] Perform a full Kyvorix App production-readiness audit across source, API routes, integrations, security, dependency/configuration, UI states, tests, and deployment paths; fix all confirmed safe issues without removing existing features.
 - [x] Replace client-supplied integration user identifiers with verified user-bound server authorization for privileged GitHub, Supabase, Vercel, chat, and memory routes.
 - [x] Bind OAuth connection callbacks to signed, expiring state rather than exposing or trusting raw user IDs in OAuth state.
 - [x] Remove misleading global Supabase service-token fallback from per-user connection status and tool execution paths.
@@ -44,13 +44,13 @@
 - [x] Restore reliable structured clarification boards for all models, including raw-option fallback conversion, option selection, mobile layout, and regression validation.
 - [ ] Verify and enforce that signed-in chat history and clarification-card selections persist and restore through Supabase conversations/messages as the primary save/load path.
 - [x] Revert only commit `cbdea21` GitHub App write-upgrade changes and preserve all earlier deployed fixes.
-- [x] Verify the latest committed seven-model routing configuration in Sumith’s Nexo repository and report the authoritative mapping.
-- [x] Research current OpenRouter primary and free-fallback model options for all seven Nexo personas; make no routing or code changes until the user approves a recommendation.
+- [x] Verify the latest committed seven-model routing configuration in Sumith’s Kyvorix repository and report the authoritative mapping.
+- [x] Research current OpenRouter primary and free-fallback model options for all seven Kyvorix personas; make no routing or code changes until the user approves a recommendation.
 - [x] Re-check the live OpenRouter free catalogue and correct the model recommendation using only IDs that are currently available as free.
 - [x] Verify the current behavior and production suitability of the `openrouter/free` router before making any routing recommendation.
-- [x] Migrate all Nexo model requests to the user-approved OpenRouter-only primary and fallback routes, using `openrouter/free` as Nexio 1.1 primary while preserving Craft V3/V4 locks and all UI features.
+- [x] Migrate all Kyvorix model requests to the user-approved OpenRouter-only primary and fallback routes, using `openrouter/free` as Nexio 1.1 primary while preserving Craft V3/V4 locks and all UI features.
 - [x] Fix only repository file-read completeness/retries and response-stream completeness so verified reads do not produce invented fallback prose and long replies do not stop early.
 - [x] Investigate only the GitHub selected-repository `Not Found` commit failure and report its root cause without changing code or configuration.
 - [x] Add a safe OAuth credential fallback when a GitHub App installation token cannot access the selected repository, without changing any other commit or UI behavior.
-- [x] Replace the plain auth loading screen with a branded Nexo splash screen that displays for a few seconds before the existing AI interface.
-- [x] Center and polish the Nexo splash branding group for mobile viewports without changing the surrounding app UI.
+- [x] Replace the plain auth loading screen with a branded Kyvorix splash screen that displays for a few seconds before the existing AI interface.
+- [x] Center and polish the Kyvorix splash branding group for mobile viewports without changing the surrounding app UI.

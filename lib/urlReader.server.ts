@@ -1,10 +1,10 @@
-// NEXO AI — Server-only web page reader
+// KYVORIX AI — Server-only web page reader
 import { lookup } from "dns/promises";
 
 // CRITICAL: This file must only ever be imported from app/api/** route handlers.
 // It fetches PUBLIC web pages referenced in a user's message and extracts their
 // content (title, meta, headings, body text, links, image alt text, lists,
-// tables) so every NEXO model can "read" a link the user pastes.
+// tables) so every KYVORIX model can "read" a link the user pastes.
 //
 // Safety: only http/https, blocks localhost / private / link-local ranges to
 // avoid SSRF, enforces a request timeout and a response size cap, and only
@@ -267,7 +267,7 @@ async function readSinglePage(url: string): Promise<PageRead> {
         redirect: "manual",
         signal: controller.signal,
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; NexoAI-Reader/1.0; +https://nexo.ai)",
+          "User-Agent": "Mozilla/5.0 (compatible; NexoAI-Reader/1.0; +https://kyvorix.ai)",
           Accept: "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8",
           "Accept-Language": "en,si;q=0.8",
         },

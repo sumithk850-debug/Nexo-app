@@ -1,4 +1,4 @@
-// NEXO AI — Token Usage Tracking (Server-only)
+// KYVORIX AI — Token Usage Tracking (Server-only)
 // This file tracks per-model token usage and provides daily usage data.
 // It is only imported from app/api/** route handlers.
 import { createClient } from "@supabase/supabase-js";

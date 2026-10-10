@@ -9,7 +9,7 @@ interface CoderModelSelectorProps {
   onSelect: (id: CoderModelId) => void;
 }
 
-// Coder sub-model selector — only renders inside Nexo Coder Agent mode.
+// Coder sub-model selector — only renders inside Kyvorix Coder Agent mode.
 // Craft V3 Lite is the active UltraSpeed coding profile with a deeper prompt.
 // Craft V3 and Craft V4 are visually locked (paid tiers).
 export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorProps) {
@@ -64,7 +64,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
         onClick={() => setOpen((v) => !v)}
         className="flex h-8 items-center gap-1.5 rounded-lg border border-edge bg-panel/60 pl-2.5 pr-1.5 text-xs font-semibold text-ink transition hover:border-cyan/50 hover:bg-panel"
         aria-label="Coder model selector"
-        title="Nexo Coder engine"
+        title="Kyvorix Coder engine"
       >
         <span className="inline-flex h-4.5 w-4.5 items-center justify-center rounded bg-cyan/15 p-0.5">
           <Cpu className="h-3.5 w-3.5 text-cyan" />
@@ -97,7 +97,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
           <div className="border-b border-edge/50 px-3.5 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-ink-muted">
-                Nexo Coder
+                Kyvorix Coder
               </p>
               <span className="inline-flex items-center gap-1 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan">
                 <Zap className="h-2.5 w-2.5" aria-hidden="true" />
@@ -197,8 +197,8 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
             <section
               role="dialog"
               aria-modal="true"
-              aria-labelledby="nexo-pro-upgrade-title"
-              aria-describedby="nexo-pro-upgrade-description"
+              aria-labelledby="kyvorix-pro-upgrade-title"
+              aria-describedby="kyvorix-pro-upgrade-description"
               className="w-full max-w-sm overflow-hidden rounded-2xl border border-cyan/25 bg-panel text-ink shadow-[0_24px_70px_rgba(0,0,0,0.65)] animate-fade-up"
             >
               <div className="flex items-start justify-between border-b border-edge/70 px-5 pb-4 pt-5">
@@ -207,8 +207,8 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                   <Crown className="h-5 w-5 text-amber-500 dark:text-amber-300" />
                 </span>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan">Unlock Nexo Pro</p>
-                  <h2 id="nexo-pro-upgrade-title" className="mt-0.5 text-base font-bold text-ink">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan">Unlock Kyvorix Pro</p>
+                  <h2 id="kyvorix-pro-upgrade-title" className="mt-0.5 text-base font-bold text-ink">
                     Unlock {upgradeModel.name}
                   </h2>
                 </div>
@@ -224,7 +224,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
             </div>
 
             <div className="space-y-4 px-5 py-5">
-              <p id="nexo-pro-upgrade-description" className="text-sm leading-6 text-ink">
+              <p id="kyvorix-pro-upgrade-description" className="text-sm leading-6 text-ink">
                 {upgradeModel.id === "craft-v4"
                   ? "A next-generation coding engine for planning and coordinating larger software builds."
                   : "Elite coding intelligence for deeper repository work and demanding engineering tasks."}
@@ -249,13 +249,13 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-amber-600 dark:text-amber-300">Required plan</p>
-                  <p className="mt-0.5 text-ink-muted">Nexo Pro</p>
+                  <p className="mt-0.5 text-ink-muted">Kyvorix Pro</p>
                 </div>
               </div>
 
               {upgradeInterestShown && (
                 <p className="rounded-lg border border-cyan/20 bg-cyan/10 px-3 py-2 text-center text-xs leading-5 text-cyan" role="status">
-                  Nexo Pro upgrades will be available here soon. Craft V3 Lite remains active for your current work.
+                  Kyvorix Pro upgrades will be available here soon. Craft V3 Lite remains active for your current work.
                 </p>
               )}
             </div>
@@ -273,7 +273,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                 onClick={() => setUpgradeInterestShown(true)}
                 className="flex-1 rounded-xl bg-cyan px-3 py-2.5 text-xs font-black text-black transition hover:bg-cyan/90"
               >
-                Explore Nexo Pro
+                Explore Kyvorix Pro
               </button>
             </div>
           </section>

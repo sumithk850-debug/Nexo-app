@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
 
-const MEMORY_ROOT = ".nexo-memory";
+const MEMORY_ROOT = ".kyvorix-memory";
 const INDEX_PATH = `${MEMORY_ROOT}/index.json`;
 const MAX_MEMORY_CONTEXT_CHARS = 12_000;
 
@@ -153,7 +153,7 @@ async function writeJsonFile(repo: string, token: string, path: string, content:
 function conversationContext(memory: ConversationMemory) {
   const recentMessages = memory.messages.slice(-12).map((message) => {
     const content = message.content.length > 1_600 ? `${message.content.slice(0, 1_600)}…` : message.content;
-    return `${message.role === "user" ? "User" : "NEXO"}: ${content}`;
+    return `${message.role === "user" ? "User" : "KYVORIX"}: ${content}`;
   });
   return `Conversation: ${memory.title}\nUpdated: ${memory.updatedAt}\n${recentMessages.join("\n")}`;
 }
@@ -172,7 +172,7 @@ export async function saveGithubConversationMemory(input: {
 
   const messages = normalizeMessages(input.messages);
   const now = new Date().toISOString();
-  const title = redactSecrets((input.title || "Nexo conversation").trim()).slice(0, 140) || "Nexo conversation";
+  const title = redactSecrets((input.title || "Kyvorix conversation").trim()).slice(0, 140) || "Kyvorix conversation";
   const transcript: ConversationMemory = {
     schemaVersion: 1,
     chatId: cleanChatId,
@@ -187,7 +187,7 @@ export async function saveGithubConversationMemory(input: {
     connection.token,
     memoryPath(cleanChatId),
     transcript,
-    `nexo: save conversation memory ${cleanChatId.slice(0, 8)}`
+    `kyvorix: save conversation memory ${cleanChatId.slice(0, 8)}`
   );
 
   const existingIndex = await readJsonFile<MemoryIndex>(connection.repo, connection.token, INDEX_PATH);
@@ -211,7 +211,7 @@ export async function saveGithubConversationMemory(input: {
     connection.token,
     INDEX_PATH,
     index,
-    "nexo: update conversation memory index"
+    "kyvorix: update conversation memory index"
   );
 }
 

@@ -1,18 +1,18 @@
 const faqs = [
   {
-    q: "Is NEXO really free to start?",
-    a: "Yes. NEXO Nexio 1.1 and NEXO Spadec 3.5 are free forever, with 50 messages a day — no credit card required.",
+    q: "Is KYVORIX really free to start?",
+    a: "Yes. KYVORIX Nexio 1.1 and KYVORIX Spadec 3.5 are free forever, with 50 messages a day — no credit card required.",
   },
   {
-    q: "What makes NEXO different from ChatGPT or Gemini?",
-    a: "NEXO is priced for Sri Lanka, built with native Sinhala support, and accepts local payment methods like PayHere — none of which the global platforms offer well.",
+    q: "What makes KYVORIX different from ChatGPT or Gemini?",
+    a: "KYVORIX is priced for Sri Lanka, built with native Sinhala support, and accepts local payment methods like PayHere — none of which the global platforms offer well.",
   },
   {
     q: "Can I switch models mid-conversation?",
-    a: "Yes. Every plan lets you switch between your available NEXO models at any point in a chat.",
+    a: "Yes. Every plan lets you switch between your available KYVORIX models at any point in a chat.",
   },
   {
-    q: "How is NEXO this fast?",
+    q: "How is KYVORIX this fast?",
     a: "Our infrastructure is tuned for streaming responses at up to 176 words per second on supported models, so replies feel instant.",
   },
 ];

@@ -46,13 +46,13 @@ import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Databa
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
 
 // Coder sub-model persistence key — keeps the selected Coder engine (Lite) stable
-// across page reloads inside Nexo Coder Agent mode.
-const CODER_MODEL_STORAGE_KEY = "nexo.coderModel";
+// across page reloads inside Kyvorix Coder Agent mode.
+const CODER_MODEL_STORAGE_KEY = "kyvorix.coderModel";
 
-// Drafts are intentionally stored only in this browser and scoped to NEXO's
+// Drafts are intentionally stored only in this browser and scoped to KYVORIX's
 // existing session ID. Attachments are never persisted because File objects
 // may contain private data and cannot be restored reliably after a reload.
-const DRAFT_STORAGE_PREFIX = "nexo.chatDrafts:";
+const DRAFT_STORAGE_PREFIX = "kyvorix.chatDrafts:";
 const NEW_CHAT_DRAFT_ID = "__new__";
 const MAX_DRAFT_LENGTH = 100_000;
 
@@ -119,7 +119,7 @@ type AttachmentPreparation = {
 };
 
 function readVerifiedPaths(response: Response): string[] {
-  const raw = response.headers.get("X-Nexo-Verified-Reads");
+  const raw = response.headers.get("X-Kyvorix-Verified-Reads");
   if (!raw) return [];
   try {
     const paths = JSON.parse(decodeURIComponent(raw));
@@ -325,7 +325,7 @@ export default function ChatPage() {
 
   async function handleSupabaseApprove(task: SupabaseTask): Promise<{ ok: boolean; message?: string }> {
     const currentUserId = user?.id;
-    const projectId = task.projectId || (typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null);
+    const projectId = task.projectId || (typeof window !== "undefined" ? window.localStorage.getItem("kyvorix:supabaseProjectId") : null);
     if (!currentUserId) return { ok: false, message: "Sign in before running a Supabase task." };
     if (!projectId || ["unknown", "null", "n/a"].includes(projectId.toLowerCase())) {
       return { ok: false, message: "Connect Supabase and select a verified project first." };
@@ -394,7 +394,7 @@ export default function ChatPage() {
     const currentUserId = user?.id;
     if (!currentUserId) {
       return {
-        card: supabaseToolCard(intent, "needs_project", "Sign in and connect Supabase before Nexo can run a verified read."),
+        card: supabaseToolCard(intent, "needs_project", "Sign in and connect Supabase before Kyvorix can run a verified read."),
         promptContext: "The Supabase tool did not run because there is no signed-in user connection.",
         ok: false,
       };
@@ -431,7 +431,7 @@ export default function ChatPage() {
       };
     } catch {
       return {
-        card: supabaseToolCard(intent, "error", "Nexo could not reach the Supabase tool endpoint. No result is being claimed."),
+        card: supabaseToolCard(intent, "error", "Kyvorix could not reach the Supabase tool endpoint. No result is being claimed."),
         promptContext: `Supabase tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
         ok: false,
       };
@@ -495,7 +495,7 @@ export default function ChatPage() {
     const currentUserId = user?.id;
     if (!currentUserId) {
       return {
-        card: vercelToolCard(intent, "needs_connection", "Sign in and connect Vercel before Nexo can run a verified read."),
+        card: vercelToolCard(intent, "needs_connection", "Sign in and connect Vercel before Kyvorix can run a verified read."),
         promptContext: "The Vercel tool did not run because there is no signed-in user connection.",
         ok: false,
       };
@@ -528,7 +528,7 @@ export default function ChatPage() {
       };
     } catch {
       return {
-        card: vercelToolCard(intent, "error", "Nexo could not reach the Vercel tool endpoint. No result is being claimed."),
+        card: vercelToolCard(intent, "error", "Kyvorix could not reach the Vercel tool endpoint. No result is being claimed."),
         promptContext: `Vercel tool ${intent.tool} could not reach the server. Do not claim that the call is waiting or complete.`,
         ok: false,
       };
@@ -913,7 +913,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           userId: user.id,
           files: filesToCommit,
-          commitMessage: pendingApproval.commitMessage || "Update via NEXO Craft V3",
+          commitMessage: pendingApproval.commitMessage || "Update via KYVORIX Craft V3",
           mode,
           branchName,
           approvalGranted: true,
@@ -1005,11 +1005,11 @@ export default function ChatPage() {
           githubEnabled: githubIntegrationEnabled,
           isCoderMode: effectiveCoder,
           // Coder sub-model selection: only honored server-side while in
-          // Nexo Coder mode; the Lite engine's deeper prompt is applied there.
+          // Kyvorix Coder mode; the Lite engine's deeper prompt is applied there.
           coderModel: effectiveCoder ? coderModel : undefined,
           // Read-only Supabase tools need the user-selected project. The backend
           // still verifies it against this user's connected account before use.
-          supabaseProjectId: typeof window !== "undefined" ? window.localStorage.getItem("nexo:supabaseProjectId") : null,
+          supabaseProjectId: typeof window !== "undefined" ? window.localStorage.getItem("kyvorix:supabaseProjectId") : null,
           uploadedImages,
           isAutomaticContinuation: responseContinuationDepth > 0,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
@@ -1028,7 +1028,7 @@ export default function ChatPage() {
             const resumeAt = errData?.pausedUntil
               ? new Date(errData.pausedUntil).toLocaleString()
               : "exactly 24 hours after the limit was reached";
-            const pausedMessage = `## NEXO Coder is paused\n\nඔබගේ Craft V3 **3,000-token** budget එක අවසන් වී ඇත. ඔබගේ වත්මන් task එක සහ chat context එක ආරක්ෂිතව save කර ඇත.\n\n**නැවත ආරම්භ කළ හැකි වේලාව:** ${resumeAt}\n\nඑම වේලාවෙන් පසු මෙම chat එකේම message එකක් යවා task එක නතර වූ තැනින් ඉදිරියට කරගෙන යා හැක.`;
+            const pausedMessage = `## KYVORIX Coder is paused\n\nඔබගේ Craft V3 **3,000-token** budget එක අවසන් වී ඇත. ඔබගේ වත්මන් task එක සහ chat context එක ආරක්ෂිතව save කර ඇත.\n\n**නැවත ආරම්භ කළ හැකි වේලාව:** ${resumeAt}\n\nඑම වේලාවෙන් පසු මෙම chat එකේම message එකක් යවා task එක නතර වූ තැනින් ඉදිරියට කරගෙන යා හැක.`;
 
             setMessages((prev) =>
               prev.map((m) =>
@@ -1059,7 +1059,7 @@ export default function ChatPage() {
         }
 
         // Upstream provider error (502, 500, etc.) — show friendly message
-        const friendlyMsg = errData?.message ?? "Something went wrong reaching NEXO. Please try again.";
+        const friendlyMsg = errData?.message ?? "Something went wrong reaching KYVORIX. Please try again.";
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, content: friendlyMsg, generationState: "failed" } : m
@@ -1149,7 +1149,7 @@ export default function ChatPage() {
         const loadingCard = supabaseToolCard(
           supabaseToolIntent,
           "loading",
-          "Nexo is validating the connection and running this read-only Supabase tool now."
+          "Kyvorix is validating the connection and running this read-only Supabase tool now."
         );
         setMessages((prev) => prev.map((message) => (
           message.id === assistantId ? { ...message, content: loadingCard } : message
@@ -1158,8 +1158,8 @@ export default function ChatPage() {
         const verifiedTool = await executeSupabaseReadTool(supabaseToolIntent);
         const continuedConversation: ChatMessage[] = [
           ...conversationSoFar,
-          { id: `supabase-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Nexo requested a verified Supabase read tool." },
-          { id: `supabase-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Supabase read executed by Nexo]\n${verifiedTool.promptContext}` },
+          { id: `supabase-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Kyvorix requested a verified Supabase read tool." },
+          { id: `supabase-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Supabase read executed by Kyvorix]\n${verifiedTool.promptContext}` },
         ];
         return streamResponse(
           chatId,
@@ -1181,7 +1181,7 @@ export default function ChatPage() {
         const loadingCard = vercelToolCard(
           vercelToolIntent,
           "loading",
-          "Nexo is validating the connection and running this read-only Vercel tool now."
+          "Kyvorix is validating the connection and running this read-only Vercel tool now."
         );
         setMessages((prev) => prev.map((message) => (
           message.id === assistantId ? { ...message, content: loadingCard } : message
@@ -1190,8 +1190,8 @@ export default function ChatPage() {
         const verifiedTool = await executeVercelReadTool(vercelToolIntent);
         const continuedConversation: ChatMessage[] = [
           ...conversationSoFar,
-          { id: `vercel-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Nexo requested a verified Vercel read tool." },
-          { id: `vercel-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Vercel read executed by Nexo]\n${verifiedTool.promptContext}` },
+          { id: `vercel-tool-request-${crypto.randomUUID()}`, role: "assistant", content: toolRequestText || "Kyvorix requested a verified Vercel read tool." },
+          { id: `vercel-tool-result-${crypto.randomUUID()}`, role: "user", content: `[Verified Vercel read executed by Kyvorix]\n${verifiedTool.promptContext}` },
         ];
         return streamResponse(
           chatId,
@@ -1219,7 +1219,7 @@ export default function ChatPage() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: accumulated || "Something went wrong reaching NEXO. Please try again.", generationState: "failed" }
+            ? { ...m, content: accumulated || "Something went wrong reaching KYVORIX. Please try again.", generationState: "failed" }
             : m
         )
       );
@@ -1370,7 +1370,7 @@ export default function ChatPage() {
       setAttachmentPreparation({
         names: attachmentNames,
         state: "error",
-        message: error instanceof Error ? error.message : "NEXO could not prepare this attachment for analysis.",
+        message: error instanceof Error ? error.message : "KYVORIX could not prepare this attachment for analysis.",
       });
       window.setTimeout(() => setAttachmentPreparation(null), 6_000);
       return;
@@ -1526,7 +1526,7 @@ export default function ChatPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-void">
         <Signal size="lg" />
-        <p className="font-mono text-xs text-ink-muted">Loading NEXO AI…</p>
+        <p className="font-mono text-xs text-ink-muted">Loading KYVORIX AI…</p>
       </div>
     );
   }
@@ -1790,7 +1790,7 @@ export default function ChatPage() {
             />
           </div>
 
-          {/* Nexo Coder Side Panel */}
+          {/* Kyvorix Coder Side Panel */}
           {isCoderMode && lastExtractedCode && (
             <div className="max-h-[58vh] w-full shrink-0 overflow-hidden border-t border-edge bg-void/50 p-3 animate-fade-up xl:max-h-none xl:w-1/2 xl:border-l xl:border-t-0 xl:p-4 xl:animate-fade-left">
               <NexoCoder 

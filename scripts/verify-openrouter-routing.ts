@@ -58,4 +58,4 @@ assert(JSON.stringify(CRAFT_V4_ENGINE_CONFIG.fallbackModels) === JSON.stringify(
   "cohere/north-mini-code:free",
 ]), "Craft V4 fallback order is incorrect");
 
-console.log("NEXO model routing verification passed.");
+console.log("KYVORIX model routing verification passed.");

@@ -2,31 +2,31 @@ import type { Metadata } from "next";
 import IntegrationPublicPage from "@/components/IntegrationPublicPage";
 
 export const metadata: Metadata = {
-  title: "Nexo Vercel Access Documentation",
-  description: "Documentation for the private Nexo Vercel Access integration.",
+  title: "Kyvorix Vercel Access Documentation",
+  description: "Documentation for the private Kyvorix Vercel Access integration.",
 };
 
 export default function IntegrationDocumentationPage() {
   return (
     <IntegrationPublicPage
-      eyebrow="Nexo Vercel Access"
+      eyebrow="Kyvorix Vercel Access"
       title="Integration documentation"
-      summary="A private connection that lets an authorized Nexo user review project and deployment information from the account or team they choose."
+      summary="A private connection that lets an authorized Kyvorix user review project and deployment information from the account or team they choose."
     >
       <h2>What this integration does</h2>
       <p>
-        Nexo Vercel Access connects an installation selected by the user to the Nexo workspace. It is intended for viewing
+        Kyvorix Vercel Access connects an installation selected by the user to the Kyvorix workspace. It is intended for viewing
         project and deployment information, including status and basic metadata, after the account owner has authorized the connection.
       </p>
 
       <h2>Connection and authorization</h2>
       <ol>
-        <li>Open the Integrations area in Nexo and choose to connect the deployment workspace.</li>
+        <li>Open the Integrations area in Kyvorix and choose to connect the deployment workspace.</li>
         <li>Review the requested permissions and select the Vercel account or team to authorize.</li>
-        <li>Return to Nexo, where the connection is shown only after the authorization is validated.</li>
+        <li>Return to Kyvorix, where the connection is shown only after the authorization is validated.</li>
       </ol>
       <p>
-        The connection is limited to the account or team selected during installation. A user can disconnect it from Nexo at any time.
+        The connection is limited to the account or team selected during installation. A user can disconnect it from Kyvorix at any time.
       </p>
 
       <h2>Permissions and safeguards</h2>
@@ -35,13 +35,13 @@ export default function IntegrationDocumentationPage() {
         It does not request access to billing, domains, environment variables, global configuration, log drains, or deployment-protection bypasses.
       </p>
       <p>
-        If a future feature needs a write operation, Nexo presents the requested action for explicit approval before it is sent.
-        Nexo does not perform a write solely because a connection exists.
+        If a future feature needs a write operation, Kyvorix presents the requested action for explicit approval before it is sent.
+        Kyvorix does not perform a write solely because a connection exists.
       </p>
 
-      <h2>Data shown in Nexo</h2>
+      <h2>Data shown in Kyvorix</h2>
       <p>
-        Nexo may display the connected account identity, team names, project names, deployment status, target environment,
+        Kyvorix may display the connected account identity, team names, project names, deployment status, target environment,
         deployment URLs, and timestamps returned for the authorized installation. Displayed information is limited to what is needed for the requested workspace task.
       </p>
 

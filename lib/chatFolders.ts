@@ -10,7 +10,7 @@ export interface ChatFolderState {
   collapsed: string[];
 }
 
-const STORAGE_PREFIX = "nexo:chat-project-folders:";
+const STORAGE_PREFIX = "kyvorix:chat-project-folders:";
 const LEGACY_STORAGE_KEY = "nexo_chat_folders";
 
 export function getChatFolderStorageKey(sessionId: string): string {
@@ -32,7 +32,7 @@ export function emptyChatFolderState(): ChatFolderState {
 }
 
 /**
- * Reads folders only from the current Nexo browser session. A legacy assignment map is
+ * Reads folders only from the current Kyvorix browser session. A legacy assignment map is
  * migrated once into session-scoped project folders so existing user organization is preserved.
  */
 export function readChatFolderState(sessionId: string): ChatFolderState {

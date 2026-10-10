@@ -77,7 +77,7 @@ export function ChatSidebar({
   const [personasOpen, setPersonasOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
 
-  // Project folders are local to the active Nexo browser session. This keeps the feature
+  // Project folders are local to the active Kyvorix browser session. This keeps the feature
   // useful immediately without changing the current chat schema or its access model.
   const [folderView, setFolderView] = useState(true);
   const [folderState, setFolderState] = useState<ChatFolderState>(() => emptyChatFolderState());
@@ -205,7 +205,7 @@ export function ChatSidebar({
               Nx
             </div>
             <span className="font-display text-lg font-bold tracking-tight text-ink">
-              Nexo
+              Kyvorix
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -245,7 +245,7 @@ export function ChatSidebar({
           >
             <span className="flex items-center gap-2.5">
               <Code2 className="h-4 w-4" />
-              Nexo Coder Agent
+              Kyvorix Coder Agent
             </span>
             {isCoderMode ? (
               <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse"></span>

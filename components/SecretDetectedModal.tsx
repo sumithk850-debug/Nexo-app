@@ -33,13 +33,13 @@ export function SecretDetectedModal({
 
         <h2 className="mt-4 font-display text-lg font-bold text-ink">Secret detected</h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          A GitHub Personal Access Token was pasted into chat. It was blocked before it could be sent to NEXO, saved in chat history, or shown to the AI model.
+          A GitHub Personal Access Token was pasted into chat. It was blocked before it could be sent to KYVORIX, saved in chat history, or shown to the AI model.
         </p>
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-edge bg-void/60 p-3 text-xs leading-relaxed text-ink-muted">
           <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
-          <span>Save it as an encrypted GitHub Integration secret instead? NEXO can then use it for repository reads and approval-based commits, without ever displaying the token.</span>
+          <span>Save it as an encrypted GitHub Integration secret instead? KYVORIX can then use it for repository reads and approval-based commits, without ever displaying the token.</span>
         </div>
-        {!signedIn && <p className="mt-3 text-xs text-amber-300">Sign in to your NEXO account before saving a GitHub secret.</p>}
+        {!signedIn && <p className="mt-3 text-xs text-amber-300">Sign in to your KYVORIX account before saving a GitHub secret.</p>}
         {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-2">

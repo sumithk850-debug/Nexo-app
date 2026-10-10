@@ -15,7 +15,7 @@ const vercelReadRoute = source("app/api/vercel/deployments/route.ts");
 
 // Folder persistence contracts: each browser session must have an isolated key,
 // malformed values must fall back safely, and legacy assignments are migrated.
-assert.match(folders, /STORAGE_PREFIX = "nexo:chat-project-folders:"/);
+assert.match(folders, /STORAGE_PREFIX = "kyvorix:chat-project-folders:"/);
 assert.match(folders, /getChatFolderStorageKey\(sessionId: string\)/);
 assert.match(folders, /sessionId \|\| "anonymous"/);
 assert.match(folders, /return emptyChatFolderState\(\)/);

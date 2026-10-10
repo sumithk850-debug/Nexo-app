@@ -62,7 +62,7 @@ export function YouTubeIntegrationPanel({ open, onClose }: YouTubeIntegrationPan
                 <h2 className="text-sm font-semibold text-white">YouTube</h2>
                 <span className="text-[10px] font-medium text-ink-muted">Official source</span>
               </div>
-              <p className="text-xs text-ink-muted">Search and explore YouTube content with NEXO.</p>
+              <p className="text-xs text-ink-muted">Search and explore YouTube content with KYVORIX.</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-xs text-ink-muted hover:bg-white/5 hover:text-white">
@@ -109,13 +109,13 @@ export function YouTubeIntegrationPanel({ open, onClose }: YouTubeIntegrationPan
 
             {!loading && !error && results.length === 0 && (
               <div className="rounded-xl border border-dashed border-white/10 px-4 py-10 text-center text-xs text-ink-muted">
-                Search YouTube from NEXO to see results here.
+                Search YouTube from KYVORIX to see results here.
               </div>
             )}
           </div>
 
           <p className="mt-4 text-[10px] leading-relaxed text-ink-muted">
-            YouTube results are retrieved from YouTube and open on YouTube. NEXO does not present itself as YouTube or modify YouTube branding.
+            YouTube results are retrieved from YouTube and open on YouTube. KYVORIX does not present itself as YouTube or modify YouTube branding.
           </p>
         </div>
       </div>

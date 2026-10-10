@@ -9,7 +9,7 @@ const inter = { variable: "--font-inter", className: "font-sans" };
 const jetbrains = { variable: "--font-jetbrains", className: "font-mono" };
 
 export const metadata: Metadata = {
-  title: "NEXO AI — Think Beyond. Create Faster.",
+  title: "KYVORIX AI — Think Beyond. Create Faster.",
   description:
     "Sri Lanka's first world-class AI chat platform. Five models, one signal — ultra fast, ultra affordable, built for Sri Lanka.",
 };

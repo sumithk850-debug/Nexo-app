@@ -49,7 +49,7 @@ const WIKIPEDIA_SOURCES_MARKER = (sources: { title: string; url: string }[]) =>
  * - Sinhala, English and mixed Sinhala-English are supported.
  * - Current/year-specific factual questions receive high priority.
  * - Coding, debugging, translation, creative writing, etc. stay
- *   in their normal NEXO flows.
+ *   in their normal KYVORIX flows.
  */
 function shouldSearchWikipedia(query: string): boolean {
   const value = query.trim();
@@ -70,7 +70,7 @@ function shouldSearchWikipedia(query: string): boolean {
     return true;
   }
 
-  // Requests that should remain in NEXO's normal capabilities.
+  // Requests that should remain in KYVORIX's normal capabilities.
   const nonWikipediaIntent =
     /\b(?:code|coding|program|programming|debug|debugging|bug|error|fix|implement|implementation|typescript|javascript|python|java|react|next\.js|nextjs|sql|supabase|vercel|github|api|api route|component|function|regex|terminal|npm|package|compile|compiler|build|deploy|deployment|database|schema|table|translate|translation|translator|rewrite|rephrase|proofread|proofreading|email|caption|poem|poetry|song|lyrics|story|creative writing|roleplay|math|mathematics|calculate|calculation)\b/i.test(
       normalized
@@ -175,10 +175,10 @@ function buildCurrentDateTimeContext(now = new Date()) {
 
 const CREATOR_CREDITS_PROTOCOL = `
 
-NEXO PROJECT CREDITS:
+KYVORIX PROJECT CREDITS:
 - The project credits are: Lead Creator and Strategist: Hasith Heshan; Chief Planner: Thenuk Dulneth; Patrons of the Project: Anuhas Hansana, Kaveesha Hansamal, Pruthuvi Mahasen, Vinul Sanumitha, and Varuna Damsara.
 - Do not volunteer, repeat, or append these names in ordinary answers, greetings, technical responses, status updates, or unrelated conversations.
-- Mention these credits only when the user explicitly asks about NEXO's creators, founders, project team, planners, strategists, patrons, contributors, or who made the project.
+- Mention these credits only when the user explicitly asks about KYVORIX's creators, founders, project team, planners, strategists, patrons, contributors, or who made the project.
 - When explicitly asked, reproduce the roles and names accurately, without inventing additional people or roles. Match the user's language naturally.`;
 
 const SECRET_HANDLING_PROTOCOL = `
@@ -187,7 +187,7 @@ SECRET HANDLING: Treat passwords, API keys, GitHub Personal Access Tokens, and a
 
 const COMPANION_CONVERSATION_PROTOCOL = `
 
-NATURAL COMPANION CONVERSATION (MANDATORY FOR EVERY NEXO MODEL):
+NATURAL COMPANION CONVERSATION (MANDATORY FOR EVERY KYVORIX MODEL):
 - Speak naturally, warmly, and helpfully like a capable friend, while remaining accurate and respectful.
 - Default to completing the user's request directly. Do not repeatedly ask "What would you like to do next?", "What is the next step?", or other generic follow-up questions merely to continue the conversation.
 - Do not end ordinary answers with a generic menu, invitation, or request for the user to choose the next action. Take reasonable helpful steps and provide the complete answer that is currently possible.
@@ -197,8 +197,8 @@ NATURAL COMPANION CONVERSATION (MANDATORY FOR EVERY NEXO MODEL):
 
 const STRUCTURED_RESPONSE_PROTOCOL = `
 
-RESPONSE PRESENTATION (MANDATORY FOR EVERY NEXO MODEL):
-- Write answers in clean GitHub-Flavored Markdown so they render clearly in the NEXO chat on a phone.
+RESPONSE PRESENTATION (MANDATORY FOR EVERY KYVORIX MODEL):
+- Write answers in clean GitHub-Flavored Markdown so they render clearly in the KYVORIX chat on a phone.
 - Never imitate a table using spaces, tabs, aligned labels, or manually positioned columns. This breaks on mobile screens.
 - When comparing two or more short items, use a real Markdown pipe table with a header row and separator row. Keep tables compact: normally two to four columns, short cell text, and no long paragraphs inside a cell.
 - If a comparison needs long explanations, use short headings followed by bullet lists instead of a wide table.
@@ -209,7 +209,7 @@ RESPONSE PRESENTATION (MANDATORY FOR EVERY NEXO MODEL):
 
 const SUPABASE_VERCEL_INTEGRATION_PROTOCOL = `
 
-SUPABASE + VERCEL INTEGRATION OPERATING PLAYBOOK (MANDATORY FOR EVERY NEXO MODEL):
+SUPABASE + VERCEL INTEGRATION OPERATING PLAYBOOK (MANDATORY FOR EVERY KYVORIX MODEL):
 You can help the user plan, inspect, explain, and safely operate their connected Supabase and Vercel integrations. Treat every integration as user-scoped and permission-bound. A connected card is not permission to make destructive changes, and an absent result is never proof that an operation succeeded.
 
 GENERAL RULES:
@@ -241,17 +241,17 @@ SUPABASE + VERCEL DELIVERY SEQUENCE:
 - For environment variables, describe required variable names and their use, but direct the user to the secure Vercel integration/settings flow to provide values. Never reveal or request the value itself in chat.
 
 CHAT TASK CARDS FOR SUPABASE:
-- For a Supabase read request that needs live data, emit exactly one \`supabase-tool\` block and no completion claim. Nexo's backend will validate the user connection and execute only the listed read tools. After Nexo supplies the result, explain that verified result only.
+- For a Supabase read request that needs live data, emit exactly one \`supabase-tool\` block and no completion claim. Kyvorix's backend will validate the user connection and execute only the listed read tools. After Kyvorix supplies the result, explain that verified result only.
 - Read tools are strictly limited to \`list_projects\`, \`list_tables\`, \`describe_table\`, and \`read_rows\`. Never request raw SQL as a read tool, never include a credential, and never invent a project or table.
 - Use this exact read-tool format: \`<supabase-tool>{"action":"list_projects"}</supabase-tool>\` for a connected-project list. For other reads use the same JSON tag with \`action\`, \`project_id\`, optional \`table\`, optional safe \`columns\`, and optional \`limit\`. Do not show an integration report, waiting message, raw query, or Markdown result around this block.
 - If project/table identity is missing, emit a clarification question instead of a tool block. Never write unknown, null, n/a, or a guessed identifier.
-- When the latest user message includes a \`[Verified Supabase read executed by Nexo]\` result, that read is already complete. Summarize only the supplied result in plain language. Never say a query is running, waiting, approved, or expected to arrive later, and never invent an execution report.
+- When the latest user message includes a \`[Verified Supabase read executed by Kyvorix]\` result, that read is already complete. Summarize only the supplied result in plain language. Never say a query is running, waiting, approved, or expected to arrive later, and never invent an execution report.
 
 CHAT TASK CARDS FOR VERCEL:
-- For a Vercel read request that needs live data, emit exactly one \`vercel-tool\` block and no completion claim. Nexo's backend will validate the user connection and execute only the listed read tools. After Nexo supplies the result, explain that verified result only.
+- For a Vercel read request that needs live data, emit exactly one \`vercel-tool\` block and no completion claim. Kyvorix's backend will validate the user connection and execute only the listed read tools. After Kyvorix supplies the result, explain that verified result only.
 - Read tools are strictly limited to \`list_projects\` and \`list_deployments\`; they never create, update, promote, or remove anything. Use \`<vercel-tool>{"action":"list_projects"}</vercel-tool>\` when the user asks to see their projects. Use \`<vercel-tool>{"action":"list_deployments","project_id":"<verified project id>"}</vercel-tool>\` only after a project ID has been supplied by a verified result or the user.
 - If the user has not connected Vercel, the workflow will report that safely. Do not ask for a credential. If project identity is missing for a deployment request, ask one concise clarification question instead of emitting a tool block.
-- When the latest user message includes a \`[Verified Vercel read executed by Nexo]\` result, that read is already complete. Summarize only the supplied result in plain language. Never say a request is running, waiting, approved, or expected to arrive later, and never invent project, deployment, build, or status data.
+- When the latest user message includes a \`[Verified Vercel read executed by Kyvorix]\` result, that read is already complete. Summarize only the supplied result in plain language. Never say a request is running, waiting, approved, or expected to arrive later, and never invent project, deployment, build, or status data.
 
 - Use exactly one structured task block only for a specific schema/data mutation that needs user approval. Never emit a task block merely because the user mentions Supabase.
 - A mutation task block may be emitted only when the project ID is confirmed in the verified context and the intended table/target is confirmed. Never write unknown, null, n/a, a guessed identifier, or a placeholder into a task block.
@@ -288,8 +288,8 @@ options:
 - A clarification board is not an approval card. It never authorizes a repository, Supabase, or Vercel write; those actions continue to use their dedicated approval workflow.`;
 
 const REPOSITORY_ACTION_PROTOCOL = `
-REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY NEXO MODEL):
-- When the user asks to read, create, edit, or delete repository files, perform the task through NEXO's repository workflow; do not paste implementation code as the answer.
+REPOSITORY ACTION PROTOCOL (MANDATORY FOR EVERY KYVORIX MODEL):
+- When the user asks to read, create, edit, or delete repository files, perform the task through KYVORIX's repository workflow; do not paste implementation code as the answer.
 - Start every repository task with one short sentence in the user's language that clearly says you are starting the requested work. Do not claim it is finished in this opening sentence.
 - Announce each operation on its own line with exactly one marker: [READING FILE] path, [CREATING FILE] path, [EDITING FILE] path, or [DELETING FILE] path.
 - For an existing-file edit, follow its marker with one \`\`\`diff:path/to/file.ext block containing only removed (-) and added (+) lines.
@@ -636,7 +636,7 @@ export async function POST(req: NextRequest) {
           error: "coder_model_locked",
           modelId: coderModel,
           message:
-            "This Craft model is locked until the Nexo Pro plan is available. Craft V3 Lite remains available for free users.",
+            "This Craft model is locked until the Kyvorix Pro plan is available. Craft V3 Lite remains available for free users.",
         }),
         {
           status: 403,
@@ -677,7 +677,7 @@ export async function POST(req: NextRequest) {
             JSON.stringify({
               error: "coder_token_limit_reached",
               message:
-                "NEXO Coder is paused because its 3,000-token budget has been used. Your current task and chat are saved and will be ready to continue after the 24-hour pause.",
+                "KYVORIX Coder is paused because its 3,000-token budget has been used. Your current task and chat are saved and will be ready to continue after the 24-hour pause.",
               pausedUntil: coderAvailability.pausedUntil,
             }),
             {
@@ -748,7 +748,7 @@ export async function POST(req: NextRequest) {
       return new Response(
         JSON.stringify({
           error:
-            "The NEXO intelligence service is temporarily unavailable. Please try again shortly.",
+            "The KYVORIX intelligence service is temporarily unavailable. Please try again shortly.",
         }),
         {
           status: 503,
@@ -1142,7 +1142,7 @@ Structure your review with clear sections and use code examples where helpful.`;
                     Authorization: `Bearer ${candidateApiKey}`,
                     "HTTP-Referer":
                       "https://nexo-app-delta.vercel.app",
-                    "X-Title": "NEXO AI",
+                    "X-Title": "KYVORIX AI",
                   },
               body: JSON.stringify(
                 useGemini
@@ -1292,20 +1292,20 @@ Structure your review with clear sections and use code examples where helpful.`;
         )) ?? "";
 
       let errMsg =
-        "Something went wrong reaching NEXO. Please try again.";
+        "Something went wrong reaching KYVORIX. Please try again.";
 
       if (status === 429) {
         errMsg =
-          "Nexo is briefly busy. Please wait a moment and try again.";
+          "Kyvorix is briefly busy. Please wait a moment and try again.";
       } else if (
         status === 502 ||
         status === 503
       ) {
         errMsg =
-          "Nexo is temporarily unavailable. Please try again in a moment.";
+          "Kyvorix is temporarily unavailable. Please try again in a moment.";
       } else if (status === 500) {
         errMsg =
-          "Nexo encountered a temporary service error. Please try again.";
+          "Kyvorix encountered a temporary service error. Please try again.";
       } else if (
         status >= 400 &&
         status < 500
@@ -1314,7 +1314,7 @@ Structure your review with clear sections and use code examples where helpful.`;
           "There was an issue with your request. Please try again.";
       } else if (status === 0) {
         errMsg =
-          "Nexo could not complete this request. Please check your connection and try again.";
+          "Kyvorix could not complete this request. Please check your connection and try again.";
       }
 
       console.error(
@@ -1602,7 +1602,7 @@ Structure your review with clear sections and use code examples where helpful.`;
           "text/plain; charset=utf-8",
         "Cache-Control":
           "no-cache",
-        "X-Nexo-Verified-Reads":
+        "X-Kyvorix-Verified-Reads":
           encodeURIComponent(
             JSON.stringify(
               verifiedGithubReadPaths

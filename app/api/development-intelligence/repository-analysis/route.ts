@@ -136,7 +136,7 @@ function buildImpact(path: string, files: string[], manifests: string[], workflo
 
 /**
  * Read-only, on-demand repository analysis. It returns metadata and paths only,
- * never stores raw repository contents or GitHub output in Nexo memory.
+ * never stores raw repository contents or GitHub output in Kyvorix memory.
  */
 export async function GET(request: NextRequest) {
   const verified = await requireVerifiedUser(request);

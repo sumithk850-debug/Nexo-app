@@ -1,4 +1,4 @@
-// NEXO AI — Rotating loading phrases
+// KYVORIX AI — Rotating loading phrases
 // Instead of hand-writing hundreds of static strings, we combine short word
 // banks to generate hundreds of unique, natural-sounding phrases. Each call
 // to getLoadingMessage() picks a fresh random combination.
@@ -48,7 +48,7 @@ const OBJECTS = [
 ];
 
 const CONNECTORS = [
-  "with NEXO",
+  "with KYVORIX",
   "for you",
   "behind the scenes",
   "in the lab",
@@ -89,7 +89,7 @@ function pick<T>(arr: T[]): T {
 
 /**
  * Returns a random loading phrase. Roughly half the time it combines a
- * verb + object + connector (e.g. "Brewing your answer with NEXO"), and
+ * verb + object + connector (e.g. "Brewing your answer with KYVORIX"), and
  * half the time it returns a standalone phrase — giving hundreds of
  * effectively unique combinations without hand-writing each one.
  */

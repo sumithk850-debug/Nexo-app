@@ -21,7 +21,7 @@ const chatInput = read("components/ChatInput.tsx");
 const page = read("app/page.tsx");
 
 assert(fs.existsSync(voiceRoutePath), "The isolated primary voice route must exist.");
-assert(fs.existsSync(panelPath), "The NEXO Live panel must exist.");
+assert(fs.existsSync(panelPath), "The KYVORIX Live panel must exist.");
 assert(fs.existsSync(path.join(root, "app/api/nexo/voice/session/route.ts")), "The voice session route must exist.");
 assert(fs.existsSync(path.join(root, "app/api/nexo/voice/usage/route.ts")), "The voice usage route must exist.");
 assert(fs.existsSync(path.join(root, "supabase/migrations/20260826_add_nexo_voice_usage.sql")), "The voice usage migration must exist.");
@@ -52,9 +52,9 @@ assert(!voiceRoute.includes("supabase"), "The isolated voice route must not intr
 assert(panel.includes('authenticatedFetch("/api/nexo/voice/session"'), "The panel must start a protected voice session before recording.");
 assert(panel.includes('authenticatedFetch("/api/nexo/voice"'), "The panel must call only the isolated primary voice route.");
 assert(panel.includes("authenticatedFetch(\"/api/nexo/voice/session\", {"), "The panel must close abandoned sessions safely.");
-assert(panel.includes("NEXO Live"), "The panel must use NEXO Live branding.");
+assert(panel.includes("KYVORIX Live"), "The panel must use KYVORIX Live branding.");
 assert(panel.includes("Listening"), "The panel must show the listening state.");
-assert(panel.includes("Nexo is speaking"), "The panel must show the speaking state.");
+assert(panel.includes("Kyvorix is speaking"), "The panel must show the speaking state.");
 assert(panel.includes("Microphone"), "The panel must show microphone status.");
 assert(panel.includes("Connected"), "The panel must show connection status.");
 assert(panel.includes("Voice connection error"), "The panel must show a neutral voice error heading.");
@@ -66,7 +66,7 @@ assert(!panel.includes("GEMINI_"), "The visible panel must not contain environme
 assert(panel.includes("MediaRecorder"), "The panel must capture voice turns locally before submitting them.");
 assert(panel.includes("createAnalyser"), "The panel must analyse microphone input for the live waveform.");
 assert(panel.includes("getByteTimeDomainData"), "The waveform must use the real microphone signal.");
-assert(panel.includes("speechSynthesis.speak"), "The panel must play the Nexo response aloud.");
+assert(panel.includes("speechSynthesis.speak"), "The panel must play the Kyvorix response aloud.");
 assert(panel.includes("preferredMaleVoice"), "Playback must prefer a male voice when available.");
 assert(panel.includes("si-LK"), "Sinhala playback must use a Sinhala language fallback.");
 assert(panel.includes("en-US"), "English playback must use an English language fallback.");
@@ -82,16 +82,16 @@ assert(panel.includes("silenceStartedAtRef"), "The panel must finish a turn quic
 assert(panel.includes("userIsSpeaking"), "Waveform and turn completion must react to microphone activity.");
 assert(panel.includes("voiceState === \"idle\") void startRecording"), "The panel must automatically enter capture mode when opened.");
 assert(panel.includes("microphone starts automatically"), "The panel must tell the user that capture starts automatically.");
-assert(usagePanel.includes('authenticatedFetch("/api/nexo/voice/usage"'), "The usage panel must fetch NEXO Live usage through the protected route.");
-assert(usagePanel.includes("NEXO Live"), "The usage panel must show NEXO Live usage.");
+assert(usagePanel.includes('authenticatedFetch("/api/nexo/voice/usage"'), "The usage panel must fetch KYVORIX Live usage through the protected route.");
+assert(usagePanel.includes("KYVORIX Live"), "The usage panel must show KYVORIX Live usage.");
 assert(usagePanel.includes("Daily voice allowance"), "The usage panel must show the voice allowance label.");
 assert(usagePanel.includes("20:00 available each day"), "The usage panel must show the 20-minute daily allowance.");
 
-assert(chatInput.includes("onOpenLiveTalk?.();"), "The chat microphone must open the isolated NEXO Live panel.");
-assert(page.includes("<NexoLivePanel"), "The app shell must mount only the NEXO Live panel.");
+assert(chatInput.includes("onOpenLiveTalk?.();"), "The chat microphone must open the isolated KYVORIX Live panel.");
+assert(page.includes("<NexoLivePanel"), "The app shell must mount only the KYVORIX Live panel.");
 assert(page.includes("onVoiceTurnComplete={handleNexoLiveTurnComplete}"), "The app shell must pass the isolated Live history callback.");
 assert(page.includes("liveHistorySaveLockRef"), "Live history persistence must prevent duplicate saves.");
 assert(page.includes('"[Voice message]"'), "Live history must persist a safe text-only user marker.");
 assert(!page.includes("GeminiLiveTalkPanel"), "The app shell must not reference the old panel.");
 
-console.log("NEXO Live panel checks passed: primary voice path, protected session accounting, real waveform/playback, NEXO-only UI, red errors, and visible daily allowance.");
+console.log("KYVORIX Live panel checks passed: primary voice path, protected session accounting, real waveform/playback, KYVORIX-only UI, red errors, and visible daily allowance.");

@@ -72,7 +72,7 @@ function captureVideoPreview(file: File): Promise<string> {
     video.onerror = () => {
       window.clearTimeout(timeout);
       cleanup();
-      reject(new Error("Nexo could not prepare a preview for this video."));
+      reject(new Error("Kyvorix could not prepare a preview for this video."));
     };
     video.src = objectUrl;
   });

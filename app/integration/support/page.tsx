@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import IntegrationPublicPage from "@/components/IntegrationPublicPage";
 
 export const metadata: Metadata = {
-  title: "Nexo Vercel Access Support",
-  description: "Support information for the private Nexo Vercel Access integration.",
+  title: "Kyvorix Vercel Access Support",
+  description: "Support information for the private Kyvorix Vercel Access integration.",
 };
 
 export default function IntegrationSupportPage() {
   return (
     <IntegrationPublicPage
-      eyebrow="Nexo Vercel Access"
+      eyebrow="Kyvorix Vercel Access"
       title="Integration support"
-      summary="Use the support contact listed in the Nexo Vercel Access installation to get help with an authorized connection."
+      summary="Use the support contact listed in the Kyvorix Vercel Access installation to get help with an authorized connection."
     >
       <h2>Before contacting support</h2>
       <p>
         Confirm that the intended account or team was selected during installation, the installation remains active,
-        and Nexo shows the connection as active. If the selected account changed or access was revoked, reconnect the integration from Nexo.
+        and Kyvorix shows the connection as active. If the selected account changed or access was revoked, reconnect the integration from Kyvorix.
       </p>
 
       <h2>What to include</h2>
@@ -28,7 +28,7 @@ export default function IntegrationSupportPage() {
 
       <h2>Security reports</h2>
       <p>
-        If you believe the integration connection has been accessed without your authorization, disconnect it from Nexo immediately and report the issue through the support contact listed on the integration.
+        If you believe the integration connection has been accessed without your authorization, disconnect it from Kyvorix immediately and report the issue through the support contact listed on the integration.
       </p>
     </IntegrationPublicPage>
   );

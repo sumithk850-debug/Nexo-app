@@ -15,7 +15,7 @@ Based on live search and browsing of `openrouter.ai/models?q=free`:
 - **nvidia/nemotron-3-nano-30b-a3b:free** (30B MoE, compute efficient).
 - **openai/gpt-oss-20b:free** (OpenAI open-source model).
 
-## Strategy for Nexo App
+## Strategy for Kyvorix App
 - **Nexio 1.1:** `liquid/lfm-2.5-2.6b:free` (Primary), `nvidia/nemotron-3.5-lightning:free` (Fallback).
 - **Spadec 3.5:** `google/gemma-4-26b-a4b-it:free` (Primary), `openai/gpt-oss-20b:free` (Fallback).
 - **Galex 4.0:** `nvidia/nemotron-3-super-120b-a12b:free` (Primary), `nvidia/nemotron-3-ultra-550b-a55b:free` (Fallback).
