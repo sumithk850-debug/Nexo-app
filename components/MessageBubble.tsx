@@ -46,6 +46,7 @@ import { SmartReplySuggestions } from "./SmartReplySuggestions";
 import { ClarificationCard } from "./ClarificationCard";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { WikipediaSourcesDrawer } from "./WikipediaSourcesDrawer";
+import { ArtifactCard } from "./ArtifactCard";
 
 /**
  * Code block with prism.js syntax highlighting and a per-block copy button.
@@ -464,6 +465,8 @@ export function MessageBubble({
             ))}
           </div>
         )}
+
+        {message.artifact && <ArtifactCard artifact={message.artifact} />}
 
         {!isStreaming && wikipediaSources.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Wikipedia sources">

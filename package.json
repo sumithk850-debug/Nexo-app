@@ -21,6 +21,7 @@
     "@codesandbox/sandpack-react": "^2.20.0",
     "@supabase/supabase-js": "2.117.3",
     "@vercel/analytics": "^2.0.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.400.0",
     "nanoid": "6.0.2",
     "next": "16.4.0",

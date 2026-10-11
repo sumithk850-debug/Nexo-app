@@ -40,6 +40,8 @@ import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
+import { isArtifactRequest } from "@/lib/artifactIntent";
+import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2 } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
@@ -1366,9 +1368,56 @@ export default function ChatPage() {
     }
   }
 
+  async function handleArtifactRequest(prompt: string): Promise<void> {
+    const chatId = await ensureChat();
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: prompt };
+    const assistantId = crypto.randomUUID();
+    setPendingApproval(null);
+    setMessages((previous) => [
+      ...previous,
+      userMsg,
+      { id: assistantId, role: "assistant", content: "Preparing your Excel workbook…", modelId: selectedModel },
+    ]);
+    clearDraftForCurrentTurn(chatId);
+    setInput("");
+    setAttachedFiles([]);
+    const controller = startStreamingTurn(assistantId);
+    if (chatId) saveMessage(chatId, "user", prompt);
+
+    try {
+      const response = await authenticatedFetch("/api/artifacts/excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ prompt }),
+      });
+      const payload = await response.json().catch(() => null) as { artifact?: ArtifactDescriptor; error?: string } | null;
+      if (!response.ok || !payload?.artifact) throw new Error(payload?.error ?? "The workbook could not be generated.");
+      const artifact = payload.artifact;
+      const summary = `I created **${artifact.title}** with ${artifact.sheets.length} sheets, formulas, formatting, and a summary dashboard.`;
+      setMessages((previous) => previous.map((message) => message.id === assistantId ? { ...message, content: summary, artifact } : message));
+      if (chatId) await saveMessage(chatId, "assistant", summary, selectedModel);
+      if (chatId && messages.length === 0) {
+        const title = prompt.split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
+        fetch("/api/chats", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: chatId, title: title || "Artifact Studio" }) }).catch(() => {});
+        setChats((previous) => previous.map((chat) => chat.id === chatId ? { ...chat, title: title || "Artifact Studio" } : chat));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The workbook could not be generated. Please try again.";
+      setMessages((previous) => previous.map((item) => item.id === assistantId ? { ...item, content: message, generationState: "failed" } : item));
+      if (chatId) await saveMessage(chatId, "assistant", message, selectedModel);
+    } finally {
+      finishStreamingTurn(assistantId);
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
+    if (text && attachedFiles.length === 0 && isArtifactRequest(text)) {
+      await handleArtifactRequest(text);
+      return;
+    }
 
     const attachmentNames = attachedFiles.map((file) => file.name);
     if (attachmentNames.length > 0) {

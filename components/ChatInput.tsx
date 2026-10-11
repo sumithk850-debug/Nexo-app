@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2 } from "lucide-react";
+import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2, FileSpreadsheet } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
 import type { NexoModelId } from "@/lib/models";
 
@@ -14,7 +14,7 @@ function extractGithubPersonalAccessToken(value: string): string | null {
   return value.match(/(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/)?.[0] ?? null;
 }
 
-type ToolItem = "files" | "web" | "wikipedia" | "research";
+type ToolItem = "files" | "web" | "wikipedia" | "research" | "artifact";
 
 function SmartToolsMenu({
   onAttach,
@@ -60,6 +60,13 @@ function SmartToolsMenu({
       description: "Build a more thorough, source-aware answer",
       icon: Sparkles,
       prompt: "Research this topic thoroughly and give me a source-aware answer: ",
+    },
+    {
+      id: "artifact",
+      label: "Create a workbook",
+      description: "Generate a professional Excel file with formulas",
+      icon: FileSpreadsheet,
+      prompt: "Create an Excel workbook for: ",
     },
   ];
 
