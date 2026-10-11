@@ -21,7 +21,7 @@ assert.match(githubContextSource, /GITHUB_READ_MAX_ATTEMPTS = 4/, "repository re
 assert.match(githubContextSource, /Do not infer, summarize, explain, or propose unrelated work from this unread file/, "unread files must never trigger invented analysis");
 
 const chatRouteSource = readFileSync("app/api/chat/route.ts", "utf8");
-assert.match(chatRouteSource, /finish_reason === "length"/, "server must detect an output-limited response");
+assert.match(chatRouteSource, /finish_reason\s*===\s*"length"/, "server must detect an output-limited response");
 assert.match(chatRouteSource, /RESPONSE_CONTINUATION_MARKER/, "server must signal output continuation without truncating text");
 
 const pageSource = readFileSync("app/page.tsx", "utf8");
