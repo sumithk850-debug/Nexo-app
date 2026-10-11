@@ -315,6 +315,7 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
   "craft-v3": 3000,
 };
 
+const GEMINI_VISION_MODEL = "gemini-2.5-flash";
 const VISION_FALLBACK_MODEL = "google/gemma-4-31b-it:free";
 
 function getSupabase(userAccessToken?: string) {
@@ -467,62 +468,91 @@ async function describeUploadedImagesWithVisionModel(
   images: { base64Image: string }[],
   userQuestion: string
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (images.length === 0) return "";
 
-  if (!apiKey || images.length === 0) return "";
+  const prompt = `Describe what is visually shown in the uploaded image(s) in detail — content, objects, people, text, colors, layout, and anything notable. The user asked: "${userQuestion}". Focus only on details relevant to that question. Return a concise, factual visual description for another assistant to use.`;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
   try {
-    const content: any[] = [
-      {
-        type: "text",
-        text: `Describe what is visually shown in the following uploaded image(s) in detail — content, objects, people, text, colors, and anything notable. The user asked: "${userQuestion}". Focus your description on what's relevant to their question.`,
-      },
-    ];
+    if (geminiKey) {
+      const parts = [
+        { text: prompt },
+        ...images
+          .slice(0, 10)
+          .map((image) => toGeminiInlineImage(image.base64Image))
+          .filter(Boolean),
+      ];
 
-    for (const img of images) {
-      content.push({
-        type: "image_url",
-        image_url: {
-          url: img.base64Image,
-        },
-      });
+      if (parts.length > 1) {
+        const res = await fetch(
+          `${GEMINI_API_BASE}/${GEMINI_VISION_MODEL}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
+            }),
+            signal: AbortSignal.timeout(45_000),
+          }
+        );
+
+        if (res.ok) {
+          const json = await res.json();
+          const description = json.candidates?.[0]?.content?.parts
+            ?.map((part: { text?: string }) => part.text ?? "")
+            .join("")
+            .trim();
+
+          if (description) return description;
+        } else {
+          console.error(
+            "[vision] Gemini image description error:",
+            res.status,
+            (await res.text().catch(() => "")).slice(0, 300)
+          );
+        }
+      }
+    }
+
+    // Keep the existing OpenRouter vision route as a resilience fallback when
+    // Gemini is unavailable or temporarily rejects the image request.
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterKey) return "";
+
+    const content: any[] = [{ type: "text", text: prompt }];
+    for (const image of images.slice(0, 10)) {
+      content.push({ type: "image_url", image_url: { url: image.base64Image } });
     }
 
     const res = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${openRouterKey}`,
       },
       body: JSON.stringify({
         model: VISION_FALLBACK_MODEL,
-        temperature: 0.7,
-        max_tokens: 700,
+        temperature: 0.2,
+        max_tokens: 900,
         messages: [{ role: "user", content }],
       }),
+      signal: AbortSignal.timeout(45_000),
     });
 
     if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-
       console.error(
-        "[vision] Uploaded image description error:",
+        "[vision] OpenRouter image description error:",
         res.status,
-        errBody.slice(0, 300)
+        (await res.text().catch(() => "")).slice(0, 300)
       );
-
       return "";
     }
 
     const json = await res.json();
-
-    return json.choices?.[0]?.message?.content ?? "";
-  } catch (err) {
-    console.error(
-      "[vision] Exception during uploaded image description:",
-      err
-    );
-
+    return json.choices?.[0]?.message?.content?.trim() ?? "";
+  } catch (error) {
+    console.error("[vision] Exception during uploaded image description:", error);
     return "";
   }
 }
@@ -771,7 +801,8 @@ export async function POST(req: NextRequest) {
     if (
       uploadedImages &&
       uploadedImages.length > 0 &&
-      lastUserMessage
+      lastUserMessage &&
+      config.provider !== "gemini"
     ) {
       const description =
         await describeUploadedImagesWithVisionModel(
