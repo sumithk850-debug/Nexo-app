@@ -15,7 +15,8 @@
     "test:github-commit-fallback": "rm -rf .tmp-github-commit-fallback-test && tsc scripts/verify-github-commit-fallback.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-commit-fallback-test && node .tmp-github-commit-fallback-test/verify-github-commit-fallback.js",
     "test:recent-features": "rm -rf .tmp-recent-features-test && tsc scripts/verify-recent-features.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-recent-features-test && node .tmp-recent-features-test/verify-recent-features.js",
     "test:creator-credits": "rm -rf .tmp-creator-credits-test && tsc scripts/verify-creator-credits.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-creator-credits-test && node .tmp-creator-credits-test/verify-creator-credits.js",
-    "test:image-vision": "rm -rf .tmp-image-vision-test && tsc scripts/verify-image-vision.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-image-vision-test && node .tmp-image-vision-test/verify-image-vision.js"
+    "test:image-vision": "rm -rf .tmp-image-vision-test && tsc scripts/verify-image-vision.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-image-vision-test && node .tmp-image-vision-test/verify-image-vision.js",
+    "test:artifact-intent": "rm -rf .tmp-artifact-intent-test && tsc lib/artifactIntent.ts scripts/verify-artifact-intent.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-artifact-intent-test && node .tmp-artifact-intent-test/scripts/verify-artifact-intent.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
