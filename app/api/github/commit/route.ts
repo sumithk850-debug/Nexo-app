@@ -241,14 +241,35 @@ export async function POST(req: NextRequest) {
     }
     return json({ error: `Could not read the selected repository: ${safeGitHubMessage(repositoryResponse.text)}` }, 400);
   }
-  const repositoryData = JSON.parse(repositoryResponse.text) as { default_branch?: string; permissions?: { push?: boolean } };
+  let repositoryData = JSON.parse(repositoryResponse.text) as { default_branch?: string; permissions?: { push?: boolean } };
+  // An installation token can sometimes read repository metadata even when the
+  // installed App has Contents permission set to read-only. Do not wait until
+  // blob/tree/ref creation fails: use the user's verified OAuth write token
+  // before starting any mutation operation.
+  if (credentialSource === "github-app" && repositoryData.permissions?.push !== true) {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    const oauthWriteCheck = oauthToken
+      ? await checkGithubOAuthRepositoryWrite(oauthToken, connection.selected_repo)
+      : { canWrite: false as const };
+
+    if (oauthToken && oauthWriteCheck.canWrite) {
+      serverToken = oauthToken;
+      credentialSource = "oauth";
+      headers = githubApiHeaders(serverToken, true);
+      repositoryResponse = await githubRequest(api(""), { headers });
+      if (!repositoryResponse.response.ok) {
+        return json({ error: `Could not verify GitHub write access: ${safeGitHubMessage(repositoryResponse.text)}` }, 403);
+      }
+      repositoryData = JSON.parse(repositoryResponse.text) as { default_branch?: string; permissions?: { push?: boolean } };
+    }
+  }
   const defaultBranch = repositoryData.default_branch;
   if (!defaultBranch) return json({ error: "GitHub did not provide a default branch for this repository." }, 400);
   if (mode === "pr" && branchName === defaultBranch) {
     return json({ error: "A pull request branch must be different from the repository default branch." }, 400);
   }
-  if (repositoryData.permissions?.push === false) {
-    return json({ error: "The connected GitHub account does not have write access to the selected repository.", needsWriteAccess: true }, 403);
+  if (repositoryData.permissions?.push !== true) {
+    return json({ error: "The connected GitHub integration can read this repository but does not have verified write access. Reconnect GitHub with Read & Write Access, then approve the change again.", needsWriteAccess: true }, 403);
   }
 
   const encodedDefaultBranch = encodeURIComponent(defaultBranch);

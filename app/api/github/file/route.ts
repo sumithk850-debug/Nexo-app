@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptGithubToken } from "@/lib/githubToken.server";
+import { createInstallationAccessToken, githubApiHeaders, isGitHubAppConfigured } from "@/lib/githubApp.server";
+import { checkGithubOAuthRepositoryWrite, resolveGithubOAuthToken } from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, selected_repo, installation_id")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
@@ -45,16 +47,38 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = decryptGithubToken(connection.access_token);
-    const res = await fetch(
-      `https://api.github.com/repos/${connection.selected_repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-        },
+    let token: string | null = null;
+    if (connection.installation_id && isGitHubAppConfigured()) {
+      try {
+        token = (await createInstallationAccessToken(connection.installation_id)).token;
+      } catch {
+        // Fall back to the user's verified OAuth connection below.
       }
-    );
+    }
+    if (!token) token = resolveGithubOAuthToken(connection.access_token);
+    if (!token) return new Response(JSON.stringify({ error: "GitHub needs to be reconnected before repository files can be read." }), { status: 409 });
+
+    const fileUrl = `https://api.github.com/repos/${connection.selected_repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
+    let res = await fetch(fileUrl, {
+      headers: githubApiHeaders(token),
+      cache: "no-store",
+    });
+
+    // A GitHub App may be installed for a different repository or may only have
+    // partial access. A failed App read must not make an edit look like a new
+    // file; retry the exact read with the user's verified OAuth token.
+    if (!res.ok && connection.installation_id) {
+      const oauthToken = resolveGithubOAuthToken(connection.access_token);
+      const oauthWriteCheck = oauthToken
+        ? await checkGithubOAuthRepositoryWrite(oauthToken, connection.selected_repo)
+        : { canWrite: false as const };
+      if (oauthToken && oauthWriteCheck.canWrite) {
+        res = await fetch(fileUrl, {
+          headers: githubApiHeaders(oauthToken),
+          cache: "no-store",
+        });
+      }
+    }
 
     if (!res.ok) {
       return new Response(JSON.stringify({ error: `GitHub API error: ${res.status}` }), { status: res.status });

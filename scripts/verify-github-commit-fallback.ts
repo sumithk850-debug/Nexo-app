@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync("app/api/github/commit/route.ts", "utf8");
+const fileRoute = readFileSync("app/api/github/file/route.ts", "utf8");
 
 assert.match(
   source,
@@ -25,8 +26,17 @@ assert.match(
 );
 assert.match(
   source,
+  /credentialSource === "github-app" && repositoryData\.permissions\?\.push !== true/,
+  "a readable but read-only App installation must enter the OAuth write fallback path",
+);
+assert.match(
+  source,
   /The selected repository is not included in the connected GitHub App installation/,
   "a denied App-only repository must show its real access problem rather than a misleading Not Found error",
 );
+assert.match(fileRoute, /createInstallationAccessToken\(connection\.installation_id\)/);
+assert.match(fileRoute, /resolveGithubOAuthToken\(connection\.access_token\)/);
+assert.match(fileRoute, /checkGithubOAuthRepositoryWrite\(oauthToken, connection\.selected_repo\)/);
+assert.match(fileRoute, /must not make an edit look like a new/);
 
-console.log("GitHub App repository-scope fallback checks passed.");
+console.log("GitHub App repository-scope and read-only write fallback checks passed.");
