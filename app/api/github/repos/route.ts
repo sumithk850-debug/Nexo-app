@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { githubApiHeaders, resolveGithubConnectionCredential } from "@/lib/githubApp.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -12,7 +12,9 @@ function getSupabaseAdmin() {
   );
 }
 
-// GET /api/github/repos?userId=xxx — list the connected user's GitHub repos
+// GET /api/github/repos?userId=xxx — list repositories available to the
+// installed GitHub App, falling back to the user's OAuth connection for older
+// installations that have not been upgraded yet.
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   if (!userId) {
@@ -21,10 +23,9 @@ export async function GET(req: NextRequest) {
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
-  const supabase = getSupabaseAdmin();
-  const { data: connection } = await supabase
+  const { data: connection } = await getSupabaseAdmin()
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, selected_repo, installation_id")
     .eq("user_id", verified.user.id)
     .maybeSingle();
 
@@ -33,44 +34,62 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = decryptGithubToken(connection.access_token);
-    const res = await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
+    const credential = await resolveGithubConnectionCredential({
+      installationId: connection.installation_id,
+      encryptedOAuthToken: connection.access_token,
     });
+    if (!credential) {
+      return new Response(JSON.stringify({ error: "GitHub credentials are unavailable. Reconnect GitHub." }), { status: 401 });
+    }
 
-    if (!res.ok) {
+    const appResponse = credential.source === "github-app"
+      ? await fetch("https://api.github.com/installation/repositories?per_page=100", {
+          headers: githubApiHeaders(credential.token),
+          cache: "no-store",
+        })
+      : null;
+    const response = appResponse?.ok
+      ? appResponse
+      : await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
+          headers: githubApiHeaders(credential.token),
+          cache: "no-store",
+        });
+
+    if (!response.ok) {
       return new Response(JSON.stringify({ error: "Failed to fetch repos from GitHub" }), { status: 502 });
     }
 
-    const repos = await res.json();
-    const simplified = repos.map((r: any) => ({
-      id: r.id,
-      name: r.name,
-      fullName: r.full_name,
-      private: r.private,
-      defaultBranch: r.default_branch,
-      updatedAt: r.updated_at,
+    const payload = await response.json();
+    const repos = Array.isArray(payload) ? payload : payload.repositories;
+    if (!Array.isArray(repos)) {
+      return new Response(JSON.stringify({ error: "GitHub returned an invalid repository list" }), { status: 502 });
+    }
+
+    const simplified = repos.map((repo: any) => ({
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.full_name,
+      private: repo.private,
+      defaultBranch: repo.default_branch,
+      updatedAt: repo.updated_at,
     }));
 
     return new Response(
-      JSON.stringify({ repos: simplified, selectedRepo: connection.selected_repo }),
-      { status: 200 }
+      JSON.stringify({ repos: simplified, selectedRepo: connection.selected_repo, credentialSource: credential.source }),
+      { status: 200, headers: { "Cache-Control": "no-store" } }
     );
   } catch {
     return new Response(JSON.stringify({ error: "Unexpected error fetching repos" }), { status: 500 });
   }
 }
 
-// POST /api/github/repos — set the selected/active repo for this user
+// POST /api/github/repos — set the selected/active repo for this user.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return new Response(JSON.stringify({ error: "Invalid request body" }), { status: 400 });
   }
-  const { userId, repoFullName } = body;
+  const { userId, repoFullName } = body as { userId?: string; repoFullName?: string };
 
   if (!userId || !repoFullName) {
     return new Response(JSON.stringify({ error: "Missing userId or repoFullName" }), { status: 400 });
@@ -81,8 +100,7 @@ export async function POST(req: NextRequest) {
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
-  const supabase = getSupabaseAdmin();
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from("github_connections")
     .update({ selected_repo: repoFullName })
     .eq("user_id", verified.user.id);

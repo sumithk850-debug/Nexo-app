@@ -598,14 +598,14 @@ export function IntegrationsPanel({
                   <div className="text-xs font-semibold text-amber-300">Read-only connection active</div>
                   <button
                     type="button"
-                    onClick={() => void beginOAuth("/api/github/login").catch((error) => console.error("[github] OAuth reconnect start failed:", error))}
+                    onClick={() => void beginOAuth("/api/github/app-install").catch((error) => console.error("[github] App installation start failed:", error))}
                     className="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-void transition hover:bg-amber-400"
                   >
-                    Reconnect GitHub
+                    Enable Read & Write
                   </button>
                 </div>
                 <p className="mt-1 text-[11px] text-amber-200/80">
-                  Reconnect GitHub to grant repository access, then select a repository where your account has write permission. Commits and file edits still require your approval.
+                  Install the Kyvorix GitHub App for the selected repository. Repository reads and approved commits use the App permission; every write still requires your approval.
                 </p>
               </div>
             )}

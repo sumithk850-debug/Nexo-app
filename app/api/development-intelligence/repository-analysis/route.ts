@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 import { getDevelopmentIntelligenceAdmin } from "@/lib/developmentIntelligence.server";
-import { resolveGithubOAuthToken } from "@/lib/githubOAuth.server";
-import { githubApiHeaders } from "@/lib/githubApp.server";
+import { githubApiHeaders, resolveGithubConnectionCredential } from "@/lib/githubApp.server";
 
 export const runtime = "nodejs";
 
@@ -147,7 +146,7 @@ export async function GET(request: NextRequest) {
     const admin = getDevelopmentIntelligenceAdmin();
     const { data: connection, error: connectionError } = await admin
       .from("github_connections")
-      .select("access_token, selected_repo")
+      .select("access_token, selected_repo, installation_id")
       .eq("user_id", verified.user.id)
       .maybeSingle();
 
@@ -155,8 +154,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Connect GitHub and choose a repository first." }, { status: 404 });
     }
 
-    const token = resolveGithubOAuthToken(connection.access_token);
-    if (!token) return NextResponse.json({ error: "Reconnect GitHub to analyze this repository." }, { status: 401 });
+    const credential = await resolveGithubConnectionCredential({
+      installationId: connection.installation_id,
+      encryptedOAuthToken: connection.access_token,
+    });
+    if (!credential) return NextResponse.json({ error: "Reconnect GitHub to analyze this repository." }, { status: 401 });
+    const token = credential.token;
 
     const repoResponse = await fetch(`https://api.github.com/repos/${connection.selected_repo}`, {
       headers: githubApiHeaders(token), cache: "no-store",

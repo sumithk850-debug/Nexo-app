@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { githubApiHeaders, resolveGithubConnectionCredential } from "@/lib/githubApp.server";
 
 const MEMORY_ROOT = ".kyvorix-memory";
 const INDEX_PATH = `${MEMORY_ROOT}/index.json`;
@@ -41,11 +41,7 @@ function getSupabaseAdmin() {
 }
 
 function headers(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json",
-  };
+  return githubApiHeaders(token, true);
 }
 
 function memoryPath(chatId: string) {
@@ -96,19 +92,18 @@ async function getConnection(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: connection } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo")
+    .select("access_token, selected_repo, installation_id")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (!connection?.access_token || !connection.selected_repo) return null;
-  try {
-    return {
-      repo: connection.selected_repo as string,
-      token: decryptGithubToken(connection.access_token as string),
-    };
-  } catch {
-    return null;
-  }
+  const credential = await resolveGithubConnectionCredential({
+    installationId: connection.installation_id,
+    encryptedOAuthToken: connection.access_token,
+  });
+  return credential
+    ? { repo: connection.selected_repo as string, token: credential.token }
+    : null;
 }
 
 async function readJsonFile<T>(repo: string, token: string, path: string): Promise<T | null> {

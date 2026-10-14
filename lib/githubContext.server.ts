@@ -5,7 +5,7 @@
 // system prompt. Never import this into a "use client" file.
 
 import { createClient } from "@supabase/supabase-js";
-import { decryptGithubToken } from "@/lib/githubToken.server";
+import { resolveGithubConnectionCredential } from "@/lib/githubApp.server";
 
 const GITHUB_API = "https://api.github.com";
 // A normal application page can exceed 40KB. Preserve a substantially larger
@@ -21,6 +21,7 @@ interface GithubConnection {
   access_token: string;
   selected_repo: string | null;
   github_username: string | null;
+  installation_id: string | null;
 }
 
 interface RepoTreeEntry {
@@ -84,7 +85,7 @@ async function getConnection(userId: string): Promise<GithubConnection | null> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("github_connections")
-    .select("access_token, selected_repo, github_username")
+    .select("access_token, selected_repo, github_username, installation_id")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -184,10 +185,11 @@ export async function buildGithubContext(
   }
 
   const repoFullName = connection.selected_repo;
-  let accessToken: string;
-  try {
-    accessToken = decryptGithubToken(connection.access_token);
-  } catch {
+  let credential = await resolveGithubConnectionCredential({
+    installationId: connection.installation_id,
+    encryptedOAuthToken: connection.access_token,
+  });
+  if (!credential) {
     return {
       connected: true,
       repoFullName,
@@ -196,7 +198,19 @@ export async function buildGithubContext(
     };
   }
 
-  const tree = await fetchRepoTree(repoFullName, accessToken);
+  let tree = await fetchRepoTree(repoFullName, credential.token);
+  // An App installation may be valid but not include the selected repository.
+  // Retry with the existing encrypted OAuth connection without exposing either
+  // credential to the client or the model.
+  if (tree.length === 0 && credential.source === "github-app") {
+    const oauthCredential = await resolveGithubConnectionCredential({
+      encryptedOAuthToken: connection.access_token,
+    });
+    if (oauthCredential) {
+      credential = oauthCredential;
+      tree = await fetchRepoTree(repoFullName, credential.token);
+    }
+  }
   if (tree.length === 0) {
     // Repo is selected but we couldn't read it (bad token, repo deleted, etc.)
     // Tell the model plainly rather than pretending nothing is connected.
@@ -218,7 +232,7 @@ export async function buildGithubContext(
     const fetchedFiles = await Promise.all(
       referencedPaths.map(async (path) => ({
         path,
-        content: await fetchFileContent(repoFullName, path, accessToken),
+        content: await fetchFileContent(repoFullName, path, credential.token),
       }))
     );
     const usableFiles = fetchedFiles.filter((f) => f.content !== null);

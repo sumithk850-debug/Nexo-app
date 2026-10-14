@@ -1,5 +1,6 @@
 import "server-only";
 import { createSign } from "crypto";
+import { decryptGithubToken } from "@/lib/githubToken.server";
 
 export const GITHUB_API_VERSION = "2026-03-10";
 
@@ -8,6 +9,12 @@ export type GitHubCredentialSource = "github-app" | "oauth";
 export interface GitHubInstallationToken {
   token: string;
   expiresAt: string;
+}
+
+export interface GitHubConnectionCredential {
+  token: string;
+  source: GitHubCredentialSource;
+  expiresAt: string | null;
 }
 
 function base64Url(value: string | Buffer): string {
@@ -89,4 +96,36 @@ export async function createInstallationAccessToken(installationId: string): Pro
   }
 
   return { token: payload.token, expiresAt: payload.expires_at };
+}
+
+/**
+ * Resolve a server-held GitHub credential for repository operations.
+ * The installation token is always preferred because it is restricted to the
+ * repositories and permissions selected in the GitHub App installation. The
+ * encrypted OAuth token is only a compatibility fallback for old connections
+ * or repositories that have not yet been added to the App installation.
+ */
+export async function resolveGithubConnectionCredential(input: {
+  installationId?: string | null;
+  encryptedOAuthToken?: string | null;
+}): Promise<GitHubConnectionCredential | null> {
+  if (input.installationId && isGitHubAppConfigured()) {
+    try {
+      const installation = await createInstallationAccessToken(input.installationId);
+      return { token: installation.token, source: "github-app", expiresAt: installation.expiresAt };
+    } catch {
+      // Fall through to the encrypted OAuth connection below.
+    }
+  }
+
+  if (input.encryptedOAuthToken) {
+    try {
+      const token = decryptGithubToken(input.encryptedOAuthToken);
+      if (token) return { token, source: "oauth", expiresAt: null };
+    } catch {
+      // The caller will return a safe reconnect message.
+    }
+  }
+
+  return null;
 }
