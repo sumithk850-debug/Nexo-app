@@ -74,8 +74,21 @@ export async function GET(req: NextRequest) {
       updatedAt: repo.updated_at,
     }));
 
+    const selectedIsAvailable = simplified.some((repo: any) => repo.fullName === connection.selected_repo);
+    if (connection.selected_repo && !selectedIsAvailable) {
+      await getSupabaseAdmin()
+        .from("github_connections")
+        .update({ selected_repo: null })
+        .eq("user_id", verified.user.id);
+    }
+
     return new Response(
-      JSON.stringify({ repos: simplified, selectedRepo: connection.selected_repo, credentialSource: credential.source }),
+      JSON.stringify({
+        repos: simplified,
+        selectedRepo: selectedIsAvailable ? connection.selected_repo : null,
+        staleSelectedRepo: selectedIsAvailable ? null : connection.selected_repo,
+        credentialSource: credential.source,
+      }),
       { status: 200, headers: { "Cache-Control": "no-store" } }
     );
   } catch {
@@ -100,7 +113,36 @@ export async function POST(req: NextRequest) {
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
 
-  const { error } = await getSupabaseAdmin()
+  const supabase = getSupabaseAdmin();
+  const { data: connection, error: connectionError } = await supabase
+    .from("github_connections")
+    .select("access_token, installation_id")
+    .eq("user_id", verified.user.id)
+    .maybeSingle();
+  if (connectionError || !connection) {
+    return new Response(JSON.stringify({ error: "GitHub is not connected. Connect GitHub before selecting a repository." }), { status: 404 });
+  }
+
+  const credential = await resolveGithubConnectionCredential({
+    installationId: connection.installation_id,
+    encryptedOAuthToken: connection.access_token,
+  });
+  if (!credential) {
+    return new Response(JSON.stringify({ error: "GitHub credentials are unavailable. Reconnect GitHub." }), { status: 401 });
+  }
+
+  const repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+    headers: githubApiHeaders(credential.token),
+    cache: "no-store",
+  });
+  if (!repoResponse.ok) {
+    return new Response(JSON.stringify({
+      error: "That repository is not available to the connected GitHub App. Install the App for this repository, then refresh and select it again.",
+      code: "REPOSITORY_NOT_AVAILABLE",
+    }), { status: 403 });
+  }
+
+  const { error } = await supabase
     .from("github_connections")
     .update({ selected_repo: repoFullName })
     .eq("user_id", verified.user.id);

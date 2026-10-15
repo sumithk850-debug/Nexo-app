@@ -18,6 +18,7 @@ export function RepoSelector({ userId }: { userId: string }) {
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadRepos = useCallback(async () => {
     setLoading(true);
@@ -27,9 +28,12 @@ export function RepoSelector({ userId }: { userId: string }) {
       if (data.repos) {
         setRepos(data.repos);
         setSelectedRepo(data.selectedRepo ?? null);
+        setError(data.staleSelectedRepo
+          ? `The previously selected repository (${data.staleSelectedRepo}) is no longer available. Please select a repository from this list.`
+          : null);
       }
     } catch {
-      // fail silently, empty list shown
+      setError("Could not load repositories. Refresh GitHub access and try again.");
     } finally {
       setLoading(false);
     }
@@ -41,13 +45,20 @@ export function RepoSelector({ userId }: { userId: string }) {
 
   async function handleSelectRepo(repoFullName: string) {
     setSwitching(repoFullName);
+    setError(null);
     try {
-      await authenticatedFetch("/api/github/repos", {
+      const response = await authenticatedFetch("/api/github/repos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, repoFullName }),
       });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Could not select this repository.");
+      }
       setSelectedRepo(repoFullName);
+    } catch (selectionError) {
+      setError(selectionError instanceof Error ? selectionError.message : "Could not select this repository.");
     } finally {
       setSwitching(null);
     }
@@ -59,14 +70,16 @@ export function RepoSelector({ userId }: { userId: string }) {
 
   if (repos.length === 0) {
     return (
-      <p className="mt-2 text-xs text-ink-faint">
-        No repositories found on your GitHub account.
-      </p>
+      <div className="mt-2 space-y-1">
+        {error && <p className="text-xs text-red-300">{error}</p>}
+        <p className="text-xs text-ink-faint">No repositories are available to the connected GitHub App.</p>
+      </div>
     );
   }
 
   return (
     <div className="mt-2 space-y-1">
+      {error && <p className="rounded-md border border-red-400/30 bg-red-400/10 px-2.5 py-2 text-xs text-red-200">{error}</p>}
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs text-ink-muted">Select the repo Craft V3 can work on:</p>
         <button

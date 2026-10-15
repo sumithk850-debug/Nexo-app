@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("app/api/github/commit/route.ts", "utf8");
 const fileRoute = readFileSync("app/api/github/file/route.ts", "utf8");
+const reposRoute = readFileSync("app/api/github/repos/route.ts", "utf8");
 
 assert.match(
   source,
@@ -34,9 +35,14 @@ assert.match(
   /The selected repository is not included in the connected GitHub App installation/,
   "a denied App-only repository must show its real access problem rather than a misleading Not Found error",
 );
-assert.match(fileRoute, /createInstallationAccessToken\(connection\.installation_id\)/);
-assert.match(fileRoute, /resolveGithubOAuthToken\(connection\.access_token\)/);
-assert.match(fileRoute, /checkGithubOAuthRepositoryWrite\(oauthToken, connection\.selected_repo\)/);
-assert.match(fileRoute, /must not make an edit look like a new/);
+assert.match(fileRoute, /resolveGithubConnectionCredential\(\{/);
+assert.match(fileRoute, /installationId: connection\.installation_id/);
+assert.match(fileRoute, /encryptedOAuthToken: connection\.access_token/);
+assert.match(fileRoute, /credential\.source === "github-app"/);
+assert.match(fileRoute, /verified read with the encrypted OAuth connection/);
+assert.match(reposRoute, /staleSelectedRepo/);
+assert.match(reposRoute, /selected_repo: null/);
+assert.match(reposRoute, /REPOSITORY_NOT_AVAILABLE/);
+assert.match(reposRoute, /resolveGithubConnectionCredential\(\{/);
 
 console.log("GitHub App repository-scope and read-only write fallback checks passed.");
