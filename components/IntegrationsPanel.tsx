@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  BookOpen,
   CheckCircle2,
   Database,
   Github,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { authenticatedFetch } from "@/lib/authFetch";
+import { WikipediaIntegrationPanel } from "@/components/WikipediaIntegrationPanel";
 
 interface IntegrationStatus {
   github: {
@@ -562,6 +564,23 @@ export function IntegrationsPanel({
           <p className="text-xs leading-relaxed text-ink-muted">
             Connections are read-only by default. Any repository write, deployment, SQL write, or migration will require explicit approval before it runs.
           </p>
+
+          <article className="rounded-2xl border border-edge bg-void/40 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display text-sm font-semibold text-ink">Wikipedia</h3>
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  Encyclopedic research for relevant questions, with source links and a per-account ON/OFF control.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 border-t border-edge pt-3">
+              <WikipediaIntegrationPanel userId={userId} />
+            </div>
+          </article>
 
           <article className="rounded-2xl border border-edge bg-void/40 p-4">
             <div className="flex items-start gap-3">
