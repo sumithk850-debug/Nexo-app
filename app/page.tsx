@@ -662,7 +662,7 @@ export default function ChatPage() {
 
   async function loadChats(sid: string) {
     try {
-      const res = await fetch(`/api/chats?sessionId=${sid}`);
+      const res = await fetch(`/api/chats?sessionId=${encodeURIComponent(sid)}`);
       const data = await res.json();
       if (data.chats) setChats(data.chats);
     } catch {
@@ -685,7 +685,7 @@ export default function ChatPage() {
     setMessages([]);
     setPendingApproval(null);
     try {
-      const res = await fetch(`/api/chats/${chatId}/messages`);
+      const res = await fetch(`/api/chats/${chatId}/messages?sessionId=${encodeURIComponent(sessionId)}`);
       const data = await res.json();
       if (data.messages) {
         setMessages(
@@ -736,7 +736,7 @@ export default function ChatPage() {
       await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, content, modelId }),
+        body: JSON.stringify({ role, content, modelId, sessionId }),
       });
     } catch {
       // non-critical
@@ -783,7 +783,7 @@ export default function ChatPage() {
     setPendingApproval(null);
     try {
       for (const chat of chats) {
-        await fetch(`/api/chats?id=${chat.id}`, { method: "DELETE" });
+        await fetch(`/api/chats?id=${encodeURIComponent(chat.id)}&sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
       }
     } catch {
       // best-effort cleanup
