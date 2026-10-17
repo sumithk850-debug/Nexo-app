@@ -9,7 +9,7 @@ const chatApi = read("../app/api/chat/route.ts");
 const usage = read("../app/api/usage/route.ts");
 const page = read("../app/page.tsx");
 const rateLimits = read("../lib/rateLimits.server.ts");
-const migration = read("../supabase/migrations/20261017_harden_public_rls.sql");
+const migration = read("../supabase/migrations/20261017091539_harden_public_rls_chat_usage.sql");
 
 assert.match(admin, /import ["']server-only["']/);
 assert.match(admin, /SUPABASE_SERVICE_ROLE_KEY/);
