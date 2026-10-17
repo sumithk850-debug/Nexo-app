@@ -24,7 +24,7 @@ async function findOwnedChat(chatId: string, sessionId: string) {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = req.headers.get("x-session-id");
   if (!id || !isValidSessionId(sessionId)) return jsonError("Invalid chat or session.", 400);
   const ownership = await findOwnedChat(id, sessionId);
   if (ownership.failed) return jsonError("Unable to load chat messages.", 500);
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const messageId = req.nextUrl.searchParams.get("id");
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = req.headers.get("x-session-id");
   if (!messageId || !id || !isValidSessionId(sessionId)) return jsonError("Invalid message or session.", 400);
   const ownership = await findOwnedChat(id, sessionId);
   if (ownership.failed) return jsonError("Unable to delete chat message.", 500);
