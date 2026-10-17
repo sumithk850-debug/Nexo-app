@@ -24,7 +24,7 @@ assert.match(chatApi, /getSupabaseAdmin/);
 assert.match(chatApi, /Invalid or missing session/);
 assert.match(usage, /Invalid or missing session/);
 assert.match(page, /"x-session-id": sessionId/);
-assert.match(page, /"x-session-id": sessionId/);
+assert.match(page, /JSON\.stringify\(\{ role, content, modelId, sessionId \}\)/);
 assert.match(rateLimits, /import ["']server-only["']/);
 assert.match(rateLimits, /getSupabaseAdmin/);
 assert.doesNotMatch(rateLimits, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
