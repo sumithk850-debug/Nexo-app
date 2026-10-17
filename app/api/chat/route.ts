@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 import {
   PROVIDER_CONFIG,
   CODER_MODELS,
@@ -318,6 +319,10 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
 const GEMINI_VISION_MODEL = "gemini-2.5-flash";
 const VISION_FALLBACK_MODEL = "google/gemma-4-31b-it:free";
 
+function isValidSessionId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function getSupabase(userAccessToken?: string) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -331,7 +336,7 @@ function getSupabase(userAccessToken?: string) {
 async function checkRateLimit(
   sessionId: string
 ): Promise<{ allowed: boolean; remaining: number; limit: number }> {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().slice(0, 10);
 
   const { data: existing, error } = await supabase
@@ -366,7 +371,7 @@ async function incrementRateLimit(
   sessionId: string,
   isCoder: boolean
 ): Promise<void> {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().slice(0, 10);
   const column = isCoder ? "coder_count" : "message_count";
 
@@ -628,6 +633,9 @@ export async function POST(req: NextRequest) {
     const modelId = body.modelId as NexoModelId;
     const messages = body.messages as IncomingMessage[];
     const sessionId = body.sessionId as string | undefined;
+    if (!isValidSessionId(sessionId)) {
+      return Response.json({ error: "Invalid or missing session." }, { status: 400 });
+    }
     const isAutomaticContinuation =
       body.isAutomaticContinuation === true;
 

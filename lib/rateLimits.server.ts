@@ -1,7 +1,9 @@
 // KYVORIX AI — Token Usage Tracking (Server-only)
 // This file tracks per-model token usage and provides daily usage data.
 // It is only imported from app/api/** route handlers.
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
+
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 import type { NexoModelId } from "./models";
 
 export interface TokenUsageResult {
@@ -41,13 +43,6 @@ export const DAILY_LIMITS: DailyLimits = {
 export const CRAFT_TOKEN_LIMIT = DAILY_LIMITS.craft.tokens;
 export const CODER_PAUSE_DURATION_MS = 24 * 60 * 60 * 1000;
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
 // Estimate tokens from text length (rough approximation: ~4 chars per token)
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -71,7 +66,7 @@ export async function recordTokenUsage(
   outputText: string
 ): Promise<void> {
   try {
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
     const today = new Date().toISOString().slice(0, 10);
 
     const inputTokens = estimateTokens(inputText);
@@ -149,7 +144,7 @@ export async function checkCoderTokenAvailability(
   sessionId: string,
   requestedInputTokens: number
 ): Promise<CoderAvailability> {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   const now = new Date();
   const nowIso = now.toISOString();
 
@@ -215,7 +210,7 @@ export async function checkCoderTokenAvailability(
 // Get today's token usage and any active Craft pause for a session.
 export async function getDailyUsage(sessionId: string): Promise<TokenUsageResult | null> {
   try {
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
 
