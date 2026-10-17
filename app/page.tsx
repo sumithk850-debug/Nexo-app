@@ -662,7 +662,7 @@ export default function ChatPage() {
 
   async function loadChats(sid: string) {
     try {
-      const res = await fetch(`/api/chats?sessionId=${encodeURIComponent(sid)}`);
+      const res = await fetch("/api/chats", { headers: { "x-session-id": sid } });
       const data = await res.json();
       if (data.chats) setChats(data.chats);
     } catch {
@@ -685,7 +685,7 @@ export default function ChatPage() {
     setMessages([]);
     setPendingApproval(null);
     try {
-      const res = await fetch(`/api/chats/${chatId}/messages?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await fetch(`/api/chats/${chatId}/messages`, { headers: { "x-session-id": sessionId } });
       const data = await res.json();
       if (data.messages) {
         setMessages(
@@ -783,7 +783,7 @@ export default function ChatPage() {
     setPendingApproval(null);
     try {
       for (const chat of chats) {
-        await fetch(`/api/chats?id=${encodeURIComponent(chat.id)}&sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+        await fetch(`/api/chats?id=${encodeURIComponent(chat.id)}`, { method: "DELETE", headers: { "x-session-id": sessionId } });
       }
     } catch {
       // best-effort cleanup
