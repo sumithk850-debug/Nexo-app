@@ -13,7 +13,7 @@ function jsonError(error: string, status: number) {
 }
 
 export async function GET(req: NextRequest) {
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = req.headers.get("x-session-id");
   if (!isValidSessionId(sessionId)) return jsonError("Invalid or missing session.", 400);
   try {
     const { data, error } = await getSupabaseAdmin()
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = req.headers.get("x-session-id");
   if (!id || !isValidSessionId(sessionId)) return jsonError("Invalid chat or session.", 400);
   try {
     const supabase = getSupabaseAdmin();
