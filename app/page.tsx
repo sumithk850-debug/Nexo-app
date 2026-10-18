@@ -23,6 +23,7 @@ import { IntegrationsPanel } from "@/components/IntegrationsPanel";
 import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligencePanel";
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import { NexoLivePanel } from "@/components/NexoLivePanel";
+import { MissionControlHeader } from "@/components/MissionControlHeader";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -1701,6 +1702,16 @@ export default function ChatPage() {
           </button>
         </div>
 
+
+        <MissionControlHeader
+          streaming={isStreaming}
+          actions={githubIntegrationEnabled ? activityActions : []}
+          searching={activitySearching?.action ?? null}
+          attachmentState={attachmentPreparation?.state ?? null}
+          approvalState={pendingApproval?.status ?? null}
+          selectedModel={selectedModel}
+          isCoderMode={isCoderMode}
+        />
 
         <AnnouncementBanner />
         <AnnouncementModal />
