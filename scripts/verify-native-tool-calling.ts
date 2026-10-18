@@ -1,4 +1,4 @@
-import { isReadableWebPageResult, parseGeminiToolCalls, parseOpenRouterToolCalls } from "../lib/nativeToolParsing";
+import { isReadableWebPageResult, parseGeminiToolCalls, parseOpenRouterToolCalls, requiresNativeToolCall } from "../lib/nativeToolParsing";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -87,3 +87,26 @@ assert.equal(isReadableWebPageResult("Web page: https://example.com\nTitle: Exam
 assert.equal(isReadableWebPageResult("Web page: https://example.com\n(Could not read this link: Server responded with HTTP 503.)"), false);
 assert.equal(isReadableWebPageResult(""), false);
 console.log("Native tool-calling parsing behavior tests passed.");
+
+const allReadTools = [
+  "web_fetch_url", "wikipedia_search", "github_list_files", "github_read_file",
+  "supabase_list_projects", "supabase_list_tables", "supabase_describe_table",
+  "supabase_read_rows", "vercel_list_projects", "vercel_list_deployments",
+];
+assert.equal(requiresNativeToolCall("Please read file src/app.ts from the GitHub repository.", allReadTools), true,
+  "Explicit repository file reads must require a tool call instead of accepting a status-only answer.");
+assert.equal(requiresNativeToolCall("Read this webpage https://example.com and summarize it.", allReadTools), true);
+assert.equal(requiresNativeToolCall("List my Supabase tables.", allReadTools), true);
+assert.equal(requiresNativeToolCall("Check recent Vercel deployments.", allReadTools), true);
+assert.equal(requiresNativeToolCall("Search Wikipedia for Sri Lanka.", allReadTools), true);
+assert.equal(requiresNativeToolCall("Please summarize the attached file. [Attached Files Prepared]", allReadTools), false,
+  "Prepared attachments must stay on their existing attachment-analysis path.");
+assert.equal(requiresNativeToolCall("Please read file src/app.ts.", ["web_fetch_url"]), false,
+  "Do not force an unrelated tool when the matching integration tool is unavailable.");
+assert.ok(tools.includes('tool_choice: mustCallNativeTool && round === 0 ? "required" : "auto"'),
+  "OpenRouter must require the first tool call for explicit read requests.");
+assert.ok(tools.includes('mode: mustCallNativeTool && round === 0 ? "ANY" : "AUTO"'),
+  "Gemini must require the first tool call for explicit read requests.");
+assert.ok(tools.includes("NATIVE TOOL EXECUTION STATUS"),
+  "If the provider does not execute a required tool, final generation must be told not to claim success.");
+console.log("Native tool orchestration enforcement tests passed.");
