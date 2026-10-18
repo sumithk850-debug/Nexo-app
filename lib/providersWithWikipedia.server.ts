@@ -37,3 +37,6 @@ export const CODER_MODEL_IDS = Base.CODER_MODEL_IDS;
 export const isCoderModelId = Base.isCoderModelId;
 export type { ProviderConfig } from "./providers.server";
 export type { CoderModelId, CoderModelInfo } from "./providers.server";
+
+export const CRAFT_V3_PRO_ENGINE_CONFIG = Base.CRAFT_V3_PRO_ENGINE_CONFIG;
+export const CRAFT_V4_ENGINE_CONFIG = Base.CRAFT_V4_ENGINE_CONFIG;
