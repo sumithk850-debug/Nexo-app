@@ -41,15 +41,15 @@ export function SupabaseTaskCard({
   }
 
   return (
-    <div className="my-2 overflow-hidden rounded-xl border border-emerald-400/25 bg-emerald-950/20 shadow-sm">
-      <div className="flex items-center gap-2 border-b border-emerald-400/15 px-3 py-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-300">
+    <div className="my-3 overflow-hidden rounded-[1.2rem] border border-emerald-400/20 bg-panel/95 shadow-[0_14px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl">
+      <div className="flex items-center gap-2 border-b border-edge/70 bg-gradient-to-r from-emerald-400/[0.09] via-panel to-transparent px-4 py-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
           {streaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" aria-label="Supabase" />}
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">Supabase</span>
-        <span className="ml-auto text-[10px] font-mono text-ink-faint">{task.operation}</span>
+        <div><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">Database agent</span><span className="text-[9px] text-ink-faint">Supabase execution workspace</span></div>
+        <span className="ml-auto rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-2 py-1 text-[9px] font-mono text-emerald-200">{task.operation}</span>
       </div>
-      <div className="space-y-2 px-3 py-2.5">
+      <div className="space-y-2.5 px-4 py-3">
         <div className="flex items-center gap-2 text-xs text-ink">
           {streaming ? <Loader2 className="h-3 w-3 animate-spin text-emerald-300" /> : <Check className="h-3 w-3 text-emerald-300" />}
           <span className="font-semibold">{streaming ? label : isReadOnly ? `${label} read plan` : `${label} approval required`}</span>
@@ -70,7 +70,7 @@ export function SupabaseTaskCard({
               type="button"
               disabled={!canApprove}
               onClick={approve}
-              className="rounded-md bg-emerald-400 px-3 py-1.5 text-[11px] font-bold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-full bg-emerald-400 px-3.5 py-2 text-[11px] font-bold text-emerald-950 shadow-[0_8px_20px_rgba(52,211,153,0.18)] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Approve Supabase change
             </button>

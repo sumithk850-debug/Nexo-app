@@ -111,14 +111,12 @@ export function ApprovalCard({
   };
 
   return (
-    <div className="my-4 mx-4 overflow-hidden rounded-2xl border border-cyan/30 bg-panel shadow-lg">
+    <div className="my-4 mx-4 overflow-hidden rounded-[1.35rem] border border-cyan/25 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-edge bg-cyan/10 px-4 py-3">
-        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-cyan" />
+      <div className="flex items-center gap-3 border-b border-edge/70 bg-gradient-to-br from-cyan/[0.10] via-panel to-indigo/[0.06] px-4 py-3.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan/25 bg-cyan/10"><AlertTriangle className="h-4 w-4 text-cyan" /></span>
         <div>
-          <p className="font-display text-sm font-bold text-ink">
-            Review required
-          </p>
+          <div className="flex items-center gap-2"><p className="font-display text-sm font-bold text-ink">Approval workspace</p><span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-200">human review</span></div>
           <p className="text-[11px] text-ink-muted">
             The agent prepared a repository change. Nothing is applied until you approve it.
           </p>

@@ -56,7 +56,7 @@ export function SummaryCard({
 
   if (streaming) {
     return (
-      <div className="my-2 inline-flex max-w-full items-center gap-2 rounded-full border border-edge bg-panel px-3 py-1.5 text-xs shadow-sm">
+      <div className="my-3 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan/20 bg-panel px-3.5 py-2 text-xs shadow-[0_10px_28px_rgba(0,0,0,0.14)]">
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/10">
           <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
         </div>
@@ -71,14 +71,14 @@ export function SummaryCard({
     summary.filesDeleted.length > 0;
 
   return (
-    <div className="my-2 w-full max-w-full overflow-hidden rounded-xl border border-edge bg-panel shadow-sm">
+    <div className="my-3 w-full max-w-full overflow-hidden rounded-[1.2rem] border border-cyan/15 bg-panel/95 shadow-[0_14px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl">
       {/* Header row */}
-      <div className="flex items-center gap-2 border-b border-edge px-3 py-2">
-        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/10">
+      <div className="flex items-center gap-2 border-b border-edge/70 bg-gradient-to-r from-cyan/[0.08] via-panel to-transparent px-4 py-3">
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan-500/10">
           <FileCheck className="h-3 w-3 text-cyan-400" />
         </div>
         <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-faint">
-          Task Report
+          Execution report
         </span>
         <span
           className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusStyle.chipBg} ${statusStyle.chipText}`}

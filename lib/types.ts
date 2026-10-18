@@ -1,5 +1,6 @@
 import type { NexoModelId } from "./models";
 import type { ArtifactDescriptor } from "./artifactTypes";
+import type { PresentationDescriptor } from "./presentationTypes";
 
 export interface ChatImageAttachment {
   /** Browser-local data URL used to render the image the user just sent. */
@@ -21,5 +22,5 @@ export interface ChatMessage {
   /** Local-only recovery state for a streamed assistant response. */
   generationState?: "stopped" | "failed";
   /** Local artifact card payload returned by the first-party artifact route. */
-  artifact?: ArtifactDescriptor;
+  artifact?: ArtifactDescriptor | PresentationDescriptor;
 }

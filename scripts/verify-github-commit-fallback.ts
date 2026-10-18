@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const source = readFileSync("app/api/github/commit/route.ts", "utf8");
 const fileRoute = readFileSync("app/api/github/file/route.ts", "utf8");
 const reposRoute = readFileSync("app/api/github/repos/route.ts", "utf8");
+const proposalRoute = readFileSync("app/api/github/proposals/route.ts", "utf8");
 
 assert.match(
   source,
@@ -35,6 +36,13 @@ assert.match(
   /The selected repository is not included in the connected GitHub App installation/,
   "a denied App-only repository must show its real access problem rather than a misleading Not Found error",
 );
+assert.match(source, /proposalId/);
+assert.match(source, /github_write_proposals/);
+assert.match(source, /baseCommitSha !== proposal\.base_commit_sha/);
+assert.doesNotMatch(source, /approvalGranted/);
+assert.match(proposalRoute, /github_write_proposals/);
+assert.match(proposalRoute, /base_commit_sha/);
+assert.match(proposalRoute, /permissions\?\.push !== true/);
 assert.match(fileRoute, /resolveGithubConnectionCredential\(\{/);
 assert.match(fileRoute, /installationId: connection\.installation_id/);
 assert.match(fileRoute, /encryptedOAuthToken: connection\.access_token/);

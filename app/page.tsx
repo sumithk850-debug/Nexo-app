@@ -917,7 +917,7 @@ export default function ChatPage() {
 
     try {
       setCommitProgressStep(3);
-      const res = await authenticatedFetch("/api/github/commit", {
+      const proposalResponse = await authenticatedFetch("/api/github/proposals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -926,7 +926,21 @@ export default function ChatPage() {
           commitMessage: pendingApproval.commitMessage || "Update via KYVORIX Craft V3",
           mode,
           branchName,
-          approvalGranted: true,
+        }),
+      });
+      const proposalData = await proposalResponse.json().catch(() => ({}));
+      if (!proposalResponse.ok || typeof proposalData.proposalId !== "string") {
+        throw new Error(proposalData.error ?? "The approved repository proposal could not be created.");
+      }
+
+      const res = await authenticatedFetch("/api/github/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          proposalId: proposalData.proposalId,
+          mode,
+          branchName,
         }),
       });
       const data = await res.json();

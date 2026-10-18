@@ -105,20 +105,17 @@ export async function POST(req: NextRequest) {
     return json({ error: "Invalid commit request." }, 400);
   }
 
-  const { userId, files, commitMessage, mode = "direct", branchName, approvalGranted } = requestBody as {
+  let { userId, files, commitMessage, mode = "direct", branchName, proposalId } = requestBody as {
     userId?: string;
     files?: CommitFile[];
     commitMessage?: string;
     mode?: "direct" | "pr";
     branchName?: string;
-    approvalGranted?: boolean;
+    proposalId?: string;
   };
 
-  if (approvalGranted !== true) {
-    return json({ error: "Repository changes require an explicit approval before they can be committed." }, 403);
-  }
-  if (!userId || !Array.isArray(files) || files.length === 0 || files.length > MAX_FILES_PER_COMMIT) {
-    return json({ error: `Provide between 1 and ${MAX_FILES_PER_COMMIT} files to commit.` }, 400);
+  if (!userId || !proposalId || !/^[0-9a-f-]{36}$/i.test(proposalId)) {
+    return json({ error: "A valid server-approved repository proposal is required before committing." }, 403);
   }
   if (mode !== "direct" && mode !== "pr") {
     return json({ error: "Unsupported commit mode." }, 400);
@@ -129,6 +126,28 @@ export async function POST(req: NextRequest) {
 
   const verified = await requireVerifiedUser(req, userId);
   if (verified.response) return verified.response;
+
+  const supabase = getSupabaseAdmin();
+  const { data: proposal, error: proposalError } = await supabase
+    .from("github_write_proposals")
+    .select("id, repo_full_name, base_commit_sha, default_branch, commit_message, files, target_mode, target_branch, expires_at, consumed_at")
+    .eq("id", proposalId)
+    .eq("user_id", verified.user.id)
+    .maybeSingle();
+  if (proposalError || !proposal || proposal.consumed_at || new Date(proposal.expires_at).getTime() <= Date.now()) {
+    return json({ error: "This repository approval has expired or was already used. Review the change again." }, 409);
+  }
+  if (!Array.isArray(proposal.files)) {
+    return json({ error: "The server-approved repository proposal is invalid." }, 409);
+  }
+  files = proposal.files as CommitFile[];
+  commitMessage = proposal.commit_message;
+  mode = proposal.target_mode as "direct" | "pr";
+  branchName = proposal.target_branch ?? undefined;
+  const approvedRepo = proposal.repo_full_name;
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_FILES_PER_COMMIT) {
+    return json({ error: `Provide between 1 and ${MAX_FILES_PER_COMMIT} files to commit.` }, 400);
+  }
 
   const validationResults: Array<{ filePath: string; success: boolean; error?: string }> = [];
   const uniquePaths = new Set<string>();
@@ -148,7 +167,6 @@ export async function POST(req: NextRequest) {
   }
   if (validationResults.length > 0) return json({ success: false, results: validationResults }, 400);
 
-  const supabase = getSupabaseAdmin();
   const { data: connection, error: connectionError } = await supabase
     .from("github_connections")
     .select("selected_repo, installation_id, access_token")
@@ -157,6 +175,9 @@ export async function POST(req: NextRequest) {
 
   if (connectionError || !connection?.selected_repo) {
     return json({ error: "No GitHub repository is selected. Choose one in Settings before approving changes." }, 400);
+  }
+  if (connection.selected_repo !== approvedRepo) {
+    return json({ error: "The selected repository changed after approval. Review the change again." }, 409);
   }
   const repository = normalizeRepo(connection.selected_repo);
   if (!repository) {
@@ -280,6 +301,9 @@ export async function POST(req: NextRequest) {
   const refData = JSON.parse(refResponse.text) as { object?: { sha?: string } };
   const baseCommitSha = refData.object?.sha;
   if (!baseCommitSha) return json({ error: "GitHub did not provide the default branch commit." }, 400);
+  if (baseCommitSha !== proposal.base_commit_sha) {
+    return json({ error: "The repository changed after approval. No files were written; review the change again." }, 409);
+  }
 
   const baseCommitResponse = await githubRequest(api(`git/commits/${baseCommitSha}`), { headers });
   if (!baseCommitResponse.response.ok) {
@@ -412,6 +436,16 @@ export async function POST(req: NextRequest) {
     if (!updateRefResponse.response.ok) {
       return json({ error: `The approved commit was created, but GitHub could not update ${defaultBranch}: ${safeGitHubMessage(updateRefResponse.text)}` }, 409);
     }
+  }
+
+  const { error: consumeError } = await supabase
+    .from("github_write_proposals")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("id", proposalId)
+    .eq("user_id", verified.user.id)
+    .is("consumed_at", null);
+  if (consumeError) {
+    console.error("[github-commit] Could not mark proposal consumed", consumeError.message);
   }
 
   const commitUrl = `https://github.com/${repository.owner}/${repository.repo}/commit/${newCommit.sha}`;

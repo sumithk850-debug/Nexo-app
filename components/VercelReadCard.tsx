@@ -21,14 +21,14 @@ export function VercelReadCard({ card }: { card: VercelReadCardData }) {
       : "border-amber-400/35 bg-amber-400/5 text-amber-300";
 
   return (
-    <section className={`my-3 overflow-hidden rounded-2xl border shadow-sm ${accent}`} aria-live="polite">
-      <div className="flex items-start gap-3 px-4 py-3.5">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-void/45">
+    <section className={`my-3 overflow-hidden rounded-[1.2rem] border shadow-[0_14px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl ${accent}`} aria-live="polite">
+      <div className="flex items-start gap-3 bg-gradient-to-br from-current/[0.07] via-panel/80 to-transparent px-4 py-3.5">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-current/20 bg-void/45">
           <Icon className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-ink">{card.title}</p>
+            <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-current">Deployment agent</p><p className="mt-0.5 text-sm font-semibold text-ink">{card.title}</p></div>
             <span className="rounded-full border border-current/25 bg-void/35 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider">
               {isLoading ? "Reading live data" : isSuccess ? "Verified result" : needsConnection ? "Action needed" : "Connection error"}
             </span>
