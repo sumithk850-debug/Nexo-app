@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader2, Search, BookOpen, Power } from "lucide-react";
+import { ExternalLink, Loader2, Search, Power } from "lucide-react";
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "@/lib/authFetch";
 
@@ -109,40 +109,32 @@ export function WikipediaIntegrationPanel({ userId }: Props) {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-violet-400/20 bg-violet-500/10">
-          <BookOpen className="h-5 w-5 text-violet-300" />
+      <div className="flex items-center justify-between gap-3 border-t border-edge pt-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-ink-muted">
+          <Power className="h-3.5 w-3.5 shrink-0" />
+          <span>Allow KYVORIX to use Wikipedia</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h3 className="font-semibold text-ink">Wikipedia</h3>
-              <p className="text-xs text-ink-muted">Knowledge / Research</p>
-            </div>
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-400" : "bg-ink-faint/10 text-ink-muted"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-emerald-400" : "bg-current"}`} />
-              {enabled ? "ON" : "OFF"}
-            </span>
-          </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span
+            role="status"
+            aria-live="polite"
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-400" : "bg-ink-faint/10 text-ink-muted"}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-emerald-400" : "bg-current"}`} />
+            {enabled ? "ON" : "OFF"}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={enabled ? "Turn Wikipedia off" : "Turn Wikipedia on"}
+            onClick={() => void toggleWikipedia()}
+            disabled={!userId || saving || loadingStatus}
+            className={`relative h-7 w-12 rounded-full p-[3px] shadow-inner transition-colors ${enabled ? "bg-violet-500" : "bg-ink-faint/30"} disabled:cursor-not-allowed disabled:opacity-40`}
+          >
+            <span className={`block h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${enabled ? "translate-x-[22px]" : "translate-x-0"}`} />
+          </button>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between border-t border-edge pt-3">
-        <div className="flex items-center gap-2 text-xs text-ink-muted">
-          <Power className="h-3.5 w-3.5" />
-          Allow KYVORIX to use Wikipedia
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={enabled ? "Turn Wikipedia off" : "Turn Wikipedia on"}
-          onClick={() => void toggleWikipedia()}
-          disabled={!userId || saving || loadingStatus}
-          className={`relative h-7 w-12 rounded-full p-[3px] shadow-inner transition-colors ${enabled ? "bg-violet-500" : "bg-ink-faint/30"} disabled:cursor-not-allowed disabled:opacity-40`}
-        >
-          <span className={`block h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${enabled ? "translate-x-[22px]" : "translate-x-0"}`} />
-        </button>
       </div>
 
       <p className="text-[11px] leading-relaxed text-ink-faint">
