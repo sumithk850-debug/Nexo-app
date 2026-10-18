@@ -1604,7 +1604,7 @@ export default function ChatPage() {
 
   if (authLoading) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-void">
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-3 bg-void">
         <Signal size="lg" />
         <p className="font-mono text-xs text-ink-muted">Loading KYVORIX AI…</p>
       </div>
@@ -1613,7 +1613,7 @@ export default function ChatPage() {
 
   if (!user) {
     return (
-      <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
+      <div className="relative flex h-[100dvh] flex-col items-center justify-center overflow-hidden bg-void px-6 text-center">
         <SearchModal
         open={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
@@ -1633,7 +1633,7 @@ export default function ChatPage() {
   const firstName = user?.fullName?.split(" ")[0] || "there";
 
   return (
-    <div className={`flex h-screen bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
+    <div className={`flex h-[100dvh] bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
       <ChatSidebar
         chats={chats}
         sessionId={sessionId}
