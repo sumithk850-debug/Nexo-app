@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Activity, AlertCircle, CheckCircle2, Clock3, FileSearch, LoaderCircle, Search, ShieldCheck, Sparkles } from "lucide-react";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
 
@@ -23,6 +24,7 @@ export function MissionControlHeader({
   selectedModel: string;
   isCoderMode: boolean;
 }) {
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const latestAction = actions[actions.length - 1];
   const needsAttention = attachmentState === "error" || approvalState === "error";
   const waitingForApproval = approvalState === "pending";
@@ -102,7 +104,52 @@ export function MissionControlHeader({
   return (
     <section aria-label="KYVORIX AI Mission Control" className="relative mx-3 mt-3 overflow-hidden rounded-2xl border border-cyan/20 bg-panel shadow-[0_0_28px_rgba(0,229,255,0.045)] sm:mx-4">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,229,255,0.07),transparent_52%)]" />
-      <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-edge/70 px-4 py-3 sm:px-5">
+      <button
+        type="button"
+        aria-expanded={mobileExpanded}
+        aria-controls="mobile-mission-control-details"
+        onClick={() => setMobileExpanded((expanded) => !expanded)}
+        className="relative flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left sm:hidden"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan/25 bg-cyan/10 text-cyan"><Activity className="h-3.5 w-3.5" /></span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="text-[11px] font-extrabold tracking-[0.12em] text-ink">KYVORIX AI</span>
+              <span className="rounded-full border border-cyan/20 bg-cyan/[0.07] px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-cyan">MISSION CONTROL</span>
+            </span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-ink-muted">
+              <span className={"h-1.5 w-1.5 rounded-full " + statusDot + (streaming || attachmentState === "preparing" || applyingApprovedChange ? " animate-pulse" : "")} />
+              <span>{streaming ? "WORKING" : needsAttention ? "ATTENTION" : waitingForApproval ? "APPROVAL" : "STANDBY"}</span>
+              <span className="text-ink-faint">·</span><span className="truncate max-w-[112px]">{isCoderMode ? "Coder Agent" : selectedModel}</span>
+            </span>
+          </span>
+        </span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-edge bg-void/60 text-ink-muted transition-transform duration-200">
+          <span className={"text-xs transition-transform duration-200 " + (mobileExpanded ? "rotate-180" : "")}>⌄</span>
+        </span>
+      </button>
+
+      <div id="mobile-mission-control-details" className={"relative grid transition-[grid-template-rows,opacity] duration-300 ease-out sm:hidden " + (mobileExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="mx-2.5 mb-2.5 space-y-2 rounded-xl border border-edge/80 bg-void/45 p-2.5">
+            <div className="flex items-start gap-2">
+              <div className={"mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-panel-raised " + statusTone}><Icon className={"h-3.5 w-3.5" + (streaming || attachmentState === "preparing" || applyingApprovedChange ? " animate-spin" : "")} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-ink-faint">Current task status</p>
+                <p className={"mt-0.5 text-xs font-semibold " + statusTone}>{status}</p>
+                <p className="mt-0.5 break-words text-[10px] leading-4 text-ink-muted">{detail}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 border-t border-edge/70 pt-2">
+              <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-wider text-ink-faint">Active mode</p><p className="mt-1 truncate text-[10px] font-semibold text-ink">{isCoderMode ? "Coder Agent" : selectedModel}</p></div>
+              <div><p className="text-[8px] font-bold uppercase tracking-wider text-ink-faint">Activity signals</p><p className="mt-1 text-[10px] font-semibold text-ink">{activeSignals} reported this turn</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative hidden flex-wrap items-center justify-between gap-3 border-b border-edge/70 px-4 py-3 sm:flex sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/25 bg-cyan/10 text-cyan shadow-[0_0_18px_rgba(0,229,255,0.08)]">
             <Activity className="h-5 w-5" />
@@ -121,7 +168,7 @@ export function MissionControlHeader({
         </div>
       </div>
 
-      <div className="relative grid gap-3 p-3 sm:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.65fr)] sm:p-4">
+      <div className="relative hidden gap-3 p-3 sm:grid sm:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.65fr)] sm:p-4">
         <div className="min-w-0 rounded-xl border border-edge/80 bg-void/55 p-3 sm:p-3.5">
           <div className="flex items-start gap-2.5">
             <div className={"mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-panel-raised " + statusTone}>
