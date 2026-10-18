@@ -37,6 +37,7 @@ assert.ok(tools.includes('tool_choice: "required"'), "OpenRouter must require a 
 assert.ok(tools.includes('functionCallingConfig: { mode: executed.length === 0 ? "ANY" : "AUTO" }'), "Gemini must require the initial tool call, then allow a final answer after tool results.");
 assert.ok(tools.includes('tool_choice: executed.length === 0 ? "required" : "auto"'), "OpenRouter must require the initial tool call, then allow a final answer after tool results.");
 assert.ok(tools.includes("const retryInstruction ="), "A progress-only/no-tool response must trigger one bounded tool-call retry.");
+assert.ok(tools.includes("read|reading|open|inspect"), "Natural-language file-reading requests must enter native tool routing.");
 assert.ok(tools.includes("FINAL-ANSWER COMPLETION RULE"), "Tool results must instruct the final model to answer in the same request.");
 assert.ok(tools.includes("function toolFailureContext()"), "Failed tool execution must not fall through as if no operation was requested.");
 assert.ok(tools.includes("Do not claim to have read, fetched, searched, or verified anything."), "Tool failure must prevent false completion claims.");
