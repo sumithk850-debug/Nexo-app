@@ -5,9 +5,6 @@ import {
   PROVIDER_CONFIG,
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
-  CRAFT_V3_PRO_ENGINE_CONFIG,
-  CRAFT_V4_ENGINE_CONFIG,
-  isCoderModelId,
 } from "@/lib/providersWithWikipedia.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
@@ -666,10 +663,33 @@ export async function POST(req: NextRequest) {
 
     const coderModel = body.coderModel as string | undefined;
 
-    // Resolve coder selection server-side. Invalid client values safely fall
-    // back to the free Lite engine instead of selecting an arbitrary provider.
-    const activeCoderModel = isCoderMode && typeof coderModel === "string" && isCoderModelId(coderModel)
-      ? coderModel
+    const requestedLockedCoderModel =
+      (isCoderMode &&
+        (coderModel === "craft-v3" || coderModel === "craft-v4")) ||
+      (!isCoderMode && modelId === "craft-v3");
+
+    if (requestedLockedCoderModel) {
+      return new Response(
+        JSON.stringify({
+          error: "coder_model_locked",
+          modelId: coderModel,
+          message:
+            "This Craft model requires a paid Kyvorix Pro plan. Craft V3 Lite remains available for free users.",
+        }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const explicitlyUnlockedLite =
+      isCoderMode && coderModel === "craft-v3-lite";
+
+    const activeCoderModel = explicitlyUnlockedLite
+      ? "craft-v3-lite"
       : CODER_MODELS[0].id;
 
     const lastUserMessage = [...messages]
@@ -732,37 +752,16 @@ export async function POST(req: NextRequest) {
 
     const baseConfig = PROVIDER_CONFIG[modelId];
 
-    // All model profiles share the same response parser and human-approved
-    // GitHub write workflow, while each Craft engine keeps its own route.
-    let config = baseConfig;
-    if (isCoderMode) {
-      if (activeCoderModel === "craft-v3-lite") {
-        config = {
+    const coderOverridePrompt = explicitlyUnlockedLite
+      ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
+      : undefined;
+
+    const config = coderOverridePrompt
+      ? {
           ...baseConfig,
-          systemPrompt: CODER_PROMPT_OVERRIDES["craft-v3-lite"] ?? baseConfig.systemPrompt,
-        };
-      } else if (activeCoderModel === "craft-v3") {
-        config = {
-          ...baseConfig,
-          ...CRAFT_V3_PRO_ENGINE_CONFIG,
-          systemPrompt: baseConfig.systemPrompt,
-        };
-      } else if (activeCoderModel === "craft-v4") {
-        config = {
-          ...baseConfig,
-          ...CRAFT_V4_ENGINE_CONFIG,
-          systemPrompt: CODER_PROMPT_OVERRIDES["craft-v4"] ?? baseConfig.systemPrompt,
-        };
-      }
-    } else if (modelId === "craft-v3") {
-      // The public Craft V3 profile is the Pro engine; Lite is only the
-      // explicitly selected coder sub-model.
-      config = {
-        ...baseConfig,
-        ...CRAFT_V3_PRO_ENGINE_CONFIG,
-        systemPrompt: baseConfig.systemPrompt,
-      };
-    }
+          systemPrompt: coderOverridePrompt,
+        }
+      : baseConfig;
 
     if (!config) {
       return new Response(
