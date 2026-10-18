@@ -91,7 +91,7 @@ function capResult(value: unknown): unknown {
 export function shouldUseNativeTools(text: string): boolean {
   const value = text.trim();
   if (!value || value.length > 12_000) return false;
-  return /\b(github|repository|repo|codebase|file path|read file|list files|supabase|database|schema|tables?|vercel|deployment|deployments|deploy|wikipedia|search online|search the web|webpage|website|open this url|read this url)\b/i.test(value)
+  return /https?:\/\//i.test(value) || /\b(github|repository|repo|codebase|file path|read file|list files|supabase|database|schema|tables?|vercel|deployment|deployments|deploy|wikipedia|search online|search the web|webpage|website|open this url|read this url)\b/i.test(value)
     || /ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා|වර්සල්|ඩිප්ලෝයි|විකිපීඩියා|වෙබ් අඩවිය|වෙබ් පිටුව/i.test(value);
 }
 
