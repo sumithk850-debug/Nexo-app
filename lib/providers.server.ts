@@ -51,8 +51,7 @@ const CRAFT_V4_FALLBACKS = [
 ];
 
 // Coder sub-model variant — only exposed inside Kyvorix Coder Agent mode.
-// Craft V3 Lite uses its dedicated Gemini route and retains bounded fallback
-// routes, while the locked Pro variants keep their separate configurations.
+// Craft V3 Lite is available on the free tier; Craft V3 and Craft V4 are paid Pro models and stay locked.
 export const CODER_MODEL_IDS = ["craft-v3-lite", "craft-v3", "craft-v4"] as const;
 export type CoderModelId = (typeof CODER_MODEL_IDS)[number];
 
@@ -66,8 +65,8 @@ export interface CoderModelInfo {
 
 export const CODER_MODELS: CoderModelInfo[] = [
   { id: "craft-v3-lite", name: "Craft V3 Lite", badge: "LITE", locked: false, engine: "craft-v3" },
-  { id: "craft-v3", name: "Craft V3", badge: "PRO", locked: false, engine: "craft-v3" },
-  { id: "craft-v4", name: "Craft V4", badge: "PRO", locked: false, engine: "craft-v4" },
+  { id: "craft-v3", name: "Craft V3", badge: "PRO", locked: true, engine: "craft-v3" },
+  { id: "craft-v4", name: "Craft V4", badge: "PRO", locked: true, engine: "craft-v4" },
 ];
 
 export function isCoderModelId(id: string): id is CoderModelId {
