@@ -43,7 +43,7 @@ import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { isArtifactRequest } from "@/lib/artifactIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2 } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
