@@ -674,7 +674,7 @@ export async function POST(req: NextRequest) {
           error: "coder_model_locked",
           modelId: coderModel,
           message:
-            "This Craft model requires a paid Kyvorix Pro plan. Craft V3 Lite remains available for free users.",
+            "This Craft model is locked until the Kyvorix Pro plan is available. Craft V3 Lite remains available for free users.",
         }),
         {
           status: 403,
