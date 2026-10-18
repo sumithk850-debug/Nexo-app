@@ -11,6 +11,7 @@ import {
   LogIn,
   Plug,
   Power,
+  Plus,
   ShieldCheck,
   Triangle,
   X,
@@ -165,6 +166,22 @@ export function IntegrationsPanel({
   const [status, setStatus] = useState<IntegrationStatus>(INITIAL_STATUS);
   const [loading, setLoading] = useState(false);
   const [connectionMessage, setConnectionMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Repository creation is a separate, explicit user-approved action.
+  const [repoCreatorOpen, setRepoCreatorOpen] = useState(false);
+  const [newRepoName, setNewRepoName] = useState("");
+  const [newRepoDescription, setNewRepoDescription] = useState("");
+  const [newRepoVisibility, setNewRepoVisibility] = useState<"private" | "public">("private");
+  const [repoCreateConfirm, setRepoCreateConfirm] = useState(false);
+  const [repoCreateConfirmed, setRepoCreateConfirmed] = useState(false);
+  const [repoCreating, setRepoCreating] = useState(false);
+  const [repoCreateError, setRepoCreateError] = useState<string | null>(null);
+  const [repoCreateResult, setRepoCreateResult] = useState<{
+    fullName: string;
+    url: string;
+    selected: boolean;
+    warning: string | null;
+  } | null>(null);
 
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [vercelDisconnectConfirm, setVercelDisconnectConfirm] = useState(false);
@@ -516,6 +533,44 @@ export function IntegrationsPanel({
     await loadStatus();
   }
 
+  async function createGithubRepository() {
+    if (!userId || !repoCreateConfirmed || repoCreating) return;
+    setRepoCreating(true);
+    setRepoCreateError(null);
+    try {
+      const response = await authenticatedFetch("/api/github/create-repo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          name: newRepoName.trim(),
+          description: newRepoDescription.trim(),
+          visibility: newRepoVisibility,
+          confirmCreate: true,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? "GitHub could not create the repository.");
+      if (!data?.repository?.fullName || !data?.repository?.url) {
+        throw new Error("GitHub created a repository but did not return its details. Refresh GitHub integration to verify it.");
+      }
+      setRepoCreateResult({
+        fullName: data.repository.fullName,
+        url: data.repository.url,
+        selected: data.selected === true,
+        warning: typeof data.warning === "string" ? data.warning : null,
+      });
+      setNewRepoName("");
+      setNewRepoDescription("");
+      setRepoCreateConfirm(false);
+      setRepoCreateConfirmed(false);
+      await loadStatus();
+    } catch (error) {
+      setRepoCreateError(error instanceof Error ? error.message : "GitHub could not create the repository.");
+    } finally {
+      setRepoCreating(false);
+    }
+  }
 
   if (!open) return null;
 
@@ -610,6 +665,134 @@ export function IntegrationsPanel({
               </div>
               <Toggle enabled={githubEnabled} onChange={onGithubEnabledChange} disabled={!status.github.connected} />
             </div>
+
+            {status.github.connected && (
+              <div className="mt-3 border-t border-edge pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRepoCreatorOpen((value) => !value);
+                    setRepoCreateError(null);
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border border-cyan/25 bg-cyan/5 px-3 py-2.5 text-xs font-semibold text-cyan transition hover:bg-cyan/10"
+                  aria-expanded={repoCreatorOpen}
+                >
+                  <span className="flex items-center gap-2"><Plus className="h-3.5 w-3.5" /> Create a new GitHub repository</span>
+                  <span>{repoCreatorOpen ? "Hide" : "Open"}</span>
+                </button>
+
+                {repoCreatorOpen && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-edge bg-panel/70 p-3">
+                    <p className="text-[11px] leading-relaxed text-ink-muted">
+                      Create a repository under your connected GitHub account. NEXO starts it with a README so files can be added afterward.
+                    </p>
+                    <label className="block space-y-1">
+                      <span className="text-[11px] font-medium text-ink-muted">Repository name</span>
+                      <input
+                        value={newRepoName}
+                        onChange={(event) => {
+                          setNewRepoName(event.target.value);
+                          setRepoCreateConfirm(false);
+                          setRepoCreateConfirmed(false);
+                          setRepoCreateError(null);
+                        }}
+                        maxLength={100}
+                        placeholder="my-new-project"
+                        autoComplete="off"
+                        className="w-full rounded-lg border border-edge bg-void px-3 py-2 text-xs text-ink outline-none focus:border-cyan/60"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-[11px] font-medium text-ink-muted">Description (optional)</span>
+                      <textarea
+                        value={newRepoDescription}
+                        onChange={(event) => setNewRepoDescription(event.target.value)}
+                        maxLength={350}
+                        rows={2}
+                        placeholder="What is this project for?"
+                        className="w-full resize-y rounded-lg border border-edge bg-void px-3 py-2 text-xs text-ink outline-none focus:border-cyan/60"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-[11px] font-medium text-ink-muted">Visibility</span>
+                      <select
+                        value={newRepoVisibility}
+                        onChange={(event) => setNewRepoVisibility(event.target.value as "private" | "public")}
+                        className="w-full rounded-lg border border-edge bg-void px-3 py-2 text-xs text-ink outline-none focus:border-cyan/60"
+                      >
+                        <option value="private">Private — only you and invited collaborators</option>
+                        <option value="public">Public — anyone can view the code</option>
+                      </select>
+                    </label>
+
+                    {!repoCreateConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRepoCreateError(null);
+                          setRepoCreateResult(null);
+                          setRepoCreateConfirmed(false);
+                          setRepoCreateConfirm(true);
+                        }}
+                        disabled={!/^[A-Za-z0-9_.-]{1,100}$/.test(newRepoName.trim()) || newRepoName.trim() === "." || newRepoName.trim() === ".." || newRepoName.trim().toLowerCase().endsWith(".git") || newRepoDescription.length > 350}
+                        className="w-full rounded-lg bg-cyan px-3 py-2 text-xs font-bold text-void transition hover:bg-cyan/90 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Review repository creation
+                      </button>
+                    ) : (
+                      <div className="space-y-3 rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
+                        <p className="text-xs font-semibold text-amber-200">Confirm new repository</p>
+                        <p className="break-words text-[11px] leading-relaxed text-ink-muted">
+                          NEXO will create <strong className="text-ink">{newRepoName.trim()}</strong> as a {newRepoVisibility} repository and make it the selected repository if the connection allows it.
+                        </p>
+                        <label className="flex items-start gap-2 text-[11px] leading-relaxed text-ink-muted">
+                          <input
+                            type="checkbox"
+                            checked={repoCreateConfirmed}
+                            onChange={(event) => setRepoCreateConfirmed(event.target.checked)}
+                            className="mt-0.5 accent-cyan"
+                          />
+                          I confirm that I want GitHub to create this repository.
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRepoCreateConfirm(false);
+                              setRepoCreateConfirmed(false);
+                            }}
+                            disabled={repoCreating}
+                            className="flex-1 rounded-lg border border-edge px-3 py-2 text-xs text-ink-muted hover:bg-void disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createGithubRepository()}
+                            disabled={!repoCreateConfirmed || repoCreating}
+                            className="flex-1 rounded-lg bg-cyan px-3 py-2 text-xs font-bold text-void hover:bg-cyan/90 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {repoCreating ? "Creating…" : "Create repository"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {repoCreateError && (
+                      <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] leading-relaxed text-red-300">{repoCreateError}</p>
+                    )}
+                    {repoCreateResult && (
+                      <div className="space-y-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+                        <p className="text-xs font-semibold text-emerald-300">Repository created successfully</p>
+                        <a href={repoCreateResult.url} target="_blank" rel="noopener noreferrer" className="break-all text-[11px] text-cyan hover:underline">{repoCreateResult.fullName}</a>
+                        {repoCreateResult.warning && <p className="text-[11px] leading-relaxed text-amber-200">{repoCreateResult.warning}</p>}
+                        {!repoCreateResult.warning && repoCreateResult.selected && <p className="text-[11px] text-emerald-200">Selected as the active repository. File changes still require approval.</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {status.github.connected && !status.github.canWrite && (
               <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">

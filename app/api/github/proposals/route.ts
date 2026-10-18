@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { githubApiHeaders, resolveGithubConnectionCredential } from "@/lib/githubApp.server";
+import { resolveGithubOAuthToken } from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -61,12 +62,22 @@ export async function POST(req: NextRequest) {
   if (!connection?.selected_repo) return json({ error: "No GitHub repository is selected." }, 400);
   const parts = repoParts(connection.selected_repo);
   if (!parts) return json({ error: "The selected GitHub repository is invalid." }, 400);
-  const credential = await resolveGithubConnectionCredential({ installationId: connection.installation_id, encryptedOAuthToken: connection.access_token });
+  let credential = await resolveGithubConnectionCredential({ installationId: connection.installation_id, encryptedOAuthToken: connection.access_token });
   if (!credential) return json({ error: "GitHub needs to be reconnected before proposing changes." }, 409);
 
   const api = `https://api.github.com/repos/${parts.owner}/${parts.repo}`;
-  const repo = await gh(api, credential.token);
-  if (!repo.response.ok) return json({ error: "The selected repository could not be verified." }, 409);
+  let repo = await gh(api, credential.token);
+  if (!repo.response.ok && credential.source === "github-app") {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    if (oauthToken) {
+      const oauthRepo = await gh(api, oauthToken);
+      if (oauthRepo.response.ok) {
+        credential = { token: oauthToken, source: "oauth", expiresAt: null };
+        repo = oauthRepo;
+      }
+    }
+  }
+  if (!repo.response.ok) return json({ error: "The selected repository could not be verified with the connected GitHub account." }, 409);
   const repoData = JSON.parse(repo.text) as { default_branch?: string; permissions?: { push?: boolean } };
   if (!repoData.default_branch || repoData.permissions?.push !== true) return json({ error: "The connected GitHub integration does not have verified write access." }, 403);
 
