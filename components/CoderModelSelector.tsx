@@ -11,7 +11,7 @@ interface CoderModelSelectorProps {
 
 // Coder sub-model selector — only renders inside Kyvorix Coder Agent mode.
 // Craft V3 Lite is the active UltraSpeed coding profile with a deeper prompt.
-// Craft V3 and Craft V4 use their dedicated advanced coding routes.
+// Craft V3 and Craft V4 are visually locked paid tiers.
 export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [upgradeModel, setUpgradeModel] = useState<(typeof CODER_MODELS)[number] | null>(null);
@@ -162,8 +162,8 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                       {m.id === "craft-v3-lite"
                         ? "UltraSpeed coding · Free tier"
                         : m.id === "craft-v3"
-                          ? "Advanced coding capability · Available"
-                          : "Next-generation architecture · Available"}
+                          ? "Advanced coding capability · Paid upgrade"
+                          : "Next-generation architecture · Paid upgrade"}
                     </span>
                   </span>
                   {m.locked ? (
@@ -179,7 +179,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
           </div>
           <div className="border-t border-edge/50 px-3.5 py-2.5 text-center">
             <p className="text-[10px] font-medium text-ink-muted">
-              All three Craft coding engines are available. Repository changes still require your approval.
+              Craft V3 & V4 are locked — unlock them with a Pro upgrade.
             </p>
           </div>
         </div>
