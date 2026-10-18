@@ -668,7 +668,7 @@ export async function POST(req: NextRequest) {
 
     // Resolve coder selection server-side. Invalid client values safely fall
     // back to the free Lite engine instead of selecting an arbitrary provider.
-    const activeCoderModel = isCoderMode && isCoderModelId(coderModel)
+    const activeCoderModel = isCoderMode && typeof coderModel === "string" && isCoderModelId(coderModel)
       ? coderModel
       : CODER_MODELS[0].id;
 
