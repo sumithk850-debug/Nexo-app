@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { githubApiHeaders, resolveGithubConnectionCredential } from "@/lib/githubApp.server";
+import { resolveGithubOAuthToken } from "@/lib/githubOAuth.server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 
 export const runtime = "nodejs";
@@ -65,7 +66,28 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "GitHub returned an invalid repository list" }), { status: 502 });
     }
 
-    const simplified = repos.map((repo: any) => ({
+    // Include repositories created through the user's OAuth connection even
+    // when the GitHub App installation is restricted to selected repositories.
+    let combinedRepos = repos;
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    if (credential.source === "github-app" && oauthToken) {
+      const oauthResponse = await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
+        headers: githubApiHeaders(oauthToken),
+        cache: "no-store",
+      });
+      if (oauthResponse.ok) {
+        const oauthPayload = await oauthResponse.json();
+        if (Array.isArray(oauthPayload)) {
+          const byFullName = new Map<string, any>();
+          for (const item of [...repos, ...oauthPayload]) {
+            if (item && typeof item.full_name === "string") byFullName.set(item.full_name.toLowerCase(), item);
+          }
+          combinedRepos = Array.from(byFullName.values());
+        }
+      }
+    }
+
+    const simplified = combinedRepos.map((repo: any) => ({
       id: repo.id,
       name: repo.name,
       fullName: repo.full_name,
@@ -131,13 +153,22 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "GitHub credentials are unavailable. Reconnect GitHub." }), { status: 401 });
   }
 
-  const repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+  let repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
     headers: githubApiHeaders(credential.token),
     cache: "no-store",
   });
   if (!repoResponse.ok) {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    if (oauthToken) {
+      repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+        headers: githubApiHeaders(oauthToken),
+        cache: "no-store",
+      });
+    }
+  }
+  if (!repoResponse.ok) {
     return new Response(JSON.stringify({
-      error: "That repository is not available to the connected GitHub App. Install the App for this repository, then refresh and select it again.",
+      error: "That repository is not available to the connected GitHub account. Check its permissions and reconnect GitHub if needed.",
       code: "REPOSITORY_NOT_AVAILABLE",
     }), { status: 403 });
   }
