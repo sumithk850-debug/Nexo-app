@@ -38,7 +38,9 @@ assert.ok(!/name:\s*"(?:github_commit|github_create_file|supabase_execute_sql|ve
 
 assert.ok(route.includes('import { runNativeToolLoop } from "@/lib/nativeTools.server"'), "Chat route must wire the native tool loop");
 assert.ok(route.includes("await runNativeToolLoop("), "Chat route must run the native tool loop");
-assert.ok(route.includes("systemPrompt += nativeToolResult.contextBlock"), "Verified tool results must be supplied to final generation");
+assert.ok(route.includes("systemPrompt += nativeToolResult.contextBlock"), "Tool result context must be supplied to final generation");
+assert.ok(route.includes("NATIVE TOOL FAILURE RULE"), "Tool failure must be distinguished from verified successful tool results.");
+assert.ok(route.includes('Do not answer with status-only text such as \\"Reading file\\"'), "Final generation must not stop at a status-only response.");
 assert.ok(route.includes("requestedLockedCoderModel") && route.includes("coder_model_locked"), "Paid Craft V3/V4 server lock must remain active");
 assert.ok(route.includes("requireVerifiedUser"), "Protected integration access must require verified auth");
 assert.ok(page.includes("proposalId: proposalData.proposalId"), "GitHub writes must keep the explicit proposal approval flow");
