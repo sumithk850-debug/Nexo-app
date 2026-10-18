@@ -37,3 +37,30 @@ export function isReadableWebPageResult(content: string): boolean {
   const normalized = content.trim();
   return normalized.length > 0 && !/\(Could not read this link:/i.test(normalized);
 }
+
+/**
+ * Identify requests that should not be answered until a matching read-only
+ * tool has actually been called. Attached-file tasks use their separate
+ * prepared attachment context and must not be routed to the GitHub reader.
+ */
+export function requiresNativeToolCall(text: string, availableToolNames: string[]): boolean {
+  const value = text.trim().toLocaleLowerCase("en-US");
+  if (!value || /\[attached files prepared\]/i.test(value)) return false;
+  const available = new Set(availableToolNames);
+  const hasAny = (...names: string[]) => names.some((name) => available.has(name));
+
+  const webIntent = /https?:\/\/|\b(read|open|summari[sz]e|analy[sz]e) (this )?(url|website|webpage|page)\b|වෙබ් අඩවිය|වෙබ් පිටුව/i.test(value);
+  if (webIntent && hasAny("web_fetch_url")) return true;
+
+  const githubIntent = /\b(github|repository|repo|codebase|file|files|file path|read file|open file|list files)\b|ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්/i.test(value);
+  if (githubIntent && hasAny("github_read_file", "github_list_files")) return true;
+
+  const supabaseIntent = /\b(supabase|database|schema|tables?|columns?|read rows)\b|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා/i.test(value);
+  if (supabaseIntent && hasAny("supabase_list_projects", "supabase_list_tables", "supabase_describe_table", "supabase_read_rows")) return true;
+
+  const vercelIntent = /\b(vercel|deployment|deployments|list deploys)\b|වර්සල්|ඩිප්ලෝයි/i.test(value);
+  if (vercelIntent && hasAny("vercel_list_projects", "vercel_list_deployments")) return true;
+
+  const wikipediaIntent = /\b(wikipedia|encyclopedia|wiki article)\b|විකිපීඩියා|විශ්වකෝෂ/i.test(value);
+  return wikipediaIntent && hasAny("wikipedia_search");
+}
