@@ -7,6 +7,7 @@ import { getVercelConnection, listAccessibleVercelProjects, VercelClient } from 
 import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
 import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { readUrlsFromText } from "@/lib/urlReader.server";
+import { isReadableWebPageResult, parseGeminiToolCalls, parseOpenRouterToolCalls } from "@/lib/nativeToolParsing";
 
 export type NativeToolProvider = "openrouter" | "gemini";
 export interface NativeToolDefinition {
@@ -198,7 +199,7 @@ async function executeNativeTool(name: string, rawArgs: unknown, userId?: string
       const url = cleanString(args.url, 2000);
       if (!/^https?:\/\//i.test(url)) throw new Error("Provide a complete public HTTP or HTTPS URL.");
       const content = await readUrlsFromText(url);
-      return { ok: Boolean(content), url, content: content.slice(0, 7000) || "No readable public page content was returned." };
+      return { ok: isReadableWebPageResult(content), url, content: content.slice(0, 7000) || "No readable public page content was returned." };
     }
     if (name === "wikipedia_search") {
       if (!userId || !(await getWikipediaEnabled(userId))) throw new Error("Wikipedia integration is not enabled for this account.");
@@ -260,24 +261,6 @@ async function executeNativeTool(name: string, rawArgs: unknown, userId?: string
   }
 }
 
-function openRouterCalls(payload: any): Array<{ id: string; name: string; args: unknown }> {
-  const calls = payload?.choices?.[0]?.message?.tool_calls;
-  if (!Array.isArray(calls)) return [];
-  return calls.slice(0, 3).flatMap((call: any) => {
-    const name = cleanString(call?.function?.name, 100);
-    if (!name) return [];
-    try {
-      const args = typeof call.function.arguments === "string" ? JSON.parse(call.function.arguments) : call.function.arguments;
-      return [{ id: cleanString(call.id, 120) || "tool-" + name, name, args }];
-    } catch { return [{ id: cleanString(call.id, 120) || "tool-" + name, name, args: {} }]; }
-  });
-}
-function geminiCalls(payload: any): Array<{ id: string; name: string; args: unknown }> {
-  const parts = payload?.candidates?.[0]?.content?.parts;
-  if (!Array.isArray(parts)) return [];
-  return parts.filter((part: any) => part?.functionCall && typeof part.functionCall.name === "string").slice(0, 3)
-    .map((part: any, index: number) => ({ id: "gemini-tool-" + (index + 1), name: cleanString(part.functionCall.name, 100), args: part.functionCall.args && typeof part.functionCall.args === "object" ? part.functionCall.args : {} }));
-}
 
 function toolContext(executed: Array<{ name: string; result: unknown }>): string {
   const results = executed.map((item, index) => ({ step: index + 1, tool: item.name, result: item.result }));
@@ -335,7 +318,7 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       let payload: any;
       try { payload = await response.json(); } catch { break; }
       candidateResponded = true;
-      const calls = useGemini ? geminiCalls(payload) : openRouterCalls(payload);
+      const calls = useGemini ? parseGeminiToolCalls(payload) : parseOpenRouterToolCalls(payload);
       if (calls.length === 0) {
         return { contextBlock: executed.length ? toolContext(executed) : "", usedTools: [...new Set(executed.map((item) => item.name))], rounds: executed.length ? round : 0 };
       }
@@ -347,9 +330,11 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       for (const call of calls) {
         if (totalCalls >= MAX_TOOL_CALLS) break;
         totalCalls += 1;
-        const result = allowed.has(call.name)
-          ? capResult(await executeNativeTool(call.name, call.args, input.userId))
-          : { ok: false, error: "This tool is not available for the current account. No action was performed." };
+        const result = !call.validArguments
+          ? { ok: false, error: "Tool arguments were invalid. No action was performed." }
+          : allowed.has(call.name)
+            ? capResult(await executeNativeTool(call.name, call.args, input.userId))
+            : { ok: false, error: "This tool is not available for the current account. No action was performed." };
         executed.push({ name: call.name, result });
         if (!useGemini) {
           openMessages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });
