@@ -307,11 +307,11 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
             system_instruction: { parts: [{ text: toolSystemPrompt }] },
             contents: geminiContents,
             tools: toGeminiTools(definitions),
-            toolConfig: { functionCallingConfig: { mode: "ANY" } },
+            toolConfig: { functionCallingConfig: { mode: executed.length === 0 ? "ANY" : "AUTO" } },
             generationConfig: { temperature: 0.2, maxOutputTokens: 1200 },
           } : {
             model: candidate, stream: false, temperature: 0.2, max_tokens: 1200,
-            messages: openMessages, tools: toOpenRouterTools(definitions), tool_choice: "required",
+            messages: openMessages, tools: toOpenRouterTools(definitions), tool_choice: executed.length === 0 ? "required" : "auto",
           }),
           signal: AbortSignal.timeout(25_000),
           cache: "no-store",
