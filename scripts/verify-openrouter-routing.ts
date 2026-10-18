@@ -1,6 +1,7 @@
 import {
   CRAFT_V3_PRO_ENGINE_CONFIG,
   CRAFT_V4_ENGINE_CONFIG,
+  CODER_MODELS,
   PROVIDER_CONFIG,
 } from "../lib/providers.server";
 
@@ -59,3 +60,5 @@ assert(JSON.stringify(CRAFT_V4_ENGINE_CONFIG.fallbackModels) === JSON.stringify(
 ]), "Craft V4 fallback order is incorrect");
 
 console.log("KYVORIX model routing verification passed.");
+
+assert(CODER_MODELS.every((model) => !model.locked), "All three Craft coder models must be selectable");
