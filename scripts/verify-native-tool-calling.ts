@@ -33,7 +33,6 @@ assert.ok(tools.includes("getWikipediaEnabled"), "Wikipedia tool must respect th
 assert.ok(tools.includes("readUrlsFromText"), "Web fetching must reuse the SSRF-protected page reader");
 assert.ok(tools.includes("isReadableWebPageResult(content)"), "Web-fetch failures must not be reported as successful reads");
 assert.ok(tools.includes("!call.validArguments"), "Malformed provider arguments must be rejected before execution");
-assert.ok(tools.includes('tool_choice: "required"'), "OpenRouter must require a tool call for requests routed into the native tool loop.");
 assert.ok(tools.includes('functionCallingConfig: { mode: executed.length === 0 ? "ANY" : "AUTO" }'), "Gemini must require the initial tool call, then allow a final answer after tool results.");
 assert.ok(tools.includes('tool_choice: executed.length === 0 ? "required" : "auto"'), "OpenRouter must require the initial tool call, then allow a final answer after tool results.");
 assert.ok(tools.includes("const retryInstruction ="), "A progress-only/no-tool response must trigger one bounded tool-call retry.");
