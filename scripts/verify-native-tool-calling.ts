@@ -110,3 +110,10 @@ assert.ok(tools.includes('mode: mustCallNativeTool && round === 0 ? "ANY" : "AUT
 assert.ok(tools.includes("NATIVE TOOL EXECUTION STATUS"),
   "If the provider does not execute a required tool, final generation must be told not to claim success.");
 console.log("Native tool orchestration enforcement tests passed.");
+
+assert.equal(requiresNativeToolCall("Create a new file for my project.", allReadTools), false,
+  "A file-creation request must not be misrouted to the read-only file tool.");
+assert.equal(requiresNativeToolCall("What is a database schema?", allReadTools), false,
+  "A general concept question must not be misrouted to connected database tools.");
+assert.equal(requiresNativeToolCall("What is Wikipedia?", allReadTools), false,
+  "A general Wikipedia concept question must not force a search tool.");
