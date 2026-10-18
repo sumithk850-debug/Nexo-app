@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   CRAFT_V3_PRO_ENGINE_CONFIG,
   CRAFT_V4_ENGINE_CONFIG,
@@ -62,3 +63,11 @@ assert(JSON.stringify(CRAFT_V4_ENGINE_CONFIG.fallbackModels) === JSON.stringify(
 console.log("KYVORIX model routing verification passed.");
 
 assert(CODER_MODELS.every((model) => !model.locked), "All three Craft coder models must be selectable");
+
+const chatRoute = readFileSync("app/api/chat/route.ts", "utf8");
+assert(!chatRoute.includes("requestedLockedCoderModel"), "Chat route must not reject Craft profiles that are enabled in the model selector");
+assert(chatRoute.includes('activeCoderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
+assert(chatRoute.includes("CRAFT_V3_PRO_ENGINE_CONFIG"), "Craft V3 must use its dedicated Pro provider route");
+assert(chatRoute.includes("CRAFT_V4_ENGINE_CONFIG"), "Craft V4 must use its dedicated provider route");
+assert(chatRoute.includes("proposalId: proposalData.proposalId"), "GitHub writes must continue through the server-approved proposal flow");
+
