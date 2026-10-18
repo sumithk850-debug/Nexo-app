@@ -60,7 +60,7 @@ assert.match(page, /function handleStopGenerating\(\)/);
 assert.match(page, /streamAbortControllerRef\.current\?\.abort\(\)/);
 assert.match(page, /signal: controller\.signal/);
 assert.match(page, /onStop=\{handleStopGenerating\}/);
-assert.match(chatInput, /onStop\(\)/);
+assert.match(chatInput, /onClick=\{isStreaming \? onStop : handleSendClick\}/);
 
 // 5. Attachments stay capped and pass through the shared preparation pipeline.
 assert.match(attachmentProcessing, /MAX_ATTACHMENTS_PER_MESSAGE = 10/);
