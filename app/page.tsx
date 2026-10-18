@@ -43,7 +43,7 @@ import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { isArtifactRequest } from "@/lib/artifactIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
-import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2 } from "lucide-react";
+import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
@@ -266,6 +266,20 @@ export default function ChatPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setSplashVisible(false), 2600);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  // Global search shortcut: Ctrl+K on Windows/Linux, Command+K on macOS.
+  // Keep this independent of focus so users can search without leaving the composer.
+  useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || !(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      setSearchModalOpen(true);
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcut);
+    return () => window.removeEventListener("keydown", handleGlobalShortcut);
   }, []);
 
   useEffect(() => {
@@ -1772,6 +1786,27 @@ export default function ChatPage() {
                         </button>
                       </div>
                     )}
+                    {!isCoderMode && (
+                      <div aria-label="Quick start prompts" className="mt-8 grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
+                        <button type="button" onClick={() => setInput("Explain this topic clearly and summarize the key takeaways: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><FileText className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Summarize</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Get the key points, clearly explained</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Help me write a clear, polished draft about: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><PenTool className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Write</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Draft, rewrite, or polish your ideas</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Teach me this concept step by step with simple examples: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><Brain className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Learn</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Understand a concept step by step</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Brainstorm creative ideas for: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><Sparkles className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Brainstorm</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Explore ideas and creative directions</span></span>
+                        </button>
+                      </div>
+                    )}
+                    <p className="mt-5 hidden text-[11px] text-ink-faint sm:block">Quick tip: press <kbd className="rounded border border-edge bg-panel px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">Ctrl / ⌘ K</kbd> to search chats.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 pb-12">
