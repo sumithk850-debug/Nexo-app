@@ -315,7 +315,7 @@ export function MessageBubble({
     }
     return (
       <div className="group flex justify-end px-4 py-2">
-        <div className="relative max-w-[85%] rounded-2xl rounded-br-md bg-indigo/90 px-4 py-3 text-sm text-white md:max-w-[70%]">
+        <div className="relative max-w-[85%] rounded-2xl rounded-br-md border border-white/10 bg-indigo/90 px-4 py-3 text-sm text-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] md:max-w-[70%]">
           {attachments.length > 0 && (
             <div className={`grid gap-2 ${attachments.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               {attachments.map((attachment, index) => (
@@ -439,7 +439,7 @@ export function MessageBubble({
             ))}
           </div>
         ) : (
-          <div className="prose-kyvorix text-sm text-ink">
+          <div className="prose-kyvorix min-w-0 text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
             {clarificationCards.map((card) => (

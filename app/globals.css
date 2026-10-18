@@ -3,18 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --color-void: 245 244 239;
+  /* Cool, high-contrast light surfaces with the same electric-cyan identity. */
+  --color-void: 246 248 252;
   --color-panel: 255 255 255;
-  --color-panel-raised: 251 250 247;
-  --color-edge: 229 226 217;
-  --color-cyan: 217 119 87;
-  --color-cyan-dim: 193 95 60;
-  --color-cyan-glow: 232 148 120;
-  --color-indigo: 184 92 56;
-  --color-indigo-dim: 143 69 41;
-  --color-ink: 31 30 28;
-  --color-ink-muted: 107 104 98;
-  --color-ink-faint: 168 164 154;
+  --color-panel-raised: 249 251 255;
+  --color-edge: 220 228 240;
+  --color-cyan: 0 145 190;
+  --color-cyan-dim: 0 105 145;
+  --color-cyan-glow: 0 180 220;
+  --color-indigo: 61 88 220;
+  --color-indigo-dim: 43 63 170;
+  --color-ink: 20 29 48;
+  --color-ink-muted: 79 93 119;
+  --color-ink-faint: 123 137 163;
 }
 
 .dark {
@@ -138,6 +139,44 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-cyan));
+}
+
+/* Phase B — reusable visual-system polish */
+.surface-panel {
+  background: rgb(var(--color-panel) / 0.92);
+  border: 1px solid rgb(var(--color-edge) / 0.9);
+  box-shadow: 0 10px 32px rgb(10 24 48 / 0.045);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.interactive-panel {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease,
+    background-color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .interactive-panel:hover {
+    border-color: rgb(var(--color-cyan) / 0.38);
+    box-shadow: 0 12px 34px rgb(var(--color-cyan) / 0.075);
+    transform: translateY(-1px);
+  }
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(100deg, rgb(var(--color-ink)) 8%, rgb(var(--color-cyan)) 62%, rgb(var(--color-indigo)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cyan-edge-glow {
+  box-shadow: 0 0 0 1px rgb(var(--color-cyan) / 0.12),
+    0 0 26px rgb(var(--color-cyan) / 0.06);
+}
+
+:where(button, a, input, textarea, select) {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -197,7 +197,7 @@ export function ChatSidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-edge bg-panel-raised transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-edge bg-panel-raised shadow-[12px_0_36px_rgba(0,0,0,0.10)] transition-transform duration-300 md:static md:translate-x-0 md:shadow-none ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
