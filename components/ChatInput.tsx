@@ -331,7 +331,7 @@ export function ChatInput({
   return (
     <div className="px-4 py-2">
       <div className="mx-auto max-w-3xl">
-        <div className="relative rounded-2xl border border-edge bg-panel px-3 pb-2.5 pt-3 shadow-sm focus-within:border-cyan/50 transition-all duration-300" data-kyvorix-tools>
+        <div className="relative rounded-2xl border border-edge bg-panel/95 px-3 pb-2.5 pt-3 shadow-[0_10px_32px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-all duration-300 focus-within:border-cyan/55 focus-within:shadow-[0_0_0_1px_rgba(0,229,255,0.14),0_12px_34px_rgba(0,229,255,0.08)]" data-kyvorix-tools>
           {toolsOpen && (
             <SmartToolsMenu
               onAttach={() => fileInputRef.current?.click()}
