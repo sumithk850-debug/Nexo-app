@@ -52,15 +52,23 @@ export function requiresNativeToolCall(text: string, availableToolNames: string[
   const webIntent = /https?:\/\/|\b(read|open|summari[sz]e|analy[sz]e) (this )?(url|website|webpage|page)\b|වෙබ් අඩවිය|වෙබ් පිටුව/i.test(value);
   if (webIntent && hasAny("web_fetch_url")) return true;
 
-  const githubIntent = /\b(github|repository|repo|codebase|file|files|file path|read file|open file|list files)\b|ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්/i.test(value);
+  const readAction = /\b(read|open|inspect|review|list|show|fetch|check|describe|query|view|look up|search|find)\b/i;
+  const githubTarget = /\b(github|repository|repo|codebase|file path|files?)\b/i;
+  const githubIntent = (githubTarget.test(value) && readAction.test(value)) ||
+    (/\b(read|open|inspect|review|list|show|fetch|check)\b.{0,60}\b(file|files|repository|repo|codebase)\b/i.test(value)) ||
+    (/\b(file|files|repository|repo|codebase)\b.{0,60}\b(read|open|inspect|review|list|show|fetch|check)\b/i.test(value)) ||
+    (/(ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්)/i.test(value) && /(කියව|බලන්න|පරීක්ෂා|ලැයිස්තු)/i.test(value));
   if (githubIntent && hasAny("github_read_file", "github_list_files")) return true;
 
-  const supabaseIntent = /\b(supabase|database|schema|tables?|columns?|read rows)\b|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා/i.test(value);
+  const supabaseIntent = /\b(supabase|database|schema|tables?|columns?|rows?)\b/i.test(value) && readAction.test(value) ||
+    /(සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා)/i.test(value) && /(කියව|බලන්න|පරීක්ෂා|ලැයිස්තු|විස්තර)/i.test(value);
   if (supabaseIntent && hasAny("supabase_list_projects", "supabase_list_tables", "supabase_describe_table", "supabase_read_rows")) return true;
 
-  const vercelIntent = /\b(vercel|deployment|deployments|list deploys)\b|වර්සල්|ඩිප්ලෝයි/i.test(value);
+  const vercelIntent = /\bvercel\b/i.test(value) && /\b(check|list|show|inspect|get|view|fetch|read)\b/i.test(value) ||
+    /වර්සල්/i.test(value) && /(බලන්න|පරීක්ෂා|ලැයිස්තු|කියව)/i.test(value);
   if (vercelIntent && hasAny("vercel_list_projects", "vercel_list_deployments")) return true;
 
-  const wikipediaIntent = /\b(wikipedia|encyclopedia|wiki article)\b|විකිපීඩියා|විශ්වකෝෂ/i.test(value);
+  const wikipediaIntent = /\b(search|look up|find|read|open)\b.{0,40}\b(wikipedia|encyclopedia|wiki article)\b|\b(wikipedia|encyclopedia|wiki article)\b.{0,40}\b(search|look up|find|read|open)\b|විකිපීඩියා/i.test(value) &&
+    /\b(search|look up|find|read|open)\b|විකිපීඩියා/i.test(value);
   return wikipediaIntent && hasAny("wikipedia_search");
 }
