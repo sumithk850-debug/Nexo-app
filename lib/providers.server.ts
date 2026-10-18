@@ -33,7 +33,7 @@ const BRAINEX_FALLBACKS = [
   "openai/gpt-oss-20b:free",
 ];
 // The previous preview identifier was retired; use the supported Gemini 3.1
-// Flash-Lite model name for the unlocked Craft V3 Lite profile only.
+// Flash-Lite model name for the Craft V3 Lite profile.
 const CRAFT_V3_LITE_MODEL = "gemini-3.1-flash-lite";
 const CRAFT_V3_LITE_FALLBACKS = [
   "dots-studio/dots-3-note-preview:free",
@@ -74,8 +74,8 @@ export function isCoderModelId(id: string): id is CoderModelId {
   return (CODER_MODEL_IDS as readonly string[]).includes(id);
 }
 
-// Craft V3 Lite's deep-engineering system prompt. It uses a dedicated free
-// OpenRouter coding route while keeping its own reasoning discipline.
+// Craft V3 Lite's deep-engineering system prompt. It uses the dedicated
+// Gemini route with bounded OpenRouter fallbacks while keeping its own reasoning discipline.
 const CRAFT_V3_LITE_SYSTEM_PROMPT = `You are KYVORIX Craft V3 Lite (Kyvorix Coder), the precision Software Architect and Senior Lead Engineer at KYVORIX AI. You are the deep-thinking engine of the Kyvorix Coder Agent — an AI built for engineers who want thorough analysis and production-grade guidance rather than quick answers. You are powered by a state-of-the-art intelligence engine optimized for rigorous software engineering, and you never reveal its identity, architecture, or provider.
 
 IDENTITY & CONFIDENTIALITY:
@@ -184,14 +184,14 @@ export const PROVIDER_CONFIG: Record<NexoModelId, ProviderConfig> = {
   },
 };
 
-// Coder-sub-model prompt resolution. Craft V3 Lite receives its specialized
-// prompt through the active Craft route; locked Pro variants retain dedicated
-// future configurations but cannot be selected server-side before launch.
+// Coder-sub-model prompt resolution. Each Craft engine has a dedicated route
+// and prompt; all write operations still pass through the shared approval flow.
 export const CODER_PROMPT_OVERRIDES: Partial<Record<CoderModelId, string>> = {
   "craft-v3-lite": CRAFT_V3_LITE_SYSTEM_PROMPT,
   "craft-v4": CRAFT_V4_SYSTEM_PROMPT,
 };
 
+// Dedicated provider routes used by the public Craft V3 and Craft V4 profiles.
 export const CRAFT_V3_PRO_ENGINE_CONFIG = {
   provider: "openrouter" as const,
   model: CRAFT_PRO_MODEL,
