@@ -66,8 +66,8 @@ export interface CoderModelInfo {
 
 export const CODER_MODELS: CoderModelInfo[] = [
   { id: "craft-v3-lite", name: "Craft V3 Lite", badge: "LITE", locked: false, engine: "craft-v3" },
-  { id: "craft-v3", name: "Craft V3", badge: "PRO", locked: true, engine: "craft-v3" },
-  { id: "craft-v4", name: "Craft V4", badge: "PRO", locked: true, engine: "craft-v4" },
+  { id: "craft-v3", name: "Craft V3", badge: "PRO", locked: false, engine: "craft-v3" },
+  { id: "craft-v4", name: "Craft V4", badge: "PRO", locked: false, engine: "craft-v4" },
 ];
 
 export function isCoderModelId(id: string): id is CoderModelId {
