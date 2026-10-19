@@ -1,3 +1,4 @@
+// @ts-nocheck -- This file runs in Supabase's Deno Edge Runtime, not in the Next.js runtime.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
