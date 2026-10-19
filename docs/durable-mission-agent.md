@@ -54,7 +54,7 @@ select cron.schedule(
         )
       ),
       body := '{}'::jsonb,
-      timeout_milliseconds := 5000
+      timeout_milliseconds := 65000
     )
     from clock, secret, target;
   $job$
