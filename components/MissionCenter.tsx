@@ -18,6 +18,7 @@ type Mission = {
   result: string | null;
   verification: { status?: string; checks?: Array<{ name: string; passed: boolean }>; note?: string } | null;
   attempt_count: number;
+  max_attempts: number;
   last_error: string | null;
   cancel_requested: boolean;
   created_at: string;
