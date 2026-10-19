@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 
 export const runtime = "nodejs";
@@ -276,9 +277,18 @@ async function processClaimedJob(job: MissionJob) {
 async function handleWorker(req: NextRequest) {
   const expected = process.env.CRON_SECRET;
   const authorization = req.headers.get("authorization") ?? "";
-  const supplied = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
+  const suppliedBearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim() ?? "";
+  const timestamp = req.headers.get("x-mission-timestamp") ?? "";
+  const suppliedSignature = req.headers.get("x-mission-signature") ?? "";
+  const parsedTimestamp = /^\\d{10}$/.test(timestamp) ? Number(timestamp) : 0;
+  const timestampFresh = parsedTimestamp > 0 && Math.abs(Math.floor(Date.now() / 1000) - parsedTimestamp) <= 120;
+  const expectedSignature = expected && timestampFresh
+    ? createHmac("sha256", expected).update(`${timestamp}.{}`).digest("hex")
+    : "";
+  const validBearer = Boolean(expected && suppliedBearer && safeEqual(suppliedBearer, expected));
+  const validSignature = Boolean(expectedSignature && suppliedSignature && safeEqual(suppliedSignature, expectedSignature));
 
-  if (!expected || !supplied || !safeEqual(supplied, expected)) {
+  if (!expected || (!validBearer && !validSignature)) {
     return jsonError("Unauthorized worker request.", 401);
   }
 
