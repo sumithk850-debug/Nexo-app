@@ -2,6 +2,15 @@
   "functions": {
     "app/api/chat/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/internal/mission-worker/route.ts": {
+      "maxDuration": 90
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/mission-worker",
+      "schedule": "* * * * *"
+    }
+  ]
 }
