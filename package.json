@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:native-tools && npm run test:phase-d && next build",
+    "build": "npm run test:native-tools && npm run test:phase-d && npm run test:durable-missions && next build",
     "start": "next start",
     "lint": "eslint .",
     "test:supabase-dispatcher": "rm -rf .tmp-supabase-dispatcher-test && tsc scripts/verify-supabase-dispatcher.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-supabase-dispatcher-test && node .tmp-supabase-dispatcher-test/scripts/verify-supabase-dispatcher.js",
@@ -19,7 +19,8 @@
     "test:creator-credits": "rm -rf .tmp-creator-credits-test && tsc scripts/verify-creator-credits.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-creator-credits-test && node .tmp-creator-credits-test/verify-creator-credits.js",
     "test:image-vision": "rm -rf .tmp-image-vision-test && tsc scripts/verify-image-vision.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-image-vision-test && node .tmp-image-vision-test/verify-image-vision.js",
     "test:artifact-intent": "rm -rf .tmp-artifact-intent-test && tsc lib/artifactIntent.ts scripts/verify-artifact-intent.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-artifact-intent-test && node .tmp-artifact-intent-test/scripts/verify-artifact-intent.js",
-    "test:rls-hardening": "node scripts/verify-supabase-rls-hardening.mjs"
+    "test:rls-hardening": "node scripts/verify-supabase-rls-hardening.mjs",
+    "test:durable-missions": "rm -rf .tmp-durable-missions-test && tsc scripts/verify-durable-missions.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-durable-missions-test && node .tmp-durable-missions-test/verify-durable-missions.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

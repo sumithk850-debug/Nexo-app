@@ -2,6 +2,9 @@
   "functions": {
     "app/api/chat/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/internal/mission-worker/route.ts": {
+      "maxDuration": 55
     }
   }
 }

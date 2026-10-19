@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -274,6 +274,14 @@ export function ChatSidebar({
             <Plug className="h-4 w-4 text-ink-muted" />
             Integrations
           </button>
+
+          <Link
+            href="/missions"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+          >
+            <ListTodo className="h-4 w-4 text-cyan" />
+            Mission Agent
+          </Link>
 
           <div className="pt-2 border-t border-edge space-y-1 mt-2">
             <button
