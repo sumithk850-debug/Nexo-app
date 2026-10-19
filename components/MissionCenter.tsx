@@ -296,7 +296,7 @@ export function MissionCenter() {
                         </div>
                       )}
 
-                      {mission.status === "retry_wait" && <p className="mt-3 text-xs text-amber-300">A temporary error occurred. The worker will retry automatically (attempt {mission.attempt_count + 1} of {mission.max_attempts || 3}).</p>}
+                      {mission.status === "retry_wait" && <p className="mt-3 text-xs text-amber-300">A temporary error occurred. The worker will retry automatically (attempt {mission.attempt_count} of {mission.max_attempts || 3}).</p>}
                       {mission.status === "failed" && mission.last_error && <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-300">{mission.last_error}</p>}
                       {mission.status === "completed" && mission.verification && (
                         <div className="mt-4 rounded-xl border border-edge bg-canvas/60 p-4">
