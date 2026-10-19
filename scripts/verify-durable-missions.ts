@@ -6,6 +6,8 @@ function source(path: string): string {
 }
 
 const migration = source("migrations/015_durable_mission_jobs.sql");
+const dispatcherMigration = source("migrations/016_mission_dispatch_secrets.sql");
+const dispatcher = source("supabase/functions/kyvorix-mission-dispatch/index.ts");
 const createApi = source("app/api/missions/route.ts");
 const detailApi = source("app/api/missions/[id]/route.ts");
 const worker = source("app/api/internal/mission-worker/route.ts");
@@ -20,6 +22,9 @@ assert.ok(migration.toLowerCase().includes("for update skip locked"));
 assert.ok(migration.includes("lease_token = gen_random_uuid()"));
 assert.ok(migration.includes("record_mission_failure"));
 assert.ok(migration.includes("grant execute on function public.claim_mission_job(integer) to service_role"));
+assert.ok(dispatcherMigration.includes("get_mission_dispatch_secrets"));
+assert.ok(dispatcherMigration.includes("grant execute on function public.get_mission_dispatch_secrets() to service_role"));
+assert.ok(dispatcherMigration.includes("revoke all on function public.get_mission_dispatch_secrets() from public, anon, authenticated"));
 
 assert.ok(createApi.includes("requireVerifiedUser"));
 assert.ok(createApi.toLowerCase().includes("idempotency-key"));
@@ -39,6 +44,10 @@ assert.ok(worker.includes("record_mission_failure"));
 assert.ok(worker.includes("cancel_requested"));
 assert.ok(worker.includes("They do not claim external repository tests, deployments, or live research were performed."));
 assert.ok(worker.includes("export async function GET(req: NextRequest)"));
+assert.ok(dispatcher.includes("x-vercel-protection-bypass"));
+assert.ok(dispatcher.includes("x-mission-signature"));
+assert.ok(dispatcher.includes("get_mission_dispatch_secrets"));
+assert.ok(dispatcher.includes("AbortSignal.timeout(58_000)"));
 
 assert.ok(vercel.includes("app/api/internal/mission-worker/route.ts"));
 assert.ok(!vercel.includes('"crons"'));
