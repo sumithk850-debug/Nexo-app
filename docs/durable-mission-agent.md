@@ -12,18 +12,21 @@
 
 ## Production scheduler
 
-The active scheduler is Supabase Cron (`pg_cron`) calling the Vercel worker through `pg_net` every minute. This works independently of Vercel Cron plan frequency. The Vercel worker function is capped at 55 seconds and each model attempt times out after 16 seconds, leaving time for fallback and checkpoint writes.
+Supabase Cron (`pg_cron`) triggers a small Supabase Edge Function every minute. That dispatcher validates a timestamped HMAC, retrieves server-side secrets through a service-role-only database function, then calls the Vercel worker with Vercel's deployment-protection bypass header. This keeps the raw bypass token out of `pg_net` request rows and avoids disabling Vercel Authentication.
 
-The Vercel Production environment contains a sensitive `CRON_SECRET`. Store the same secret in Supabase Vault as `kyvorix_mission_worker_secret`, and store the production worker URL as `kyvorix_mission_worker_url`. Do not put the secret directly into the cron command or request headers. The scheduled request sends only a timestamp and an HMAC-SHA256 signature; the worker rejects signatures older than two minutes.
+The Vercel worker function is capped at 55 seconds and each model attempt times out after 16 seconds. Supabase Cron dispatches the worker independently of an open browser; Postgres leases and checkpoints remain the source of truth.
 
-After the database migration is applied and the Vercel production deployment is ready, create the Vault entries (replace the placeholders locally in the Supabase SQL editor; never commit the real value):
+The Vercel Production environment contains a sensitive `CRON_SECRET`. The same secret and the Vercel automation-bypass secret are stored in Supabase Vault; neither value belongs in source control or cron headers. The scheduled request carries only a timestamp and an HMAC-SHA256 signature, which expires after two minutes.
 
-```sql
-select vault.create_secret('REPLACE_WITH_CRON_SECRET', 'kyvorix_mission_worker_secret');
-select vault.create_secret('https://nexo-app-hasith-s-projects3.vercel.app/api/internal/mission-worker', 'kyvorix_mission_worker_url');
-```
+After applying migrations `015` and `016` and deploying the Edge Function, ensure these Vault entries exist:
+- `kyvorix_mission_worker_secret`: same value as Vercel's `CRON_SECRET`
+- `kyvorix_vercel_bypass_secret`: Vercel Protection Bypass for Automation secret
+- `kyvorix_mission_worker_url`: `https://nexo-app-hasith-s-projects3.vercel.app/api/internal/mission-worker`
+- `kyvorix_mission_dispatch_url`: `https://apvqebqigqirmvemhnmz.supabase.co/functions/v1/kyvorix-mission-dispatch`
 
-Then schedule the worker once:
+The two secret values are provisioned out-of-band in the encrypted secret stores; do not print them or commit them.
+
+Schedule the dispatcher once:
 
 ```sql
 select cron.schedule(
@@ -41,7 +44,7 @@ select cron.schedule(
     target as (
       select decrypted_secret as url
       from vault.decrypted_secrets
-      where name = 'kyvorix_mission_worker_url'
+      where name = 'kyvorix_mission_dispatch_url'
     )
     select net.http_post(
       url := target.url,
@@ -61,12 +64,12 @@ select cron.schedule(
 );
 ```
 
-The cron invocation only dispatches one bounded step; it does not hold a four-minute request open. The queue remains the source of truth if a scheduler run or worker invocation fails. If the cron job already exists, `cron.schedule` with the same name updates it; do not create duplicate jobs with different names.
+The cron invocation only dispatches one bounded step; it does not hold a four-minute request open. If the cron job already exists, scheduling with the same name updates it. Do not create duplicate jobs with different names.
 
 ## Operational checks
 
 - Confirm the `kyvorix-mission-worker` cron job is enabled in `cron.job`.
-- Inspect recent calls in `net._http_response` and queue state in `public.mission_jobs`; never log or expose the secret.
-- Keep `CRON_SECRET` in Vercel's encrypted production environment and Supabase Vault only; never log or expose the raw value.
+- Inspect recent calls in `net._http_response`, Supabase Edge Function logs, and queue state in `public.mission_jobs`; never log or expose either secret.
+- Keep `CRON_SECRET` and the Vercel bypass secret in encrypted secret stores only; never log or expose their raw values.
 - Cancel is cooperative: an in-flight AI call may finish, but the result is discarded at the next checkpoint when cancellation has been requested.
 - A job that exhausts retries remains visible with `last_error`; it is not silently marked complete.
