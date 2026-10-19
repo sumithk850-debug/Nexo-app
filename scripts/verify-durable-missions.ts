@@ -7,6 +7,7 @@ function source(path: string): string {
 
 const migration = source("migrations/015_durable_mission_jobs.sql");
 const dispatcherMigration = source("migrations/016_mission_dispatch_secrets.sql");
+const hardeningMigration = source("migrations/017_mission_queue_db_hardening.sql");
 const dispatcher = source("supabase/functions/kyvorix-mission-dispatch/index.ts");
 const createApi = source("app/api/missions/route.ts");
 const detailApi = source("app/api/missions/[id]/route.ts");
@@ -25,6 +26,8 @@ assert.ok(migration.includes("grant execute on function public.claim_mission_job
 assert.ok(dispatcherMigration.includes("get_mission_dispatch_secrets"));
 assert.ok(dispatcherMigration.includes("grant execute on function public.get_mission_dispatch_secrets() to service_role"));
 assert.ok(dispatcherMigration.includes("revoke all on function public.get_mission_dispatch_secrets() from public, anon, authenticated"));
+assert.ok(hardeningMigration.includes("create extension pg_net with schema extensions"));
+assert.ok(hardeningMigration.includes("(select auth.uid()) = user_id"));
 
 assert.ok(createApi.includes("requireVerifiedUser"));
 assert.ok(createApi.toLowerCase().includes("idempotency-key"));
