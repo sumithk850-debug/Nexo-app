@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 55;
 
 type MissionStep = { title: string; instruction: string };
 type StepResult = { title: string; output: string; completedAt: string };
@@ -76,7 +76,7 @@ async function callModel(system: string, user: string, maxTokens = 1400): Promis
             { role: "user", content: user },
           ],
         }),
-        signal: AbortSignal.timeout(22_000),
+        signal: AbortSignal.timeout(16_000),
         cache: "no-store",
       });
 
