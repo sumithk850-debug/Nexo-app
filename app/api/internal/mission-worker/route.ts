@@ -273,8 +273,8 @@ async function processClaimedJob(job: MissionJob) {
   return { processed: true, outcome: isFinal ? "completed" : "step_saved", step: job.current_step + 1 };
 }
 
-export async function POST(req: NextRequest) {
-  const expected = process.env.MISSION_WORKER_SECRET;
+async function handleWorker(req: NextRequest) {
+  const expected = process.env.CRON_SECRET;
   const authorization = req.headers.get("authorization") ?? "";
   const supplied = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
 
@@ -316,4 +316,12 @@ export async function POST(req: NextRequest) {
     console.error("[mission-worker]", error instanceof Error ? error.message : "unknown error");
     return jsonError("Mission worker is temporarily unavailable.", 503);
   }
+}
+
+export async function GET(req: NextRequest) {
+  return handleWorker(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleWorker(req);
 }
