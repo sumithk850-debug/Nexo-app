@@ -12,34 +12,16 @@
 
 ## Production scheduler
 
-The active scheduler is Supabase `pg_cron` calling the Vercel worker through `pg_net`. This keeps execution independent of an open browser and avoids depending on Vercel Cron plan frequency.
+The worker is dispatched by Vercel Cron every minute from `vercel.json`. Vercel sends a GET request to `/api/internal/mission-worker`; the route verifies the bearer token against the server-only `CRON_SECRET` environment variable. Keep `CRON_SECRET` configured in the Vercel Production environment and never commit its value. No database scheduler extensions or secret-bearing HTTP calls from Postgres are required.
 
-After deploying the worker and setting the Vercel production environment variable `MISSION_WORKER_SECRET`, store the same secret in Supabase Vault under `kyvorix_mission_worker_secret`, and store the worker URL under `kyvorix_mission_worker_url`. Never commit either value. Then schedule the following query once, replacing only the secret values in the Vault setup—not in this file:
+Vercel Cron invokes the function independently of a browser session. The cron call only claims one durable job and processes one bounded step. The Postgres lease prevents concurrent invocations from processing the same job, and saved checkpoints allow the next invocation to continue from the next step.
 
-```sql
-select cron.schedule(
-  'kyvorix-mission-worker',
-  '* * * * *',
-  $job$
-    select net.http_post(
-      url := (select decrypted_secret from vault.decrypted_secrets where name = 'kyvorix_mission_worker_url'),
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'kyvorix_mission_worker_secret')
-      ),
-      body := '{}'::jsonb,
-      timeout_milliseconds := 5000
-    );
-  $job$
-);
-```
-
-The worker URL is the production alias plus `/api/internal/mission-worker`. A scheduler request only dispatches one bounded step; it does not hold a four-minute request open. The queue remains the source of truth if the scheduler or worker temporarily fails.
+**Plan requirement:** the every-minute schedule requires a Vercel plan that supports per-minute cron execution (Pro or Enterprise). Vercel Hobby permits only daily cron schedules, so it cannot provide the intended background progress at this cadence. Verify the deployment's Cron Jobs panel after release.
 
 ## Operational checks
 
 - Confirm the `kyvorix-mission-worker` cron job is enabled in `cron.job`.
 - Inspect recent calls in `net._http_response` and queue state in `public.mission_jobs`; never log or expose the secret.
-- Keep the worker secret in Vercel's encrypted production environment and Supabase Vault only.
+- Keep `CRON_SECRET` in Vercel's encrypted production environment only.
 - Cancel is cooperative: an in-flight AI call may finish, but the result is discarded at the next checkpoint when cancellation has been requested.
 - A job that exhausts retries remains visible with `last_error`; it is not silently marked complete.
