@@ -18,7 +18,7 @@ The Vercel worker function is capped at 55 seconds and each model attempt times 
 
 The Vercel Production environment contains a sensitive `CRON_SECRET`. The same secret and the Vercel automation-bypass secret are stored in Supabase Vault; neither value belongs in source control or cron headers. The scheduled request carries only a timestamp and an HMAC-SHA256 signature, which expires after two minutes.
 
-After applying migrations `015` and `016` and deploying the Edge Function, ensure these Vault entries exist:
+After applying migrations `015`–`017` and deploying the Edge Function, ensure these Vault entries exist:
 - `kyvorix_mission_worker_secret`: same value as Vercel's `CRON_SECRET`
 - `kyvorix_vercel_bypass_secret`: Vercel Protection Bypass for Automation secret
 - `kyvorix_mission_worker_url`: `https://nexo-app-hasith-s-projects3.vercel.app/api/internal/mission-worker`
