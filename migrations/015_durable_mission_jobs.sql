@@ -71,6 +71,18 @@ begin
      and status in ('queued','running','retry_wait')
      and (lease_expires_at is null or lease_expires_at < now());
 
+  update public.mission_jobs
+     set status = 'failed',
+         last_error = coalesce(last_error, 'Worker lease expired repeatedly before a checkpoint was saved.'),
+         lease_token = null,
+         lease_expires_at = null,
+         completed_at = coalesce(completed_at, now()),
+         updated_at = now()
+   where cancel_requested = false
+     and status = 'running'
+     and lease_expires_at < now()
+     and attempt_count >= max_attempts;
+
   return query
   with candidate as (
     select id
@@ -79,6 +91,7 @@ begin
        and status in ('queued','running','retry_wait')
        and next_run_at <= now()
        and (lease_expires_at is null or lease_expires_at < now())
+       and attempt_count < max_attempts
      order by next_run_at asc, created_at asc
      for update skip locked
      limit 1
@@ -87,6 +100,7 @@ begin
      set status = 'running',
          lease_token = gen_random_uuid(),
          lease_expires_at = now() + make_interval(secs => p_lease_seconds),
+         attempt_count = j.attempt_count + 1,
          started_at = coalesce(j.started_at, now()),
          last_heartbeat_at = now(),
          updated_at = now()
@@ -110,16 +124,19 @@ declare
   affected integer;
 begin
   update public.mission_jobs
-     set attempt_count = attempt_count + 1,
-         status = case when attempt_count + 1 >= max_attempts then 'failed' else 'retry_wait' end,
+     set status = case
+           when cancel_requested then 'cancelled'
+           when attempt_count >= max_attempts then 'failed'
+           else 'retry_wait'
+         end,
          next_run_at = case
-           when attempt_count + 1 >= max_attempts then next_run_at
-           else now() + make_interval(secs => least(300, 15 * power(2, attempt_count)::integer))
+           when cancel_requested or attempt_count >= max_attempts then next_run_at
+           else now() + make_interval(secs => least(300, 15 * power(2, greatest(attempt_count - 1, 0))::integer))
          end,
          last_error = left(coalesce(p_error, 'Worker failed'), 2000),
          lease_token = null,
          lease_expires_at = null,
-         completed_at = case when attempt_count + 1 >= max_attempts then now() else completed_at end,
+         completed_at = case when cancel_requested or attempt_count >= max_attempts then now() else completed_at end,
          updated_at = now()
    where id = p_job_id
      and lease_token = p_lease_token
