@@ -62,19 +62,6 @@ export async function POST(req: NextRequest) {
   try {
     const admin = getSupabaseAdmin();
 
-    const { count: activeCount, error: countError } = await admin
-      .from("mission_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", auth.user.id)
-      .in("status", ["queued", "running", "retry_wait"]);
-    if (countError) {
-      console.error("[missions:active-count]", countError.message);
-      return jsonError("Could not check your active mission limit.", 503);
-    }
-    if ((activeCount ?? 0) >= 3) {
-      return jsonError("You already have three active missions. Wait for one to finish or cancel it before starting another.", 429);
-    }
-
     if (idempotencyKey) {
       const { data: existing, error: lookupError } = await admin
         .from("mission_jobs")
@@ -88,6 +75,19 @@ export async function POST(req: NextRequest) {
         return jsonError("Could not safely confirm whether this mission was already created.", 503);
       }
       if (existing) return NextResponse.json({ mission: existing }, { status: 200, headers: { "Cache-Control": "no-store" } });
+    }
+
+    const { count: activeCount, error: countError } = await admin
+      .from("mission_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", auth.user.id)
+      .in("status", ["queued", "running", "retry_wait"]);
+    if (countError) {
+      console.error("[missions:active-count]", countError.message);
+      return jsonError("Could not check your active mission limit.", 503);
+    }
+    if ((activeCount ?? 0) >= 3) {
+      return jsonError("You already have three active missions. Wait for one to finish or cancel it before starting another.", 429);
     }
 
     const { data, error } = await admin
