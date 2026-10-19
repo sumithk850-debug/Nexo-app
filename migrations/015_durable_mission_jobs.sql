@@ -1,4 +1,7 @@
 -- Durable Mission Agent queue.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
 -- All state is stored in Postgres so browser disconnects and function restarts do not lose progress.
 create table if not exists public.mission_jobs (
   id uuid primary key default gen_random_uuid(),
