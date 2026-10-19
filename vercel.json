@@ -4,13 +4,7 @@
       "maxDuration": 300
     },
     "app/api/internal/mission-worker/route.ts": {
-      "maxDuration": 90
+      "maxDuration": 55
     }
-  },
-  "crons": [
-    {
-      "path": "/api/internal/mission-worker",
-      "schedule": "* * * * *"
-    }
-  ]
+  }
 }
