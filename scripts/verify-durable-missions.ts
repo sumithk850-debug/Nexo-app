@@ -32,7 +32,7 @@ assert.match(worker, /AbortSignal\.timeout\(22_000\)/);
 assert.match(worker, /maxDuration = 90/);
 assert.match(worker, /lease_token/);
 assert.match(worker, /cancel_requested/);
-assert.match(worker, /does not claim external repository tests, deployments, or live research were performed/);
+assert.match(worker, /do not claim external repository tests, deployments, or live research were performed/);
 assert.match(ui, /Start durable mission/);
 assert.match(ui, /setInterval/);
 assert.match(ui, /browser tab/);
