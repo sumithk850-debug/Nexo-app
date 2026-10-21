@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -87,10 +87,45 @@ export function ChatSidebar({
   const [folderState, setFolderState] = useState<ChatFolderState>(() => emptyChatFolderState());
   const [projectCreatorOpen, setProjectCreatorOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [pinnedChatIds, setPinnedChatIds] = useState<string[]>([]);
+  const [loadedPinsSessionId, setLoadedPinsSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     setFolderState(readChatFolderState(sessionId));
   }, [sessionId]);
+
+  useEffect(() => {
+    setLoadedPinsSessionId(null);
+    if (!sessionId) {
+      setPinnedChatIds([]);
+      setLoadedPinsSessionId(sessionId);
+      return;
+    }
+    try {
+      const saved = window.localStorage.getItem(`kyvorix_pinned_chats_${sessionId}`);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      setPinnedChatIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
+    } catch {
+      setPinnedChatIds([]);
+    }
+    setLoadedPinsSessionId(sessionId);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || loadedPinsSessionId !== sessionId) return;
+    try {
+      window.localStorage.setItem(`kyvorix_pinned_chats_${sessionId}`, JSON.stringify(pinnedChatIds));
+    } catch {
+      // Keep the current in-memory pins if browser storage is unavailable.
+    }
+  }, [sessionId, loadedPinsSessionId, pinnedChatIds]);
+
+  function togglePinnedChat(chatId: string) {
+    if (!sessionId || loadedPinsSessionId !== sessionId) return;
+    setPinnedChatIds((current) => current.includes(chatId)
+      ? current.filter((id) => id !== chatId)
+      : [...current, chatId]);
+  }
 
   function updateFolderState(updater: (current: ChatFolderState) => ChatFolderState) {
     setFolderState((current) => {
@@ -150,12 +185,12 @@ export function ChatSidebar({
       .map((folder) => ({
         id: folder.id,
         name: folder.name,
-        chats: chats.filter((chat) => folderState.assignments[chat.id] === folder.id),
+        chats: chats.filter((chat) => folderState.assignments[chat.id] === folder.id && !pinnedChatIds.includes(chat.id)),
         isProject: true,
       }));
 
     const autoFolders = ["Today", "Yesterday", "This Week", "Older"];
-    const unassigned = chats.filter((chat) => !folderState.assignments[chat.id]);
+    const unassigned = chats.filter((chat) => !folderState.assignments[chat.id] && !pinnedChatIds.includes(chat.id));
     const datedGroups = autoFolders
       .map((name) => ({ id: `date:${name}`, name, chats: unassigned.filter((chat) => getAutoFolder(chat) === name), isProject: false }))
       .filter((group) => group.chats.length > 0);
@@ -164,6 +199,7 @@ export function ChatSidebar({
   }
 
   const groupedChats = getGroupedChats();
+  const pinnedChats = chats.filter((chat) => pinnedChatIds.includes(chat.id)).sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
 
   useEffect(() => {
     const stored = getStoredTheme();
@@ -348,6 +384,25 @@ export function ChatSidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
+          {pinnedChats.length > 0 && (
+            <section className="mb-4 space-y-1" aria-label="Pinned conversations">
+              <p className="flex items-center gap-1.5 px-1 py-1 font-mono text-[10px] uppercase tracking-widest text-cyan">
+                <Star className="h-3 w-3 fill-current" /> Pinned chats ({pinnedChats.length})
+              </p>
+              {pinnedChats.map((chat) => (
+                <div key={chat.id} className={`group flex items-center gap-2 rounded-lg border border-cyan/15 bg-cyan/5 px-3 py-2 transition ${activeChatId === chat.id ? "border-cyan/30 bg-cyan/10" : "hover:bg-cyan/10"}`}>
+                  <button onClick={() => onSelectChat(chat.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left" title={chat.title}>
+                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 text-cyan" />
+                    <span className="truncate text-sm text-ink">{chat.title}</span>
+                  </button>
+                  <button type="button" onClick={() => togglePinnedChat(chat.id)} className="rounded p-1 text-cyan hover:bg-cyan/10" aria-label={`Unpin ${chat.title}`} title="Unpin chat">
+                    <Star className="h-3.5 w-3.5 fill-current" />
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
+
           {chats.length === 0 ? (
             <p className="px-1 text-xs text-ink-faint">
               No conversations yet.
@@ -476,6 +531,15 @@ export function ChatSidebar({
                                   </button>
                                   <div className="flex items-center gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
                                     <button
+                                      type="button"
+                                      onClick={() => togglePinnedChat(chat.id)}
+                                      className="text-ink-faint transition hover:text-cyan"
+                                      aria-label={`Pin ${chat.title}`}
+                                      title="Pin chat"
+                                    >
+                                      <Star className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
                                       onClick={() => startEditing(chat)}
                                       className="text-ink-faint hover:text-ink"
                                       aria-label="Rename chat"
@@ -517,7 +581,7 @@ export function ChatSidebar({
               ) : (
                 /* Flat view (original) */
                 <div className="flex flex-col gap-1">
-                  {chats.map((chat) => (
+                  {chats.filter((chat) => !pinnedChatIds.includes(chat.id)).map((chat) => (
                     <div
                       key={chat.id}
                       className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
@@ -557,6 +621,15 @@ export function ChatSidebar({
                             </span>
                           </button>
                           <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => togglePinnedChat(chat.id)}
+                              className="text-ink-faint transition hover:text-cyan"
+                              aria-label={`Pin ${chat.title}`}
+                              title="Pin chat"
+                            >
+                              <Star className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={() => startEditing(chat)}
                               className="text-ink-faint hover:text-ink"
