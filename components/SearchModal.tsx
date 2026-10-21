@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X, MessageSquare, Loader2, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -15,6 +15,7 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Array<{ id: string; chat_id: string; content: string; chat_title: string; kind: "conversation" | "message" }>>([]);
   const [loading, setLoading] = useState(false);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     if (!open) {
@@ -24,19 +25,24 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
   }, [open]);
 
   useEffect(() => {
-    if (!query.trim() || !sessionId) {
+    const requestId = ++requestIdRef.current;
+    if (!query.trim() || !sessionId || !open) {
       setResults([]);
+      setLoading(false);
       return;
     }
+
     const search = async () => {
       setLoading(true);
       try {
-        const { data: chats } = await supabase
+        const { data: chats, error: chatsError } = await supabase
           .from("chats")
           .select("id, title, updated_at")
           .eq("session_id", sessionId)
           .order("updated_at", { ascending: false });
 
+        if (requestId !== requestIdRef.current) return;
+        if (chatsError) throw chatsError;
         if (!chats || chats.length === 0) {
           setResults([]);
           return;
@@ -46,23 +52,26 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
         const chatIds = chats.map((chat) => chat.id);
         const chatMap = new Map(chats.map((chat) => [chat.id, chat.title]));
         const titleResults = chats
-          .filter((chat) => chat.title.toLocaleLowerCase().includes(normalizedQuery))
+          .filter((chat) => (chat.title || "").toLocaleLowerCase().includes(normalizedQuery))
           .slice(0, 8)
           .map((chat) => ({
             id: `chat:${chat.id}`,
             chat_id: chat.id,
-            chat_title: chat.title,
+            chat_title: chat.title || "Untitled conversation",
             content: "Conversation title",
             kind: "conversation" as const,
           }));
 
-        const { data: messages } = await supabase
+        const { data: messages, error: messagesError } = await supabase
           .from("messages")
-          .select("id, chat_id, content")
+          .select("id, chat_id, content, created_at")
           .in("chat_id", chatIds)
           .ilike("content", `%${query.trim()}%`)
+          .order("created_at", { ascending: false })
           .limit(20);
 
+        if (requestId !== requestIdRef.current) return;
+        if (messagesError) throw messagesError;
         const messageResults = (messages || []).map((message) => ({
           id: message.id,
           chat_id: message.chat_id,
@@ -72,15 +81,21 @@ export function SearchModal({ open, onClose, sessionId, onSelectChat }: SearchMo
         }));
         setResults([...titleResults, ...messageResults].slice(0, 20));
       } catch (err) {
-        console.error(err);
+        if (requestId === requestIdRef.current) {
+          console.error("[chat-search] Search failed:", err);
+          setResults([]);
+        }
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     };
-    
-    const debounce = setTimeout(search, 300);
-    return () => clearTimeout(debounce);
-  }, [query, sessionId]);
+
+    const debounce = setTimeout(search, 250);
+    return () => {
+      clearTimeout(debounce);
+      requestIdRef.current += 1;
+    };
+  }, [query, sessionId, open]);
 
   if (!open) return null;
 
