@@ -1446,6 +1446,7 @@ export default function ChatPage() {
   async function runDeepResearch(
     request: DeepResearchRequest,
     onProgress: (stage: DeepResearchStage) => void,
+    onReportUpdate: (report: string) => void,
     signal: AbortSignal
   ): Promise<string> {
     if (!sessionId) throw new Error("Your session is still initializing. Please try again in a moment.");
@@ -1486,9 +1487,12 @@ export default function ChatPage() {
       if (done) break;
       report += decoder.decode(value, { stream: true });
       onProgress("writing");
+      onReportUpdate(stripWikipediaChatMarkers(report));
     }
     report += decoder.decode();
-    return stripWikipediaChatMarkers(report).trim();
+    const finalReport = stripWikipediaChatMarkers(report).trim();
+    onReportUpdate(finalReport);
+    return finalReport;
   }
 
   async function handleSend() {
