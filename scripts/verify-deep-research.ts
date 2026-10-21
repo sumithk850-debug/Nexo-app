@@ -17,8 +17,8 @@ assert.ok(page.includes("<DeepResearchPanel"), "Main page must render the panel.
 assert.ok(page.includes("onRunResearch={runDeepResearch}"), "Research must execute directly from its dedicated workspace.");
 assert.ok(page.includes("isDeepResearch: true"), "Workspace must mark the request for research-specific server handling.");
 assert.ok(page.includes('onProgress("sources")') && page.includes('onProgress("analysis")'), "Research request must report source and analysis phases.");
-assert.ok(panel.includes('role="dialog"') && panel.includes('aria-modal="true"'), "Panel must expose accessible dialog semantics.");
-assert.ok(panel.includes("max-h-[92dvh]") && panel.includes("sm:items-center"), "Panel must adapt to mobile viewport and desktop layout.");
+assert.ok(panel.includes('aria-label="Close research workspace"') && panel.includes("Deep Research Workspace"), "Workspace must expose accessible controls and a clear title.");
+assert.ok(panel.includes("grid-cols-1") && panel.includes("lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]"), "Workspace must adapt from mobile to desktop layout.");
 assert.ok(panel.includes("suppliedUrls.length > 2"), "Research form must enforce the existing two-URL limit.");
 assert.ok(panel.includes('parsed.protocol !== "https:" && parsed.protocol !== "http:"'), "Research form must accept only HTTP(S) URLs.");
 assert.ok(panel.includes("Use only sources actually retrieved"), "Prompt must forbid fabricated citations.");
