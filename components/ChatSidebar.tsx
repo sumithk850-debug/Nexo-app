@@ -620,7 +620,7 @@ export function ChatSidebar({
                               {chat.title}
                             </span>
                           </button>
-                          <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                          <div className="flex items-center gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
                             <button
                               type="button"
                               onClick={() => togglePinnedChat(chat.id)}
