@@ -23,7 +23,7 @@ export function DeepResearchPanel({
   onClose, onRunResearch, running, onRunningChange, sessionReady,
 }: {
   onClose: () => void;
-  onRunResearch: (request: DeepResearchRequest, onProgress: (stage: DeepResearchStage) => void, signal: AbortSignal) => Promise<string>;
+  onRunResearch: (request: DeepResearchRequest, onProgress: (stage: DeepResearchStage) => void, onReportUpdate: (report: string) => void, signal: AbortSignal) => Promise<string>;
   running: boolean;
   onRunningChange: (running: boolean) => void;
   sessionReady: boolean;
@@ -68,7 +68,7 @@ export function DeepResearchPanel({
     controllerRef.current = controller;
     try {
       setReport("");
-      const result = await onRunResearch({ topic: cleanTopic, prompt }, setStage, controller.signal);
+      const result = await onRunResearch({ topic: cleanTopic, prompt }, setStage, setReport, controller.signal);
       setReport(result);
       setStage("complete");
     } catch (cause) {
