@@ -24,6 +24,7 @@ import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligen
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import { NexoLivePanel } from "@/components/NexoLivePanel";
 import { MissionControlHeader } from "@/components/MissionControlHeader";
+import { DeepResearchPanel } from "@/components/DeepResearchPanel";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -172,6 +173,7 @@ export default function ChatPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [deepResearchOpen, setDeepResearchOpen] = useState(false);
   const [nexoLiveOpen, setNexoLiveOpen] = useState(false);
   const [activePersona, setActivePersona] = useState("general");
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
@@ -1664,11 +1666,22 @@ export default function ChatPage() {
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
         onGlobalSearch={() => setSearchModalOpen(true)}
+        onOpenDeepResearch={() => { setDeepResearchOpen(true); setSidebarOpen(false); }}
         onOpenIntegrations={() => setIntegrationsOpen(true)}
         activePersona={activePersona}
         onSelectPersona={setActivePersona}
         onInsertTemplate={(prompt) => setInput((prev) => (prev ? prev + "\n\n" + prompt : prompt))}
       />
+
+      {deepResearchOpen && (
+        <DeepResearchPanel
+          onClose={() => setDeepResearchOpen(false)}
+          onUsePrompt={(prompt) => {
+            setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
+            setDeepResearchOpen(false);
+          }}
+        />
+      )}
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
         {/* Animated Glow Border for Coder Mode */}

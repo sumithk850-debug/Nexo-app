@@ -46,6 +46,7 @@ export function ChatSidebar({
   isCoderMode,
   onToggleCoderMode,
   onGlobalSearch,
+  onOpenDeepResearch,
   onOpenIntegrations,
   activePersona,
   onSelectPersona,
@@ -66,6 +67,7 @@ export function ChatSidebar({
   isCoderMode: boolean;
   onToggleCoderMode: () => void;
   onGlobalSearch: () => void;
+  onOpenDeepResearch: () => void;
   onOpenIntegrations: () => void;
   activePersona: string;
   onSelectPersona: (id: string) => void;
@@ -262,6 +264,18 @@ export function ChatSidebar({
           >
             <Search className="h-4 w-4 text-ink-muted" />
             Global Search
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenDeepResearch}
+            className="flex w-full items-center gap-2.5 rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40 hover:bg-cyan/10"
+            aria-label="Deep Research"
+            title="Deep Research"
+          >
+            <Sparkles className="h-4 w-4 text-cyan" />
+            <span className="flex-1 text-left">Deep Research</span>
+            <span className="rounded-md bg-cyan/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan">New</span>
           </button>
 
           <button
