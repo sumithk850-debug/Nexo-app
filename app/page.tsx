@@ -24,7 +24,7 @@ import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligen
 import { CoderModelSelector } from "@/components/CoderModelSelector";
 import { NexoLivePanel } from "@/components/NexoLivePanel";
 import { MissionControlHeader } from "@/components/MissionControlHeader";
-import { DeepResearchPanel } from "@/components/DeepResearchPanel";
+import { DeepResearchPanel, type DeepResearchRequest, type DeepResearchStage } from "@/components/DeepResearchPanel";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -174,6 +174,7 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [deepResearchOpen, setDeepResearchOpen] = useState(false);
+  const [deepResearchRunning, setDeepResearchRunning] = useState(false);
   const [nexoLiveOpen, setNexoLiveOpen] = useState(false);
   const [activePersona, setActivePersona] = useState("general");
   const [selectedModel, setSelectedModel] = useState<NexoModelId>("nexio-1.1");
@@ -1442,6 +1443,58 @@ export default function ChatPage() {
     }
   }
 
+  async function runDeepResearch(
+    request: DeepResearchRequest,
+    onProgress: (stage: DeepResearchStage) => void,
+    onReportUpdate: (report: string) => void,
+    signal: AbortSignal
+  ): Promise<string> {
+    if (!sessionId) throw new Error("Your session is still initializing. Please try again in a moment.");
+    onProgress("sources");
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const response = await authenticatedFetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        modelId: selectedModel,
+        sessionId,
+        userId: user?.id,
+        userAccessToken: authSession?.access_token,
+        userName: user?.fullName,
+        githubEnabled: false,
+        isCoderMode: false,
+        supabaseProjectId: null,
+        uploadedImages: [],
+        isAutomaticContinuation: false,
+        messages: [{ role: "user", content: request.prompt }],
+        persona: "general",
+        isDeepResearch: true,
+        researchTopic: request.topic,
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || errorData?.error || "Deep Research could not start. Please try again.");
+    }
+    if (!response.body) throw new Error("The research service returned no response stream.");
+    onProgress("analysis");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let report = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      report += decoder.decode(value, { stream: true });
+      onProgress("writing");
+      onReportUpdate(stripWikipediaChatMarkers(report));
+    }
+    report += decoder.decode();
+    const finalReport = stripWikipediaChatMarkers(report).trim();
+    onReportUpdate(finalReport);
+    return finalReport;
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
@@ -1675,11 +1728,11 @@ export default function ChatPage() {
 
       {deepResearchOpen && (
         <DeepResearchPanel
-          onClose={() => setDeepResearchOpen(false)}
-          onUsePrompt={(prompt) => {
-            setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
-            setDeepResearchOpen(false);
-          }}
+          onClose={() => { if (!deepResearchRunning) setDeepResearchOpen(false); }}
+          onRunResearch={runDeepResearch}
+          running={deepResearchRunning}
+          onRunningChange={setDeepResearchRunning}
+          sessionReady={Boolean(sessionId)}
         />
       )}
 

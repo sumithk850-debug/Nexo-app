@@ -696,6 +696,11 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = [...messages]
       .reverse()
       .find((m) => m.role === "user");
+    const isDeepResearchRequest = body.isDeepResearch === true;
+    const researchTopic =
+      typeof body.researchTopic === "string"
+        ? body.researchTopic.trim().slice(0, 1000)
+        : "";
 
     const usesCoderBudget = Boolean(
       isCoderMode || modelId === "craft-v3"
@@ -933,7 +938,7 @@ export async function POST(req: NextRequest) {
     if (
       userId &&
       lastUserMessage &&
-      shouldSearchWikipedia(latestUserText)
+      (isDeepResearchRequest ? Boolean(researchTopic) : shouldSearchWikipedia(latestUserText))
     ) {
       try {
         if (await getWikipediaEnabled(userId)) {
@@ -941,7 +946,7 @@ export async function POST(req: NextRequest) {
 
           const results =
             await searchWikipediaWithVerifiedArticles(
-              latestUserText
+              isDeepResearchRequest ? researchTopic : latestUserText
             );
 
           wikipediaSources = results.map(
