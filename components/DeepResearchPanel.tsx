@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, Globe, Link2, Search, Sparkles, X } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { BookOpen, Link2, Search, Sparkles, X } from "lucide-react";
 
 type ResearchDepth = "balanced" | "detailed" | "comprehensive";
 
@@ -18,7 +18,7 @@ export function DeepResearchPanel({
   const [language, setLanguage] = useState("same as my question");
   const [error, setError] = useState("");
 
-  function submitResearch(event: React.FormEvent<HTMLFormElement>) {
+  function submitResearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanTopic = topic.trim();
     if (!cleanTopic) {
