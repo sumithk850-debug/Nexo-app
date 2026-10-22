@@ -609,11 +609,19 @@ export default function ChatPage() {
     setSessionId(sid);
     if (sid) loadChats(sid);
 
-    getCurrentUser().then((u) => {
-      if (window.sessionStorage.getItem("kyvorix.github.profile.pending") === "true") {
-        window.sessionStorage.removeItem("kyvorix.github.profile.pending");
-        if (u && !u.profilePrompted && (!u.fullName || !u.birthday)) setProfileSetupOpen(true);
+    const maybePromptGithubProfile = (currentUser: AuthUser | null) => {
+      // OAuth session restoration can finish before or after getCurrentUser().
+      // Keep the marker until a real authenticated user is available.
+      if (!currentUser) return;
+      if (window.sessionStorage.getItem("kyvorix.github.profile.pending") !== "true") return;
+      window.sessionStorage.removeItem("kyvorix.github.profile.pending");
+      if (!currentUser.profilePrompted && (!currentUser.fullName || !currentUser.birthday)) {
+        setProfileSetupOpen(true);
       }
+    };
+
+    getCurrentUser().then((u) => {
+      maybePromptGithubProfile(u);
       setUser(u);
       setAuthLoading(false);
       if (u) {
@@ -622,6 +630,7 @@ export default function ChatPage() {
       }
     });
     const subscription = onAuthStateChange((u) => {
+      maybePromptGithubProfile(u);
       setUser(u);
       setAuthLoading(false);
       if (u) {
