@@ -78,8 +78,34 @@ export async function POST(req: NextRequest) {
     }
   }
   if (!repo.response.ok) return json({ error: "The selected repository could not be verified with the connected GitHub account." }, 409);
-  const repoData = JSON.parse(repo.text) as { default_branch?: string; permissions?: { push?: boolean } };
-  if (!repoData.default_branch || repoData.permissions?.push !== true) return json({ error: "The connected GitHub integration does not have verified write access." }, 403);
+  let repoData = JSON.parse(repo.text) as { default_branch?: string; permissions?: { push?: boolean } };
+
+  // A GitHub App installation can read repository metadata without having
+  // Contents write permission. If that happens, try the user's separately
+  // verified OAuth connection before rejecting the proposal. The commit
+  // endpoint already follows this fallback, so proposal validation must do
+  // the same or users get blocked before they can push any changes.
+  if (credential.source === "github-app" && repoData.permissions?.push !== true) {
+    const oauthToken = resolveGithubOAuthToken(connection.access_token);
+    if (oauthToken) {
+      const oauthRepo = await gh(api, oauthToken);
+      if (oauthRepo.response.ok) {
+        const oauthRepoData = JSON.parse(oauthRepo.text) as { default_branch?: string; permissions?: { push?: boolean } };
+        if (oauthRepoData.permissions?.push === true && oauthRepoData.default_branch) {
+          credential = { token: oauthToken, source: "oauth", expiresAt: null };
+          repo = oauthRepo;
+          repoData = oauthRepoData;
+        }
+      }
+    }
+  }
+
+  if (!repoData.default_branch || repoData.permissions?.push !== true) {
+    return json({
+      error: "The connected GitHub integration does not have verified write access. Reconnect GitHub with repository Contents Read & Write access, or select a repository where your account has push permission.",
+      needsWriteAccess: true,
+    }, 403);
+  }
 
   const branch = encodeURIComponent(repoData.default_branch);
   const ref = await gh(`${api}/git/ref/heads/${branch}`, credential.token);
