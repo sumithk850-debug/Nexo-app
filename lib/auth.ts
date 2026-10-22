@@ -59,6 +59,7 @@ export async function updateProfile(details: { fullName?: string; birthday?: str
   const data: Record<string, string> = {};
   if (details.fullName?.trim()) data.full_name = details.fullName.trim();
   if (details.birthday) data.birthday = details.birthday;
+  if (Object.keys(data).length === 0) return { data: null, error: null };
   const { data: userData, error } = await supabase.auth.updateUser({ data });
   return { data: userData, error };
 }
