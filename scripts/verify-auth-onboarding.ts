@@ -24,7 +24,9 @@ assert.doesNotMatch(modal, /Please enter your name\./);
 
 // GitHub OAuth profile onboarding only opens after redirect and preserves normal auth.
 assert.match(page, /profileSetupOpen/);
-assert.match(page, /!u\.profilePrompted/);
+assert.match(page, /!currentUser\.profilePrompted/);
+assert.match(page, /if \(!currentUser\) return/);
+assert.match(page, /maybePromptGithubProfile\(u\)/);
 assert.match(page, /initialBirthday=\{user\?\.birthday/);
 assert.match(settings, /linkGithubIdentity/);
 assert.match(settings, /GitHub Repository Connection/);
