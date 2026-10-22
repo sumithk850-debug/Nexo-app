@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   fullName?: string;
   birthday?: string;
+  profilePrompted?: boolean;
 }
 
 export interface SignUpDetails {
@@ -55,10 +56,11 @@ export async function linkGithubIdentity() {
   return { data, error };
 }
 
-export async function updateProfile(details: { fullName?: string; birthday?: string }) {
-  const data: Record<string, string> = {};
+export async function updateProfile(details: { fullName?: string; birthday?: string; profilePrompted?: boolean }) {
+  const data: Record<string, unknown> = {};
   if (details.fullName?.trim()) data.full_name = details.fullName.trim();
   if (details.birthday) data.birthday = details.birthday;
+  if (details.profilePrompted !== undefined) data.profile_prompted = details.profilePrompted;
   if (Object.keys(data).length === 0) return { data: null, error: null };
   const { data: userData, error } = await supabase.auth.updateUser({ data });
   return { data: userData, error };
@@ -75,7 +77,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     id: data.user.id, 
     email: data.user.email ?? "",
     fullName: data.user.user_metadata?.full_name ?? data.user.user_metadata?.name,
-    birthday: data.user.user_metadata?.birthday
+    birthday: data.user.user_metadata?.birthday,
+    profilePrompted: data.user.user_metadata?.profile_prompted === true
   };
 }
 
@@ -86,7 +89,8 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
         id: session.user.id, 
         email: session.user.email ?? "",
         fullName: session.user.user_metadata?.full_name ?? session.user.user_metadata?.name,
-        birthday: session.user.user_metadata?.birthday
+        birthday: session.user.user_metadata?.birthday,
+        profilePrompted: session.user.user_metadata?.profile_prompted === true
       });
     } else {
       callback(null);
