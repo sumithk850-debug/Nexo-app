@@ -111,7 +111,7 @@ export function AuthModal({
   async function handleProfileSave() {
     setError("");
     setLoading(true);
-    const { error: profileError } = await updateProfile({ fullName, birthday });
+    const { error: profileError } = await updateProfile({ fullName, birthday, profilePrompted: true });
     setLoading(false);
     if (profileError) {
       setError(profileError.message || "Could not save your profile.");
@@ -121,7 +121,15 @@ export function AuthModal({
     onClose();
   }
 
-  function handleProfileSkip() {
+  async function handleProfileSkip() {
+    setError("");
+    setLoading(true);
+    const { error: profileError } = await updateProfile({ profilePrompted: true });
+    setLoading(false);
+    if (profileError) {
+      setError(profileError.message || "Could not save your preference. Please try again.");
+      return;
+    }
     onSuccess(false);
     onClose();
   }
