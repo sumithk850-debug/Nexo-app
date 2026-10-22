@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Mail, Lock, Loader2, User, Cake, ArrowLeft, ShieldAlert, Github } from "lucide-react";
 import { signIn, signInWithGithub, signUp, updateProfile } from "@/lib/auth";
 import { Signal } from "./Signal";
@@ -35,6 +35,13 @@ export function AuthModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!profileOnly || !open) return;
+    setFullName(initialFullName);
+    setBirthday(initialBirthday);
+    setError("");
+  }, [profileOnly, open, initialFullName, initialBirthday]);
 
   if (!open) return null;
 
@@ -205,6 +212,7 @@ export function AuthModal({
             <button type="button" onClick={handleGitHubSignIn} disabled={loading} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full border border-edge bg-void py-3.5 text-sm font-black tracking-wide text-ink transition hover:border-cyan/50 disabled:opacity-60">
               <Github className="h-4 w-4" /> Continue with GitHub
             </button>
+            <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">Already have an email/password account? Sign in with email first, then link GitHub in Settings to keep your existing account and history.</p>
             <div className="mt-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-ink-faint"><span className="h-px flex-1 bg-edge" />or use email<span className="h-px flex-1 bg-edge" /></div>
             <form onSubmit={handleLogin} className="mt-4 space-y-4">
               <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50 focus-within:ring-1 focus-within:ring-cyan/50">
@@ -259,6 +267,7 @@ export function AuthModal({
                 <button type="button" onClick={handleGitHubSignIn} disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-edge bg-void py-3.5 text-sm font-black tracking-wide text-ink transition hover:border-cyan/50 disabled:opacity-60">
                   <Github className="h-4 w-4" /> Continue with GitHub
                 </button>
+                <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">Already have an account? Use Sign in instead, then link GitHub in Settings to keep your existing account and history.</p>
                 <div className="mt-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-ink-faint"><span className="h-px flex-1 bg-edge" />or sign up with email<span className="h-px flex-1 bg-edge" /></div>
                 <form onSubmit={handleCredentialsNext} className="mt-4 space-y-4">
                   <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
@@ -366,7 +375,7 @@ export function AuthModal({
           </>
         )}
 
-        <p className="mt-6 text-center text-xs font-bold text-ink-muted">
+        {!profileOnly && <p className="mt-6 text-center text-xs font-bold text-ink-muted">
           {mode === "signup" ? "Already a member?" : "New to the nexus?"}{" "}
           <button
             onClick={() => {
@@ -377,7 +386,7 @@ export function AuthModal({
           >
             {mode === "signup" ? "Sign in" : "Sign up"}
           </button>
-        </p>
+        </p>}
       </div>
     </div>
   );
