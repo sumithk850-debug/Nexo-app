@@ -612,7 +612,7 @@ export default function ChatPage() {
     getCurrentUser().then((u) => {
       if (window.sessionStorage.getItem("kyvorix.github.profile.pending") === "true") {
         window.sessionStorage.removeItem("kyvorix.github.profile.pending");
-        if (u && (!u.fullName || !u.birthday)) setProfileSetupOpen(true);
+        if (u && !u.profilePrompted && (!u.fullName || !u.birthday)) setProfileSetupOpen(true);
       }
       setUser(u);
       setAuthLoading(false);
