@@ -311,7 +311,7 @@ Create review branch
               className="flex flex-1 items-center justify-center gap-2 rounded-full bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Check className="h-4 w-4" />
-              {selectedMode === "pr" ? "Approve & create review" : "Approve & apply"}
+              {selectedMode === "pr" ? "Approve, push branch & create PR" : "Approve & push changes to GitHub"}
               {selectedMode === "pr" && <GitPullRequest className="h-3.5 w-3.5" />}
             </button>
             <button
@@ -330,7 +330,7 @@ Create review branch
           <div className="rounded-lg bg-cyan/10 p-3">
             <div className="flex items-center gap-2 text-sm font-medium text-cyan">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>Applying your approved change…</span>
+              <span>{selectedMode === "pr" ? "Pushing branch and opening pull request…" : "Pushing approved changes to GitHub…"}</span>
             </div>
             <div className="mt-2 space-y-1">
               {PROGRESS_STEPS.map((step, i) => (
