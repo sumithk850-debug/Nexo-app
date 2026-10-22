@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, Brain, ScreenShare, MessageSquareText, Languages, Cpu, Trash2, Save, Check, Github, LogIn, Globe, Code2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { linkGithubIdentity } from "@/lib/auth";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { NEXO_MODELS, type NexoModelId } from "@/lib/models";
 import { RepoSelector } from "./RepoSelector";
@@ -54,6 +55,8 @@ export function SettingsPanel({
   const [loading, setLoading] = useState(true);
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
   const [githubLoading, setGithubLoading] = useState(true);
+  const [identityLinking, setIdentityLinking] = useState(false);
+  const [identityLinkMessage, setIdentityLinkMessage] = useState("");
 
   const loadGithubConnection = useCallback(async () => {
     if (!userId) return;
@@ -113,6 +116,19 @@ export function SettingsPanel({
       setPersonaDraft(loaded.custom_persona);
     }
     setLoading(false);
+  }
+
+  async function handleLinkGithubSignIn() {
+    setIdentityLinking(true);
+    setIdentityLinkMessage("");
+    try {
+      const { error } = await linkGithubIdentity();
+      if (error) setIdentityLinkMessage(error.message || "Could not link GitHub sign-in.");
+    } catch {
+      setIdentityLinkMessage("Could not link GitHub sign-in. Please try again.");
+    } finally {
+      setIdentityLinking(false);
+    }
   }
 
   function handleConnectGithub() {
@@ -245,7 +261,20 @@ export function SettingsPanel({
           <div className="p-5 text-sm text-ink-muted">Loading…</div>
         ) : (
           <div className="space-y-6 p-5">
-            {/* GitHub Connection */}
+            {/* GitHub identity sign-in is separate from repository access. */}
+            <section>
+              <div className="flex items-center gap-2 text-ink">
+                <Github className="h-4 w-4 text-cyan" />
+                <h3 className="font-display text-sm font-semibold">GitHub Sign-in</h3>
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">Link GitHub to this signed-in KYVORIX account so you can use it to sign in next time. This is separate from repository permissions.</p>
+              <button onClick={handleLinkGithubSignIn} disabled={!userId || identityLinking} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-edge bg-void py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40 disabled:opacity-50">
+                <Github className="h-4 w-4" /> {identityLinking ? "Opening GitHub…" : "Link GitHub sign-in"}
+              </button>
+              {identityLinkMessage && <p role="status" className="mt-2 text-xs text-ink-muted">{identityLinkMessage}</p>}
+            </section>
+
+            {/* GitHub Repository Connection */}
             <section>
               <div className="flex items-center gap-2 text-ink">
                 <Github className="h-4 w-4 text-cyan" />
