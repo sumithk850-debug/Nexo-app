@@ -25,6 +25,8 @@ import { CoderModelSelector } from "@/components/CoderModelSelector";
 import { NexoLivePanel } from "@/components/NexoLivePanel";
 import { MissionControlHeader } from "@/components/MissionControlHeader";
 import { DeepResearchPanel, type DeepResearchRequest, type DeepResearchStage } from "@/components/DeepResearchPanel";
+import { ProjectArchitectPanel } from "@/components/ProjectArchitectPanel";
+import { ProjectFilesWorkspace } from "@/components/ProjectFilesWorkspace";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -174,6 +176,7 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [deepResearchOpen, setDeepResearchOpen] = useState(false);
+  const [projectArchitectOpen, setProjectArchitectOpen] = useState(false);
   const [deepResearchRunning, setDeepResearchRunning] = useState(false);
   const [nexoLiveOpen, setNexoLiveOpen] = useState(false);
   const [activePersona, setActivePersona] = useState("general");
@@ -1736,6 +1739,16 @@ export default function ChatPage() {
         />
       )}
 
+      <ProjectArchitectPanel
+        open={projectArchitectOpen}
+        onClose={() => setProjectArchitectOpen(false)}
+        onUsePrompt={(prompt) => {
+          setIsCoderMode(true);
+          setInput((current) => current.trim() ? `${current.trim()}\n\n${prompt}` : prompt);
+          setProjectArchitectOpen(false);
+        }}
+      />
+
       <main className="flex flex-1 flex-col overflow-hidden relative">
         {/* Animated Glow Border for Coder Mode */}
         {isCoderMode && (
@@ -1772,6 +1785,17 @@ export default function ChatPage() {
                 }
               }}
             />
+          )}
+          {isCoderMode && (
+            <button
+              onClick={() => setProjectArchitectOpen(true)}
+              className="flex h-8 items-center justify-center gap-1.5 rounded-lg border border-cyan/25 bg-cyan/10 px-2 text-cyan transition hover:bg-cyan/15 sm:px-3"
+              aria-label="Open Project Builder"
+              title="Project Builder"
+            >
+              <Layers className="h-4 w-4" />
+              <span className="hidden text-xs font-semibold sm:inline">Project Builder</span>
+            </button>
           )}
           <button
             onClick={() => setSettingsOpen(true)}
@@ -1985,13 +2009,17 @@ export default function ChatPage() {
           </div>
 
           {/* Kyvorix Coder Side Panel */}
-          {isCoderMode && lastExtractedCode && (
+          {isCoderMode && (lastExtractedCode || (pendingApproval && pendingApproval.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.some((action) => action.type !== "reading"))) && (
             <div className="max-h-[58vh] w-full shrink-0 overflow-hidden border-t border-edge bg-void/50 p-3 animate-fade-up xl:max-h-none xl:w-1/2 xl:border-l xl:border-t-0 xl:p-4 xl:animate-fade-left">
-              <NexoCoder 
-                code={lastExtractedCode.code}
-                language={lastExtractedCode.lang}
-                fileName={lastExtractedCode.file}
-              />
+              {pendingApproval && pendingApproval.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.filter((action) => action.type !== "reading").length > 1 ? (
+                <ProjectFilesWorkspace actions={pendingApproval.actions} status={pendingApproval.status} />
+              ) : lastExtractedCode ? (
+                <NexoCoder
+                  code={lastExtractedCode.code}
+                  language={lastExtractedCode.lang}
+                  fileName={lastExtractedCode.file}
+                />
+              ) : null}
             </div>
           )}
         </div>

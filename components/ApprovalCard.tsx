@@ -310,8 +310,8 @@ Create review branch
               disabled={!canApprove}
               className="flex flex-1 items-center justify-center gap-2 rounded-full bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              <Check className="h-4 w-4" />
-              {selectedMode === "pr" ? "Approve, push branch & create PR" : "Approve & push changes to GitHub"}
+              <GitCommit className="h-4 w-4" />
+              {selectedMode === "pr" ? "Push branch & create PR" : "Push Changes to GitHub"}
               {selectedMode === "pr" && <GitPullRequest className="h-3.5 w-3.5" />}
             </button>
             <button
