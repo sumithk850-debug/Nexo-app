@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { X, Mail, Lock, Loader2, User, Cake, ArrowLeft, ShieldAlert } from "lucide-react";
-import { signIn, signUp } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { X, Mail, Lock, Loader2, User, Cake, ArrowLeft, ShieldAlert, Github } from "lucide-react";
+import { signIn, signInWithGithub, signUp, updateProfile } from "@/lib/auth";
 import { Signal } from "./Signal";
 
 type Mode = "login" | "signup";
@@ -13,22 +13,35 @@ export function AuthModal({
   onClose,
   onSuccess,
   mandatory = false,
+  profileOnly = false,
+  initialFullName = "",
+  initialBirthday = "",
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess: (isNewUser: boolean) => void;
   mandatory?: boolean;
+  profileOnly?: boolean;
+  initialFullName?: string;
+  initialBirthday?: string;
 }) {
   const [mode, setMode] = useState<Mode>("signup");
   const [step, setStep] = useState<SignupStep>("credentials");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [birthday, setBirthday] = useState("");
+  const [fullName, setFullName] = useState(initialFullName);
+  const [birthday, setBirthday] = useState(initialBirthday);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!profileOnly || !open) return;
+    setFullName(initialFullName);
+    setBirthday(initialBirthday);
+    setError("");
+  }, [profileOnly, open, initialFullName, initialBirthday]);
 
   if (!open) return null;
 
@@ -77,15 +90,48 @@ export function AuthModal({
   function handleProfileNext(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!fullName.trim()) {
-      setError("Please enter your name.");
-      return;
-    }
-    if (!birthday) {
-      setError("Please enter your birthday.");
-      return;
-    }
     setStep("confirm");
+  }
+
+  async function handleGitHubSignIn() {
+    setError("");
+    setLoading(true);
+    try {
+      const { error: oauthError } = await signInWithGithub();
+      if (oauthError) {
+        setLoading(false);
+        setError(oauthError.message || "GitHub sign-in could not be started.");
+      }
+    } catch {
+      setLoading(false);
+      setError("GitHub sign-in could not be started. Please try again.");
+    }
+  }
+
+  async function handleProfileSave() {
+    setError("");
+    setLoading(true);
+    const { error: profileError } = await updateProfile({ fullName, birthday, profilePrompted: true });
+    setLoading(false);
+    if (profileError) {
+      setError(profileError.message || "Could not save your profile.");
+      return;
+    }
+    onSuccess(false);
+    onClose();
+  }
+
+  async function handleProfileSkip() {
+    setError("");
+    setLoading(true);
+    const { error: profileError } = await updateProfile({ profilePrompted: true });
+    setLoading(false);
+    if (profileError) {
+      setError(profileError.message || "Could not save your preference. Please try again.");
+      return;
+    }
+    onSuccess(false);
+    onClose();
   }
 
   async function handleConfirm() {
@@ -94,8 +140,8 @@ export function AuthModal({
     const { data, error: signUpError } = await signUp({
       email,
       password,
-      fullName: fullName.trim(),
-      birthday,
+      fullName: fullName.trim() || undefined,
+      birthday: birthday || undefined,
     });
     setLoading(false);
     if (signUpError) {
@@ -148,12 +194,35 @@ export function AuthModal({
           )}
         </div>
 
-        {mode === "login" ? (
+        {profileOnly ? (
+          <>
+            <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Personalize your account</h2>
+            <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Add your name and birthday if you like. Both fields are optional.</p>
+            <form onSubmit={(e) => { e.preventDefault(); void handleProfileSave(); }} className="mt-5 space-y-4">
+              <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5">
+                <User className="h-4 w-4 text-ink-faint" />
+                <input type="text" placeholder="Your name (optional)" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none" />
+              </div>
+              <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5">
+                <Cake className="h-4 w-4 text-ink-faint" />
+                <input type="date" aria-label="Birthday (optional)" value={birthday} onChange={(e) => setBirthday(e.target.value)} className="w-full bg-transparent text-sm font-medium text-ink focus:outline-none" />
+              </div>
+              {error && <p className="text-xs font-bold text-red-500">{error}</p>}
+              <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void disabled:opacity-60">{loading && <Loader2 className="h-4 w-4 animate-spin" />}Save profile</button>
+              <button type="button" onClick={handleProfileSkip} disabled={loading} className="w-full rounded-full border border-edge py-3 text-sm font-bold text-ink-muted hover:text-ink disabled:opacity-60">Skip for now</button>
+            </form>
+          </>
+        ) : mode === "login" ? (
           <>
             <h2 className="mt-6 font-display text-2xl font-black text-ink tracking-tight">Welcome back</h2>
             <p className="mt-1.5 text-sm font-medium text-ink-muted leading-relaxed">Sign in to continue your journey with KYVORIX.</p>
 
-            <form onSubmit={handleLogin} className="mt-7 space-y-4">
+            <button type="button" onClick={handleGitHubSignIn} disabled={loading} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full border border-edge bg-void py-3.5 text-sm font-black tracking-wide text-ink transition hover:border-cyan/50 disabled:opacity-60">
+              <Github className="h-4 w-4" /> Continue with GitHub
+            </button>
+            <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">Already have an email/password account? Sign in with email first, then link GitHub in Settings to keep your existing account and history.</p>
+            <div className="mt-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-ink-faint"><span className="h-px flex-1 bg-edge" />or use email<span className="h-px flex-1 bg-edge" /></div>
+            <form onSubmit={handleLogin} className="mt-4 space-y-4">
               <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50 focus-within:ring-1 focus-within:ring-cyan/50">
                 <Mail className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                 <input
@@ -203,7 +272,12 @@ export function AuthModal({
                   </p>
                 </div>
 
-                <form onSubmit={handleCredentialsNext} className="mt-5 space-y-4">
+                <button type="button" onClick={handleGitHubSignIn} disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-edge bg-void py-3.5 text-sm font-black tracking-wide text-ink transition hover:border-cyan/50 disabled:opacity-60">
+                  <Github className="h-4 w-4" /> Continue with GitHub
+                </button>
+                <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">Already have an account? Use Sign in instead, then link GitHub in Settings to keep your existing account and history.</p>
+                <div className="mt-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-ink-faint"><span className="h-px flex-1 bg-edge" />or sign up with email<span className="h-px flex-1 bg-edge" /></div>
+                <form onSubmit={handleCredentialsNext} className="mt-4 space-y-4">
                   <div className="group flex items-center gap-3 rounded-2xl border border-edge bg-void/50 px-4 py-3.5 transition-all focus-within:border-cyan/50">
                     <Mail className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
@@ -230,12 +304,8 @@ export function AuthModal({
 
                   {error && <p className="text-xs font-bold text-red-500">{error}</p>}
 
-                  <button
-                    type="submit"
-                    className="w-full rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg active:scale-95"
-                  >
-                    Continue
-                  </button>
+                  <button type="submit" className="w-full rounded-full bg-cyan py-3.5 text-sm font-black uppercase tracking-widest text-void transition-all hover:bg-cyan-dim hover:shadow-lg active:scale-95">Continue</button>
+                  <button type="button" onClick={() => { setFullName(""); setBirthday(""); setStep("confirm"); }} className="w-full rounded-full border border-edge py-3 text-sm font-bold text-ink-muted hover:text-ink">Skip for now</button>
                 </form>
               </>
             )}
@@ -250,8 +320,7 @@ export function AuthModal({
                     <User className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="text"
-                      required
-                      placeholder="Your full name"
+                      placeholder="Your full name (optional)"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full bg-transparent text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none"
@@ -261,7 +330,6 @@ export function AuthModal({
                     <Cake className="h-4 w-4 text-ink-faint group-focus-within:text-cyan transition-colors" />
                     <input
                       type="date"
-                      required
                       value={birthday}
                       onChange={(e) => setBirthday(e.target.value)}
                       className="w-full bg-transparent text-sm font-medium text-ink focus:outline-none"
@@ -292,11 +360,11 @@ export function AuthModal({
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Identity</span>
-                    <span className="font-bold text-ink">{fullName}</span>
+                    <span className="font-bold text-ink">{fullName || "Not provided"}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">Origin</span>
-                    <span className="font-bold text-ink">{birthday}</span>
+                    <span className="font-bold text-ink">{birthday || "Not provided"}</span>
                   </div>
                 </div>
 
@@ -315,7 +383,7 @@ export function AuthModal({
           </>
         )}
 
-        <p className="mt-6 text-center text-xs font-bold text-ink-muted">
+        {!profileOnly && <p className="mt-6 text-center text-xs font-bold text-ink-muted">
           {mode === "signup" ? "Already a member?" : "New to the nexus?"}{" "}
           <button
             onClick={() => {
@@ -326,7 +394,7 @@ export function AuthModal({
           >
             {mode === "signup" ? "Sign in" : "Sign up"}
           </button>
-        </p>
+        </p>}
       </div>
     </div>
   );

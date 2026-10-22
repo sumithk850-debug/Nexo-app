@@ -173,6 +173,7 @@ export default function ChatPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [splashVisible, setSplashVisible] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [profileSetupOpen, setProfileSetupOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [deepResearchOpen, setDeepResearchOpen] = useState(false);
@@ -608,7 +609,19 @@ export default function ChatPage() {
     setSessionId(sid);
     if (sid) loadChats(sid);
 
+    const maybePromptGithubProfile = (currentUser: AuthUser | null) => {
+      // OAuth session restoration can finish before or after getCurrentUser().
+      // Keep the marker until a real authenticated user is available.
+      if (!currentUser) return;
+      if (window.sessionStorage.getItem("kyvorix.github.profile.pending") !== "true") return;
+      window.sessionStorage.removeItem("kyvorix.github.profile.pending");
+      if (!currentUser.profilePrompted && (!currentUser.fullName || !currentUser.birthday)) {
+        setProfileSetupOpen(true);
+      }
+    };
+
     getCurrentUser().then((u) => {
+      maybePromptGithubProfile(u);
       setUser(u);
       setAuthLoading(false);
       if (u) {
@@ -617,6 +630,7 @@ export default function ChatPage() {
       }
     });
     const subscription = onAuthStateChange((u) => {
+      maybePromptGithubProfile(u);
       setUser(u);
       setAuthLoading(false);
       if (u) {
@@ -2034,6 +2048,14 @@ export default function ChatPage() {
       <AuthModal
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
+      <AuthModal
+        open={profileSetupOpen}
+        profileOnly
+        initialFullName={user?.fullName ?? ""}
+        initialBirthday={user?.birthday ?? ""}
+        onClose={() => setProfileSetupOpen(false)}
         onSuccess={handleAuthSuccess}
       />
 
