@@ -2009,9 +2009,9 @@ export default function ChatPage() {
           </div>
 
           {/* Kyvorix Coder Side Panel */}
-          {isCoderMode && (lastExtractedCode || (pendingApproval?.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.some((action) => action.type !== "reading"))) && (
+          {isCoderMode && (lastExtractedCode || (pendingApproval && pendingApproval.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.some((action) => action.type !== "reading"))) && (
             <div className="max-h-[58vh] w-full shrink-0 overflow-hidden border-t border-edge bg-void/50 p-3 animate-fade-up xl:max-h-none xl:w-1/2 xl:border-l xl:border-t-0 xl:p-4 xl:animate-fade-left">
-              {pendingApproval?.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.filter((action) => action.type !== "reading").length > 1 ? (
+              {pendingApproval && pendingApproval.messageId === [...messages].reverse().find((message) => message.role === "assistant")?.id && pendingApproval.actions.filter((action) => action.type !== "reading").length > 1 ? (
                 <ProjectFilesWorkspace actions={pendingApproval.actions} status={pendingApproval.status} />
               ) : lastExtractedCode ? (
                 <NexoCoder
