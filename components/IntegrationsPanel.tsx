@@ -631,10 +631,10 @@ export function IntegrationsPanel({
                   <span className="rounded-full border border-cyan/25 bg-cyan/5 px-2 py-0.5 text-[10px] font-semibold text-cyan">Local extension</span>
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  Control your own desktop Chrome or Edge tab. Read pages, navigate, click visible controls, and fill regular fields without a hosted browser service.
+                  Connect your own desktop Chrome or Edge tab once. After setup, browser requests can be started from chat without returning here.
                 </p>
                 <a href="/browser-automation" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan/25 bg-cyan/5 px-3 py-2 text-xs font-semibold text-cyan transition hover:bg-cyan/10">
-                  Setup and permissions <Link2 className="h-3.5 w-3.5" />
+                  One-time setup and permissions <Link2 className="h-3.5 w-3.5" />
                 </a>
               </div>
             </div>

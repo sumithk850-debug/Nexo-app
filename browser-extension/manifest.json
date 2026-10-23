@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "KYVORIX Local Browser Control",
+  "name": "NEXO Local Browser Connection",
   "version": "1.0.0",
-  "description": "User-controlled page reading and browser actions that run locally.",
+  "description": "User-controlled browser connection and page actions that run locally.",
   "permissions": ["activeTab", "scripting"],
-  "action": { "default_title": "KYVORIX Browser Control", "default_popup": "popup.html" }
+  "action": { "default_title": "NEXO Browser Connection", "default_popup": "popup.html" }
 }

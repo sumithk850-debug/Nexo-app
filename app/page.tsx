@@ -27,6 +27,7 @@ import { MissionControlHeader } from "@/components/MissionControlHeader";
 import { DeepResearchPanel, type DeepResearchRequest, type DeepResearchStage } from "@/components/DeepResearchPanel";
 import { ProjectArchitectPanel } from "@/components/ProjectArchitectPanel";
 import { ProjectFilesWorkspace } from "@/components/ProjectFilesWorkspace";
+import { BrowserConnectionCard, type BrowserConnectionState } from "@/components/BrowserConnectionCard";
 import type { CoderModelId } from "@/lib/providers.server";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
@@ -45,6 +46,7 @@ import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { isArtifactRequest } from "@/lib/artifactIntent";
+import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
@@ -215,6 +217,12 @@ export default function ChatPage() {
   const [secretSaveError, setSecretSaveError] = useState<string | null>(null);
   const [commitResult, setCommitResult] = useState<{ commitUrl?: string; prUrl?: string } | null>(null);
   const [commitProgressStep, setCommitProgressStep] = useState(0);
+  const [browserCardVisible, setBrowserCardVisible] = useState(false);
+  const [browserConnectionState, setBrowserConnectionState] = useState<BrowserConnectionState>("unknown");
+  const [browserActiveTab, setBrowserActiveTab] = useState<{ title?: string; url?: string } | null>(null);
+  const [browserError, setBrowserError] = useState<string | null>(null);
+  const [browserReadResult, setBrowserReadResult] = useState<{ title?: string; url?: string; headings?: string[]; text?: string } | null>(null);
+  const browserRequestRef = useRef<string | null>(null);
 
   // Typing speed tracking starts at the first provider text chunk, not at
   // request start. A short rolling window makes the badge responsive while
@@ -640,6 +648,44 @@ export default function ChatPage() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    authenticatedFetch(`/api/browser/connection?userId=${encodeURIComponent(user.id)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => setBrowserConnectionState(data.connected ? "connected" : "not-connected"))
+      .catch(() => setBrowserConnectionState("unknown"));
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handleBrowserMessage = (event: MessageEvent) => {
+      if (event.source !== window || !event.data || event.data.source !== "nexo-browser-extension") return;
+      const data = event.data as { type?: string; requestId?: string; ok?: boolean; title?: string; url?: string; headings?: string[]; text?: string; message?: string };
+      if (data.type === "NEXO_BROWSER_READY" || data.type === "NEXO_BROWSER_CONNECTED") {
+        setBrowserConnectionState("connected");
+        setBrowserError(null);
+        setBrowserActiveTab({ title: data.title, url: data.url });
+        if (user?.id) void authenticatedFetch("/api/browser/connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, deviceLabel: "Local Chrome/Edge", extensionId: "local-browser-extension" }),
+        });
+        return;
+      }
+      if (!data.requestId || data.requestId !== browserRequestRef.current) return;
+      browserRequestRef.current = null;
+      if (!data.ok) {
+        setBrowserError(data.message ?? "The local browser action did not complete.");
+        setBrowserConnectionState("error");
+        return;
+      }
+      setBrowserConnectionState("connected");
+      setBrowserActiveTab({ title: data.title, url: data.url });
+      if (data.text || data.headings) setBrowserReadResult({ title: data.title, url: data.url, headings: data.headings, text: data.text });
+    };
+    window.addEventListener("message", handleBrowserMessage);
+    return () => window.removeEventListener("message", handleBrowserMessage);
+  }, [user?.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -1512,9 +1558,54 @@ export default function ChatPage() {
     return finalReport;
   }
 
+  function showBrowserCard(text: string): boolean {
+    if (!isBrowserIntent(text)) return false;
+    setBrowserCardVisible(true);
+    setBrowserError(null);
+    setBrowserReadResult(null);
+    if (inferBrowserAction(text) === "read" && browserConnectionState === "connected") {
+      requestBrowserAction("read");
+    }
+    return true;
+  }
+
+  function requestBrowserAction(action: "connect" | "read") {
+    const requestId = crypto.randomUUID();
+    browserRequestRef.current = requestId;
+    setBrowserError(null);
+    window.postMessage({ source: "nexo-browser-page", requestId, action }, "*");
+    window.setTimeout(() => {
+      if (browserRequestRef.current !== requestId) return;
+      browserRequestRef.current = null;
+      setBrowserConnectionState("not-connected");
+      setBrowserError("Open the NEXO extension on your active tab once, then press Connect again.");
+    }, 4_000);
+  }
+
+  function connectBrowser() {
+    setBrowserConnectionState("connecting");
+    requestBrowserAction("connect");
+  }
+
+  function readBrowserPage() {
+    setBrowserConnectionState("connecting");
+    requestBrowserAction("read");
+  }
+
+  function disconnectBrowser() {
+    if (user?.id) void authenticatedFetch(`/api/browser/connection?userId=${encodeURIComponent(user.id)}`, { method: "DELETE" });
+    setBrowserConnectionState("not-connected");
+    setBrowserActiveTab(null);
+    setBrowserReadResult(null);
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
+    if (text && attachedFiles.length === 0 && showBrowserCard(text)) {
+      setInput("");
+      return;
+    }
     if (text && attachedFiles.length === 0 && isArtifactRequest(text)) {
       await handleArtifactRequest(text);
       return;
@@ -1852,6 +1943,24 @@ export default function ChatPage() {
           <div className={`flex min-h-0 flex-1 flex-col transition-all duration-500 ${isCoderMode && lastExtractedCode ? 'w-full xl:w-1/2' : 'w-full'}`}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
               <div className="mx-auto max-w-3xl px-4 py-8">
+                {browserCardVisible && (
+                  <BrowserConnectionCard
+                    state={browserConnectionState}
+                    activeTab={browserActiveTab}
+                    error={browserError}
+                    onConnect={connectBrowser}
+                    onRead={readBrowserPage}
+                    onDisconnect={disconnectBrowser}
+                    onDismiss={() => setBrowserCardVisible(false)}
+                  />
+                )}
+                {browserReadResult && (
+                  <div className="mx-4 mb-4 rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-xs text-ink">
+                    <p className="font-semibold text-emerald-300">Browser read complete</p>
+                    <p className="mt-1 text-[10px] text-ink-faint">{browserReadResult.title || browserReadResult.url || "Current page"}</p>
+                    <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-ink-muted">{(browserReadResult.text || browserReadResult.headings?.join("\n") || "No visible page text returned.").slice(0, 4_000)}</p>
+                  </div>
+                )}
                 {messages.length === 0 && !attachmentPreparation ? (
                   <div className="flex min-h-[60vh] flex-col items-center justify-center text-center animate-fade-up">
                     <Signal size="lg" className="mb-8" />

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2, FileSpreadsheet } from "lucide-react";
+import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2, FileSpreadsheet, Globe2 } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
 import type { NexoModelId } from "@/lib/models";
 
@@ -14,7 +14,7 @@ function extractGithubPersonalAccessToken(value: string): string | null {
   return value.match(/(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/)?.[0] ?? null;
 }
 
-type ToolItem = "files" | "web" | "wikipedia" | "research" | "artifact";
+type ToolItem = "files" | "web" | "wikipedia" | "research" | "artifact" | "browser";
 
 function SmartToolsMenu({
   onAttach,
@@ -46,6 +46,13 @@ function SmartToolsMenu({
       description: "Ask KYVORIX to find current web information",
       icon: Search,
       prompt: "Search the web and answer this: ",
+    },
+    {
+      id: "browser",
+      label: "Browser",
+      description: "Connect or use your local browser tab",
+      icon: Globe2,
+      prompt: "Connect my browser and check the current page",
     },
     {
       id: "wikipedia",

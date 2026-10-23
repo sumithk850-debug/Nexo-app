@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KYVORIX Browser Control</title><link rel="stylesheet" href="popup.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NEXO Browser Connection</title><link rel="stylesheet" href="popup.css"></head>
 <body>
-<header><div class="mark">K</div><div><h1>KYVORIX</h1><p>LOCAL BROWSER CONTROL</p></div><span id="status">READY</span></header>
+<header><div class="mark">N</div><div><h1>NEXO</h1><p>LOCAL BROWSER CONNECTION</p></div><span id="status">READY</span></header>
 <main>
-<section><small>ACTIVE TAB</small><strong id="page-title">Current page</strong><p id="page-url"></p><button id="read-page" class="primary">Read page</button></section>
+<section><small>ACTIVE TAB</small><strong id="page-title">Current page</strong><p id="page-url"></p><button id="connect-nexo" class="primary">Connect to NEXO</button><button id="read-page">Read page</button></section>
 <section><label for="url">Navigate to public URL</label><input id="url" type="url" placeholder="https://example.com"><button id="navigate">Open page</button></section>
 <section><label for="target">Visible link or button text</label><input id="target" maxlength="160" placeholder="Text to find"><button id="click-target">Find and click</button><p class="hint">Review the page before clicking. Only visible links and buttons are considered.</p></section>
 <section><label for="field">Form field label / placeholder</label><input id="field" maxlength="120" placeholder="e.g. Search"><label for="value">Text to fill</label><textarea id="value" rows="2" maxlength="2000"></textarea><button id="fill-field">Fill field</button><p class="hint">Password fields are blocked. Forms are never submitted automatically.</p></section>
-<section><button id="copy-page" class="secondary">Copy page summary for KYVORIX</button><textarea id="output" rows="5" readonly aria-label="Page summary"></textarea></section>
+<section><button id="copy-page" class="secondary">Copy page summary for NEXO</button><textarea id="output" rows="5" readonly aria-label="Page summary"></textarea></section>
 <p id="message" role="status" aria-live="polite"></p><footer>Actions run in your own browser. No cloud browser or server connection. Page content is not sent anywhere automatically.</footer>
 </main><script src="popup.js"></script></body></html>

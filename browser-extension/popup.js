@@ -9,12 +9,30 @@ async function tabNow() {
 async function send(action, payload = {}) {
   const tab = await tabNow();
   await chrome.scripting.executeScript({target:{tabId:tab.id},files:["content.js"]});
+  if (action === "connect") {
+    const hostname = new URL(tab.url).hostname.toLowerCase();
+    if (!(hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("nexo-app") || hostname.includes("nexo"))) {
+      throw new Error("Open the NEXO app in this tab before connecting.");
+    }
+  }
+  if (action === "connect") {
+    const response = await chrome.tabs.sendMessage(tab.id,{action,...payload});
+    await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>{ window.__NEXO_BROWSER_BRIDGE_CONNECTED__ = true; }});
+    return response;
+  }
   return await chrome.tabs.sendMessage(tab.id,{action,...payload});
 }
 function report(text, error = false) {
   $("message").textContent = text;
   $("message").classList.toggle("error",error);
 }
+$("connect-nexo").addEventListener("click",async()=>{
+  try {
+    const r=await send("connect");
+    if(!r?.ok) throw new Error(r?.message || "Browser connection failed.");
+    report("Connected to NEXO. Keep this tab open while using browser actions.");
+  } catch(e) { report(e.message || "Could not connect to NEXO.",true); }
+});
 $("read-page").addEventListener("click",async()=>{
   try {
     const r=await send("read");
@@ -56,7 +74,7 @@ $("copy-page").addEventListener("click",async()=>{
     const text=$("output").value;
     if(!text) throw new Error("Read the page first.");
     await navigator.clipboard.writeText(text);
-    report("Summary copied. Paste it into KYVORIX when ready.");
+    report("Summary copied. Paste it into NEXO when ready.");
   } catch(e) { report(e.message || "Copy failed.",true); }
 });
 tabNow().catch(e=>report(e.message,true));

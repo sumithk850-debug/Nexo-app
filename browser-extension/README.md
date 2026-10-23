@@ -1,4 +1,4 @@
-# KYVORIX Local Browser Control
+# NEXO Local Browser Connection
 
 This is an optional Manifest V3 extension for desktop Chromium browsers. It runs inside the user's own browser; it does not use a hosted browser, remote desktop, or KYVORIX server.
 
@@ -8,12 +8,14 @@ This is an optional Manifest V3 extension for desktop Chromium browsers. It runs
 2. In desktop Chrome or Edge, open the browser's Extensions page.
 3. Turn on Developer mode and choose **Load unpacked**.
 4. Select the `browser-extension` folder.
-5. Pin **KYVORIX Local Browser Control** to the toolbar.
+5. Pin **NEXO Local Browser Connection** to the toolbar.
+6. Return to the NEXO app tab and click the extension icon once, then choose **Connect to NEXO**. After this one-time step, browser-related requests can be started from NEXO chat.
 
 ## Security model
 
 - The extension requests only `activeTab` and `scripting` permissions; it does not request all-sites access.
 - It should operate only after the user opens its popup for the active tab.
+- The NEXO page bridge remains inactive until the user explicitly chooses Connect to NEXO on an NEXO app tab.
 - It must not read or transmit cookies, passwords, authentication tokens, or hidden fields.
 - Form filling must never submit a form automatically; sensitive actions require a deliberate user action.
 - Page text is copied only when the user explicitly requests it. No page content is sent to a remote service automatically.
