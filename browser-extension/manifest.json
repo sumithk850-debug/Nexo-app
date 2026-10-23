@@ -4,6 +4,5 @@
   "version": "1.0.0",
   "description": "User-controlled page reading and browser actions that run locally.",
   "permissions": ["activeTab", "scripting"],
-  "action": { "default_title": "KYVORIX Browser Control", "default_popup": "popup.html" },
-  "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }]
+  "action": { "default_title": "KYVORIX Browser Control", "default_popup": "popup.html" }
 }
