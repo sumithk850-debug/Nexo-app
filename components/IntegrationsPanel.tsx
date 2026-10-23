@@ -620,6 +620,26 @@ export function IntegrationsPanel({
             Connections are read-only by default. Any repository write, deployment, SQL write, or migration will require explicit approval before it runs.
           </p>
 
+          <article className="rounded-2xl border border-cyan/25 bg-gradient-to-br from-cyan/10 to-void/40 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan">
+                <Link2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-display text-sm font-semibold text-ink">Browser Automation</h3>
+                  <span className="rounded-full border border-cyan/25 bg-cyan/5 px-2 py-0.5 text-[10px] font-semibold text-cyan">Local extension</span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  Control your own desktop Chrome or Edge tab. Read pages, navigate, click visible controls, and fill regular fields without a hosted browser service.
+                </p>
+                <a href="/browser-automation" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan/25 bg-cyan/5 px-3 py-2 text-xs font-semibold text-cyan transition hover:bg-cyan/10">
+                  Setup and permissions <Link2 className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+          </article>
+
           <article className="rounded-2xl border border-edge bg-void/40 p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
