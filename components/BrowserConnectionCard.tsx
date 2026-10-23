@@ -41,7 +41,7 @@ export function BrowserConnectionCard({
             <div className="flex items-center gap-2"><p className="font-display text-sm font-bold text-ink">Browser connection</p><span className="rounded-full border border-cyan/25 bg-cyan/5 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-cyan">local</span></div>
             {onDismiss && <button type="button" onClick={onDismiss} className="rounded-lg p-1 text-ink-faint hover:bg-void hover:text-ink" aria-label="Dismiss browser card"><X className="h-3.5 w-3.5" /></button>}
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">Use your own browser tab. NEXO never receives cookies, passwords, or hidden fields.</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">Use your own browser tab. KYVORIX never receives cookies, passwords, or hidden fields.</p>
         </div>
       </div>
 

@@ -659,9 +659,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     const handleBrowserMessage = (event: MessageEvent) => {
-      if (event.source !== window || !event.data || event.data.source !== "nexo-browser-extension") return;
+      if (event.source !== window || !event.data || event.data.source !== "kyvorix-browser-extension") return;
       const data = event.data as { type?: string; requestId?: string; ok?: boolean; title?: string; url?: string; headings?: string[]; text?: string; message?: string };
-      if (data.type === "NEXO_BROWSER_READY" || data.type === "NEXO_BROWSER_CONNECTED") {
+      if (data.type === "KYVORIX_BROWSER_READY" || data.type === "KYVORIX_BROWSER_CONNECTED") {
         setBrowserConnectionState("connected");
         setBrowserError(null);
         setBrowserActiveTab({ title: data.title, url: data.url });
@@ -1573,12 +1573,12 @@ export default function ChatPage() {
     const requestId = crypto.randomUUID();
     browserRequestRef.current = requestId;
     setBrowserError(null);
-    window.postMessage({ source: "nexo-browser-page", requestId, action }, "*");
+    window.postMessage({ source: "kyvorix-browser-page", requestId, action }, "*");
     window.setTimeout(() => {
       if (browserRequestRef.current !== requestId) return;
       browserRequestRef.current = null;
       setBrowserConnectionState("not-connected");
-      setBrowserError("Open the NEXO extension on your active tab once, then press Connect again.");
+      setBrowserError("Open the KYVORIX extension on your active tab once, then press Connect again.");
     }, 4_000);
   }
 

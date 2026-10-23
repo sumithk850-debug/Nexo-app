@@ -3,7 +3,7 @@ if (!window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__) {
 
   const visible = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
   const pageInfo = () => ({ title: document.title, url: location.href });
-  const reply = (requestId, payload) => window.postMessage({ source: "nexo-browser-extension", requestId, ...payload }, "*");
+  const reply = (requestId, payload) => window.postMessage({ source: "kyvorix-browser-extension", requestId, ...payload }, "*");
   let bridgeConnected = false;
 
   async function runAction(message) {
@@ -47,7 +47,7 @@ if (!window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__) {
   }
 
   window.addEventListener("message", async (event) => {
-    if (!bridgeConnected || event.source !== window || !event.data || event.data.source !== "nexo-browser-page") return;
+    if (!bridgeConnected || event.source !== window || !event.data || event.data.source !== "kyvorix-browser-page") return;
     const result = await runAction(event.data);
     reply(event.data.requestId, result);
   });
@@ -56,12 +56,12 @@ if (!window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__) {
     if (!message || typeof message.action !== "string") return false;
     if (message.action === "connect") bridgeConnected = true;
     runAction(message).then((result) => {
-      if (message.action === "connect" && result.ok) window.postMessage({ source: "nexo-browser-extension", type: "NEXO_BROWSER_CONNECTED", ...result }, "*");
+      if (message.action === "connect" && result.ok) window.postMessage({ source: "kyvorix-browser-extension", type: "KYVORIX_BROWSER_CONNECTED", ...result }, "*");
       sendResponse(result);
     });
     return true;
   });
 
   // The bridge is intentionally silent until the user explicitly chooses
-  // “Connect to NEXO” in the extension popup on this tab.
+  // “Connect to KYVORIX” in the extension popup on this tab.
 }
