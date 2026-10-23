@@ -19,6 +19,6 @@ assert.match(contentScript, /password/, "Password fields must be blocked.");
 assert.match(contentScript, /match\.click\(\)/, "Click actions must be explicit and target-matched.");
 assert.doesNotMatch(contentScript, /\.submit\s*\(|requestSubmit\s*\(/, "Forms must never be submitted automatically.");
 assert.doesNotMatch(popup, /cookies/, "Popup must not use cookie APIs.");
-assert.doesNotMatch(manifest.permissions, /cookies/, "Cookie permission must not be requested.");
+assert.equal(manifest.permissions.includes("cookies"), false, "Cookie permission must not be requested.");
 
 console.log("Browser extension security and capability checks passed.");
