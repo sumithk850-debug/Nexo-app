@@ -1,3 +1,5 @@
+if (!window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__) {
+  window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__ = true;
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.action !== "string") return false;
   const visible = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
@@ -40,3 +42,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   return false;
 });
+
+}
