@@ -168,7 +168,7 @@ async function githubReadFile(userId: string, rawPath: unknown) {
   const payload = await response.json() as { content?: string; encoding?: string; type?: string };
   if (payload.type !== "file" || payload.encoding !== "base64" || typeof payload.content !== "string") throw new Error("That path is not a readable text file.");
   const content = Buffer.from(payload.content.replace(/\n/g, ""), "base64").toString("utf8");
-  return { repository: repository.owner + "/" + repository.repo, path, content: content.slice(0, 12_000), truncated: content.length > 12_000 };
+  return { repository: repository.owner + "/" + repository.repo, path, content: content.slice(0, 7_000), truncated: content.length > 7_000 };
 }
 async function githubListFiles(userId: string, rawPrefix: unknown) {
   const prefix = cleanString(rawPrefix, 300).replace(/^\/+|\/+$/g, "");
