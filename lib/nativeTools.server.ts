@@ -269,7 +269,12 @@ async function executeNativeTool(name: string, rawArgs: unknown, userId?: string
     }
     return { ok: false, error: "Unknown or unavailable tool. No action was performed." };
   } catch (error) {
-    return { ok: false, error: safeError(error) };
+    return {
+      ok: false,
+      error: safeError(error),
+      ...(name === "github_read_file" ? { path: cleanString(args.path, 400) } : {}),
+      ...(name === "github_list_files" ? { pathPrefix: cleanString(args.path_prefix, 300) } : {}),
+    };
   }
 }
 
