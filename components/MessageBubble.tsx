@@ -371,7 +371,6 @@ export function MessageBubble({
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
             {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
-            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
@@ -447,6 +446,7 @@ export function MessageBubble({
           <div className="prose-kyvorix min-w-0 text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
+            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
