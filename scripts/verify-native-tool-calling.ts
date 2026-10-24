@@ -23,6 +23,9 @@ for (const name of [
   assert.ok(tools.includes('name: "' + name + '"'), "Missing native read-only tool: " + name);
 }
 
+assert.ok(tools.includes('NativeToolProvider = "openrouter" | "gemini" | "groq"'), "Native tools must support the Groq Brainex provider");
+assert.ok(tools.includes('const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"'), "Native tools must route Groq calls to the official endpoint");
+assert.ok(tools.includes('reasoning_effort: "high"'), "Groq native tool calls must use high reasoning effort");
 assert.ok(tools.includes("MAX_TOOL_ROUNDS = 3"), "Tool loop must have a bounded round count");
 assert.ok(tools.includes("MAX_TOOL_CALLS = 6"), "Tool loop must have a bounded total call count");
 assert.ok(tools.includes("SENSITIVE_COLUMN"), "Supabase row results must redact sensitive columns");
@@ -45,6 +48,7 @@ assert.ok(!/name:\s*"(?:github_commit|github_create_file|supabase_execute_sql|ve
 
 assert.ok(route.includes('import { runNativeToolLoop } from "@/lib/nativeTools.server"'), "Chat route must wire the native tool loop");
 assert.ok(route.includes("await runNativeToolLoop("), "Chat route must run the native tool loop");
+assert.ok(route.includes("groqApiKey,"), "Chat route must pass the server-side Groq key into the native tool loop");
 assert.ok(route.includes("systemPrompt += nativeToolResult.contextBlock"), "Verified tool results must be supplied to final generation");
 assert.ok(route.includes("requestedLockedCoderModel") && route.includes("coder_model_locked"), "Paid Craft V3/V4 server lock must remain active");
 assert.ok(route.includes("requireVerifiedUser"), "Protected integration access must require verified auth");
