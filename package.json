@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:auth-onboarding && npm run test:native-tools && npm run test:github-action-cards && npm run test:phase-d && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
+    "build": "npm run test:auth-onboarding && npm run test:native-tools && npm run test:github-action-cards && npm run test:action-engine && npm run test:phase-d && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
     "start": "next start",
     "lint": "eslint .",
     "test:auth-onboarding": "rm -rf .tmp-auth-onboarding-test && tsc scripts/verify-auth-onboarding.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-auth-onboarding-test && node .tmp-auth-onboarding-test/verify-auth-onboarding.js",
