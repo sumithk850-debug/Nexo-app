@@ -653,6 +653,12 @@ export default function ChatPage() {
     const handleBrowserMessage = (event: MessageEvent) => {
       if (event.source !== window || !event.data || event.data.source !== "kyvorix-browser-extension") return;
       const data = event.data as { type?: string; requestId?: string; ok?: boolean; title?: string; url?: string; headings?: string[]; text?: string; message?: string };
+      if (data.type === "KYVORIX_BROWSER_DISCONNECTED") {
+        setBrowserConnectionState("not-connected");
+        setBrowserActiveTab(null);
+        setBrowserError(data.message ?? "The selected website tab is no longer connected.");
+        return;
+      }
       if (data.type === "KYVORIX_BROWSER_READY" || data.type === "KYVORIX_BROWSER_CONNECTED") {
         setBrowserConnectionState("connected");
         setBrowserError(null);
