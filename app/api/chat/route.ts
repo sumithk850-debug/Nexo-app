@@ -1713,6 +1713,7 @@ Structure your review with clear sections and use code examples where helpful.`;
               verifiedGithubReadPaths
             )
           ),
+        "X-Kyvorix-GitHub-Activities": encodeURIComponent(JSON.stringify(nativeToolResult.githubActivities ?? [])),
       },
     });
   } catch (err) {
