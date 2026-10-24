@@ -294,14 +294,17 @@ function buildGithubToolActivities(executed: Array<{ name: string; result: unkno
       : (typeof result.pathPrefix === "string" && result.pathPrefix ? result.pathPrefix : "repository root");
     const count = Array.isArray(result.files) ? result.files.length : 0;
     const summary = failed
-      ? (typeof result.error === "string" ? result.error.slice(0, 500) : "GitHub could not complete this read.")
+      ? (typeof result.error === "string" ? result.error.slice(0, 220) : "GitHub could not complete this read.")
       : operation === "read_file"
         ? (result.truncated === true ? "GitHub returned the file; its content was shortened for safe context." : "GitHub confirmed the file content was fetched.")
         : "GitHub returned " + count + " file path(s) from " + (typeof result.defaultBranch === "string" ? result.defaultBranch : "the default branch") + ".";
+    const state: GitHubNativeToolActivity["state"] = failed
+      ? (/not connected|reconnect|selected repository/i.test(String(result.error ?? "")) ? "needs_connection" : "error")
+      : "success";
     return [{
       id: "github-native-" + (index + 1) + "-" + operation,
       operation,
-      state: failed ? (/not connected|reconnect|selected repository/i.test(String(result.error ?? "")) ? "needs_connection" : "error") : "success",
+      state,
       ...(repository ? { repository, url: "https://github.com/" + repository } : {}),
       target,
       summary,
