@@ -59,7 +59,8 @@ function safeDetails(input?: Record<string, unknown>): Record<string, string | n
     if (!/^[a-zA-Z][a-zA-Z0-9_.-]{0,39}$/.test(key)) continue;
     if (typeof value === "string") output[key] = safeText(value, 300);
     else if (typeof value === "number" && Number.isFinite(value)) output[key] = value;
-    else if (typeof value === "boolean" || value === null) output[key] = value;
+    else if (typeof value === "boolean") output[key] = value;
+    else if (value === null) output[key] = null;
   }
   return Object.keys(output).length ? output : undefined;
 }
