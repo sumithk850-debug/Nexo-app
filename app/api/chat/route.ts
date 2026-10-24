@@ -33,6 +33,7 @@ interface IncomingMessage {
 }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ_API_BASE = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const DAILY_MESSAGE_LIMIT = 50;
 const NEXO_DEFAULT_TIME_ZONE = "Asia/Colombo";
@@ -313,7 +314,7 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
   "nexio-1.1": 16384,
   "spadec-3.5": 16384,
   "galex-4.0": 32768,
-  "brainex-10.8": 32768,
+  "brainex-10.8": 8192,
   "craft-v3": 3000,
 };
 
@@ -781,14 +782,18 @@ export async function POST(req: NextRequest) {
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    const groqApiKey = process.env.GROQ_API_KEY;
     const openRouterApiKey =
       process.env.OPENROUTER_API_KEY;
 
-    if (
+    const hasConfiguredProviderKey =
       config.provider === "gemini"
-        ? !geminiApiKey && !openRouterApiKey
-        : !openRouterApiKey
-    ) {
+        ? Boolean(geminiApiKey || openRouterApiKey)
+        : config.provider === "groq"
+          ? Boolean(groqApiKey || openRouterApiKey)
+          : Boolean(openRouterApiKey);
+
+    if (!hasConfiguredProviderKey) {
       return new Response(
         JSON.stringify({
           error:
@@ -1012,6 +1017,17 @@ export async function POST(req: NextRequest) {
     systemPrompt += SUPABASE_VERCEL_INTEGRATION_PROTOCOL;
     systemPrompt += CLARIFICATION_BOARD_PROTOCOL;
 
+    if (modelId === "brainex-10.8") {
+      systemPrompt += `\n\nBRAINEX DEEP-PLANNING AND EXECUTION STANDARD:
+- Treat complex requests as serious projects: identify the goal, constraints, dependencies, risks, and a short ordered plan before acting.
+- For tasks requiring external information or connected resources, use the available tools rather than guessing or merely describing what you would do.
+- Execute independent read-only tools in parallel only when the orchestration supports it; otherwise perform bounded sequential steps and use each verified result to choose the next step.
+- Continue until the requested work is complete or a real permission, capability, or service limit blocks progress. Never stop at a progress message such as "reading file".
+- Separate verified facts from assumptions. If a tool fails, report the actual limitation and do not claim success.
+- Preserve existing product behavior, paid/free locks, user data, secrets, and explicit approval requirements. Do not perform repository writes, account changes, deployments, or other consequential mutations without the existing approval flow.
+- Prefer concise plans, substantive execution, verification, and a clear final report over long speculative explanations.`;
+    }
+
     systemPrompt += `\n\nWIKIPEDIA ORCHESTRATION RULE: Wikipedia retrieval is completed server-side before your generation begins. Never emit <wikipedia-searching>, <wikipedia-sources>, XML/HTML tags, JSON query payloads, tool-call text, or a promise to search later. If verified Wikipedia context is supplied below, use it now; if it is not supplied, do not claim that Wikipedia was searched. The user must receive the answer in this response, not a deferred search result.`;
 
     systemPrompt += buildCurrentDateTimeContext();
@@ -1134,6 +1150,7 @@ Structure your review with clear sections and use code examples where helpful.`;
       githubEnabled,
       openRouterApiKey,
       geminiApiKey,
+      groqApiKey,
       maxRounds: 3,
     });
 
@@ -1166,7 +1183,8 @@ Structure your review with clear sections and use code examples where helpful.`;
 
     let activeProvider:
       | "openrouter"
-      | "gemini" = "openrouter";
+      | "gemini"
+      | "groq" = "openrouter";
 
     const candidateModels = [
       config.model,
@@ -1175,13 +1193,18 @@ Structure your review with clear sections and use code examples where helpful.`;
 
     providerAttempt:
     for (const candidateModel of candidateModels) {
+      const useGroq =
+        config.provider === "groq" &&
+        candidateModel === config.model;
       const useGemini =
         config.provider === "gemini" &&
         candidateModel === config.model;
 
-      const candidateApiKey = useGemini
-        ? geminiApiKey
-        : openRouterApiKey;
+      const candidateApiKey = useGroq
+        ? groqApiKey
+        : useGemini
+          ? geminiApiKey
+          : openRouterApiKey;
 
       if (!candidateApiKey) continue;
 
@@ -1194,7 +1217,9 @@ Structure your review with clear sections and use code examples where helpful.`;
           upstreamRes = await fetch(
             useGemini
               ? `${GEMINI_API_BASE}/${encodeURIComponent(candidateModel)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(candidateApiKey)}`
-              : OPENROUTER_ENDPOINT,
+              : useGroq
+                ? GROQ_API_BASE
+                : OPENROUTER_ENDPOINT,
             {
               method: "POST",
               headers: useGemini
@@ -1206,9 +1231,13 @@ Structure your review with clear sections and use code examples where helpful.`;
                     "Content-Type":
                       "application/json",
                     Authorization: `Bearer ${candidateApiKey}`,
-                    "HTTP-Referer":
-                      "https://nexo-app-delta.vercel.app",
-                    "X-Title": "KYVORIX AI",
+                    ...(useGroq
+                      ? {}
+                      : {
+                          "HTTP-Referer":
+                            "https://nexo-app-delta.vercel.app",
+                          "X-Title": "KYVORIX AI",
+                        }),
                   },
               body: JSON.stringify(
                 useGemini
@@ -1272,11 +1301,19 @@ Structure your review with clear sections and use code examples where helpful.`;
                   : {
                       model: candidateModel,
                       stream: true,
-                      temperature:
-                        responseTemperature,
-                      top_p: 1.0,
-                      max_tokens:
-                        outputTokenLimit,
+                      temperature: useGroq ? 0.6 : responseTemperature,
+                      top_p: useGroq ? 0.95 : 1.0,
+                      ...(useGroq
+                        ? {
+                            max_completion_tokens: Math.min(outputTokenLimit, 4096),
+                            reasoning_effort: "high",
+                            include_reasoning: false,
+                            tools: [
+                              { type: "browser_search" },
+                              { type: "code_interpreter" },
+                            ],
+                          }
+                        : { max_tokens: outputTokenLimit }),
                       messages: [
                         {
                           role: "system",
@@ -1305,9 +1342,11 @@ Structure your review with clear sections and use code examples where helpful.`;
         }
 
         if (upstreamRes?.ok && upstreamRes.body) {
-          activeProvider = useGemini
-            ? "gemini"
-            : "openrouter";
+          activeProvider = useGroq
+            ? "groq"
+            : useGemini
+              ? "gemini"
+              : "openrouter";
 
           break providerAttempt;
         }
