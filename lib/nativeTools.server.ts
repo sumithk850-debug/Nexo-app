@@ -367,7 +367,7 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       const calls = useGemini ? parseGeminiToolCalls(payload) : parseOpenRouterToolCalls(payload);
       if (calls.length === 0) {
         if (executed.length > 0) {
-          return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: round };
+          return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: round, githubActivities: buildGithubToolActivities(executed) };
         }
         if (round === 0) {
           const retryInstruction = "Your previous response did not invoke a tool. The user requested an operation that requires a tool. Invoke the single most relevant available read-only function now with valid arguments. Do not answer with a status update or pretend the operation is complete.";
@@ -404,9 +404,9 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       }
       if (totalCalls >= MAX_TOOL_CALLS) break;
     }
-    if (executed.length > 0) return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS) };
+    if (executed.length > 0) return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed) };
   }
   return executed.length
-    ? { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS) }
+    ? { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed) }
     : { contextBlock: toolFailureContext(), usedTools: [], rounds: 0 };
 }
