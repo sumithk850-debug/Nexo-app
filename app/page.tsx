@@ -41,6 +41,7 @@ import { createVercelReadBlock, type VercelReadCardData } from "@/lib/vercelRead
 import { parseVercelReadToolIntents, stripVercelReadToolBlocks, type VercelReadToolIntent } from "@/lib/vercelToolParser";
 import { getSessionId } from "@/lib/session";
 import { stripWikipediaChatMarkers } from "@/lib/wikipediaChatParser";
+import { createGitHubActionBlock, parseGitHubActionActivitiesHeader } from "@/lib/githubActionParser";
 import { supabase, type DbChat } from "@/lib/supabase";
 import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
@@ -1181,6 +1182,15 @@ export default function ChatPage() {
       }
 
       if (!res.body) throw new Error("No response stream");
+
+      const githubActivities = parseGitHubActionActivitiesHeader(res.headers.get("X-Kyvorix-GitHub-Activities"));
+      if (githubActivities.length > 0) {
+        const activityBlocks = githubActivities.map(createGitHubActionBlock).join("\n\n");
+        accumulated = `${activityBlocks}\n\n${accumulated}`.trim();
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m))
+        );
+      }
 
       const verifiedReadPaths = readVerifiedPaths(res);
       if (verifiedReadPaths.length > 0) {

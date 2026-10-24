@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:auth-onboarding && npm run test:native-tools && npm run test:phase-d && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
+    "build": "npm run test:auth-onboarding && npm run test:native-tools && npm run test:github-action-cards && npm run test:phase-d && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
     "start": "next start",
     "lint": "eslint .",
     "test:auth-onboarding": "rm -rf .tmp-auth-onboarding-test && tsc scripts/verify-auth-onboarding.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-auth-onboarding-test && node .tmp-auth-onboarding-test/verify-auth-onboarding.js",
@@ -23,7 +23,8 @@
     "test:artifact-intent": "rm -rf .tmp-artifact-intent-test && tsc lib/artifactIntent.ts scripts/verify-artifact-intent.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-artifact-intent-test && node .tmp-artifact-intent-test/scripts/verify-artifact-intent.js",
     "test:rls-hardening": "node scripts/verify-supabase-rls-hardening.mjs",
     "test:durable-missions": "rm -rf .tmp-durable-missions-test && tsc scripts/verify-durable-missions.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-durable-missions-test && node .tmp-durable-missions-test/verify-durable-missions.js",
-    "test:browser-extension": "node scripts/verify-browser-extension.mjs && node --check browser-extension/popup.js && node --check browser-extension/content.js"
+    "test:browser-extension": "node scripts/verify-browser-extension.mjs && node --check browser-extension/popup.js && node --check browser-extension/content.js",
+    "test:github-action-cards": "rm -rf .tmp-github-action-cards-test && tsc lib/githubActionParser.ts scripts/verify-github-action-cards.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-action-cards-test && node .tmp-github-action-cards-test/scripts/verify-github-action-cards.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

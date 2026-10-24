@@ -41,11 +41,11 @@ const TYPE_COLOR: Record<FileActionType, string> = {
 };
 
 const PROGRESS_STEPS = [
-  "Validating files…",
-  "Creating blobs…",
-  "Building tree…",
-  "Creating commit…",
-  "Updating branch…",
+  "Checking the approved files…",
+  "Preparing file changes…",
+  "Preparing the repository update…",
+  "Creating the GitHub commit…",
+  "Confirming the branch update…",
 ];
 
 export function ApprovalCard({

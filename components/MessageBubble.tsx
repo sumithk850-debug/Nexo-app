@@ -19,6 +19,8 @@ import { CraftStatusCard } from "./CraftStatusCard";
 import { SupabaseTaskCard } from "./SupabaseTaskCard";
 import { SupabaseReadCard } from "./SupabaseReadCard";
 import { VercelReadCard } from "./VercelReadCard";
+import { GitHubActionCard } from "./GitHubActionCard";
+import { parseGitHubActionBlocks, stripGitHubActionBlocks } from "@/lib/githubActionParser";
 import { SummaryCard } from "./SummaryCard";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
@@ -139,7 +141,7 @@ const markdownComponents = {
 };
 
 function normalizeMarkdownForDisplay(content: string) {
-  const withoutSupabaseCards = stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content)))));
+  const withoutSupabaseCards = stripGitHubActionBlocks(stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(stripSupabaseTaskBlocks(content))))));
   return withoutSupabaseCards
     .split(/(```[\s\S]*?```)/g)
     .map((part) => (part.startsWith("```") ? part : part.replace(/<br\s*\/?>/gi, "  \n")))
@@ -147,7 +149,7 @@ function normalizeMarkdownForDisplay(content: string) {
 }
 
 function toSpeakableText(content: string) {
-  return stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(content))))
+  return stripGitHubActionBlocks(stripVercelReadToolBlocks(stripVercelReadBlocks(stripSupabaseReadToolBlocks(stripSupabaseReadBlocks(content)))))
     .replace(/```[\s\S]*?```/g, " Code block omitted. ")
     .replace(/!?(\[[^\]]*\])\([^)]*\)/g, "$1")
     .replace(/[#>*_`~]/g, " ")
@@ -196,10 +198,11 @@ export function MessageBubble({
   const supabaseTasks = parseSupabaseTaskBlocks(message.content);
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
   const vercelReadCards = parseVercelReadBlocks(message.content);
+  const githubActionCards = parseGitHubActionBlocks(message.content);
   const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
   const wikipediaSearching = !isUser && isStreaming && hasWikipediaSearchMarker(message.content);
   const wikipediaSources = isUser ? [] : parseWikipediaSources(message.content);
-  const displayContent = stripWikipediaChatMarkers(stripClarificationBlocks(stripVercelReadBlocks(stripSupabaseReadBlocks(message.content))));
+  const displayContent = stripWikipediaChatMarkers(stripClarificationBlocks(stripGitHubActionBlocks(stripVercelReadBlocks(stripSupabaseReadBlocks(message.content)))));
 
   useEffect(() => {
     return () => {
@@ -367,6 +370,8 @@ export function MessageBubble({
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
+            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
+            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
