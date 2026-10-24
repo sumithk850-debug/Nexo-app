@@ -28,7 +28,7 @@ const expectedRoutes = {
     fallbacks: ["dots-studio/dots-3-note-preview:free", "nvidia/nemotron-3-super-120b-a12b:free"],
   },
   "brainex-10.8": {
-    model: "nvidia/nemotron-3-super-120b-a12b:free",
+    model: "openai/gpt-oss-120b",
     fallbacks: ["nvidia/nemotron-3-ultra-550b-a55b:free", "openai/gpt-oss-20b:free"],
   },
   "craft-v3": {
@@ -39,7 +39,7 @@ const expectedRoutes = {
 
 for (const [id, expected] of Object.entries(expectedRoutes)) {
   const config = PROVIDER_CONFIG[id as keyof typeof PROVIDER_CONFIG];
-  const expectedProvider = id === "craft-v3" ? "gemini" : "openrouter";
+  const expectedProvider = id === "craft-v3" ? "gemini" : id === "brainex-10.8" ? "groq" : "openrouter";
   assert(config.provider === expectedProvider, `${id} provider route is incorrect`);
   assert(config.model === expected.model, `${id} primary route is incorrect`);
   assert(JSON.stringify(config.fallbackModels ?? []) === JSON.stringify(expected.fallbacks), `${id} fallback order is incorrect`);
@@ -68,6 +68,9 @@ assert(CODER_MODELS.find((model) => model.id === "craft-v4")?.locked === true, "
 
 const chatRoute = readFileSync("app/api/chat/route.ts", "utf8");
 const chatPage = readFileSync("app/page.tsx", "utf8");
+assert(chatRoute.includes('const groqApiKey = process.env.GROQ_API_KEY'), "Brainex must read the Groq key only from server-side environment variables");
+assert(chatRoute.includes('reasoning_effort: "high"'), "Brainex must use high reasoning effort on Groq");
+assert(chatRoute.includes('{ type: "browser_search" }') && chatRoute.includes('{ type: "code_interpreter" }'), "Brainex must enable Groq built-in browser search and code execution");
 assert(chatRoute.includes("requestedLockedCoderModel"), "Server must enforce the paid Craft model lock");
 assert(chatRoute.includes('coderModel === "craft-v3" || coderModel === "craft-v4"'), "Both paid Coder variants must be locked server-side");
 assert(chatRoute.includes('!isCoderMode && modelId === "craft-v3"'), "The public Craft V3 profile must remain paid-gated");
