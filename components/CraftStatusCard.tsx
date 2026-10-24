@@ -125,7 +125,7 @@ export function CraftStatusCard({
         {streaming ? (
           <span className={`h-2 w-2 animate-ping rounded-full ${style.dot}`} />
         ) : (
-          {action.type === "reading" ? <Check className="h-3 w-3 flex-shrink-0 text-green-400" /> : <span className={`h-2 w-2 flex-shrink-0 rounded-full ${style.dot}`} aria-label="Proposal only" />}
+          action.type === "reading" ? <Check className="h-3 w-3 flex-shrink-0 text-green-400" /> : <span className={`h-2 w-2 flex-shrink-0 rounded-full ${style.dot}`} aria-label="Proposal only" />
         )}
 
         {/* 3. Action description — only the path + state, never the content */}
