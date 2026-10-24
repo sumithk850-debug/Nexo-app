@@ -199,6 +199,19 @@ export function MessageBubble({
   const supabaseReadCards = parseSupabaseReadBlocks(message.content);
   const vercelReadCards = parseVercelReadBlocks(message.content);
   const githubActionCards = parseGitHubActionBlocks(message.content);
+  const unverifiedGithubReads = isUser ? [] : Array.from(
+    message.content.matchAll(/Repository read not verified for `?([^.`\n]+)`?\. No file findings are shown for it\./gi)
+  ).map((match, index) => ({
+    id: `github-read-unverified-${message.id}-${index}`,
+    operation: "read_file" as const,
+    state: "error" as const,
+    target: match[1].trim(),
+    summary: "The app did not verify a successful repository read. No file contents or findings are being claimed.",
+  }));
+  const visibleGithubActions = [
+    ...githubActionCards,
+    ...unverifiedGithubReads.filter((fallback) => !githubActionCards.some((activity) => activity.operation === "read_file" && activity.target === fallback.target)),
+  ];
   const clarificationCards = isUser ? [] : parseClarificationBlocks(message.content);
   const wikipediaSearching = !isUser && isStreaming && hasWikipediaSearchMarker(message.content);
   const wikipediaSources = isUser ? [] : parseWikipediaSources(message.content);
@@ -370,8 +383,7 @@ export function MessageBubble({
           <div className="space-y-2">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
-            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
-            {githubActionCards.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
+            {visibleGithubActions.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
@@ -447,6 +459,7 @@ export function MessageBubble({
           <div className="prose-kyvorix min-w-0 text-sm text-ink">
             {supabaseReadCards.map((card) => <SupabaseReadCard key={card.id} card={card} />)}
             {vercelReadCards.map((card) => <VercelReadCard key={card.id} card={card} />)}
+            {visibleGithubActions.map((activity) => <GitHubActionCard key={activity.id} activity={activity} />)}
             {clarificationCards.map((card) => (
               <ClarificationCard
                 key={card.id}
