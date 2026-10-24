@@ -1,16 +1,12 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, ExternalLink, FileSearch, FolderTree, Github, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, FileSearch, FolderTree, Github } from "lucide-react";
 import type { GitHubActionActivity } from "@/lib/githubActionParser";
 
 export function GitHubActionCard({ activity }: { activity: GitHubActionActivity }) {
   const isSuccess = activity.state === "success";
   const isNeedsConnection = activity.state === "needs_connection";
-  const Icon = isSuccess
-    ? CheckCircle2
-    : isNeedsConnection
-      ? AlertCircle
-      : AlertCircle;
+  const Icon = isSuccess ? CheckCircle2 : AlertCircle;
   const accent = isSuccess
     ? "border-emerald-400/30 bg-emerald-400/[0.06] text-emerald-300"
     : isNeedsConnection
@@ -22,7 +18,7 @@ export function GitHubActionCard({ activity }: { activity: GitHubActionActivity 
     <section className={`my-2 overflow-hidden rounded-2xl border shadow-[0_12px_30px_rgba(0,0,0,0.14)] ${accent}`} aria-live="polite">
       <div className="flex items-start gap-3 px-3.5 py-3 sm:px-4">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-current/20 bg-void/40">
-          {isSuccess ? <Icon className="h-4.5 w-4.5" /> : <Loader2 className="h-4.5 w-4.5" />}
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
