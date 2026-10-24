@@ -338,7 +338,7 @@ function verifiedActionEvents(executed: Array<{ name: string; args?: unknown; re
       const queued = createActionEvent({ id: "native-" + (index + 1) + "-" + item.name, provider: providerForTool(item.name), operation: item.name, target: targetForTool(item.name, item.args), summary: "Read-only action queued." });
       const running = transitionAction(queued, "running", undefined);
       const verifying = transitionAction(running, "verifying", { phase: "succeeded", summary: "Provider returned a result; checking it.", verification: "provider_acknowledged" });
-      return [transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: failed ? (typeof result.error === "string" ? result.error : "Action failed.") : "Read-only result returned and checked.", verification: failed ? "none" : "result_checked", details: { tool: item.name, resultPresent: Object.keys(result).length > 0 } })];
+      return [transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: failed ? (typeof result.error === "string" ? result.error : "Action failed.") : "Provider returned a successful tool response; provider-specific validation was not available.", verification: failed ? "none" : "provider_acknowledged", details: { tool: item.name, resultPresent: Object.keys(result).length > 0 } })];
     } catch {
       return [];
     }
