@@ -185,7 +185,7 @@ async function githubListFiles(userId: string, rawPrefix: unknown) {
   const tree = await treeResponse.json() as { tree?: Array<{ path?: string; type?: string }>; truncated?: boolean };
   const paths = (tree.tree ?? []).filter((entry) => entry.type === "blob" && typeof entry.path === "string").map((entry) => entry.path!)
     .filter((path) => !prefix || path.startsWith(prefix + "/") || path === prefix).slice(0, 100);
-  return { repository: repository.owner + "/" + repository.repo, defaultBranch: branch, files: paths, returned: paths.length, treeTruncated: tree.truncated === true };
+  return { repository: repository.owner + "/" + repository.repo, defaultBranch: branch, pathPrefix: prefix || "", files: paths, returned: paths.length, treeTruncated: tree.truncated === true };
 }
 async function verifiedSupabase(userId: string, rawProjectId: unknown) {
   const projectId = cleanString(rawProjectId, 100);
@@ -285,13 +285,13 @@ function buildGithubToolActivities(executed: Array<{ name: string; result: unkno
       ? item.result as Record<string, unknown>
       : {};
     const failed = result.ok === false || typeof result.error === "string";
-    const repository = typeof result.repository === "string" && /^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(result.repository)
+    const repository = typeof result.repository === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(result.repository)
       ? result.repository
       : undefined;
     const operation = item.name === "github_read_file" ? "read_file" : "list_files";
     const target = operation === "read_file"
       ? (typeof result.path === "string" ? result.path : "requested file")
-      : "repository root";
+      : (typeof result.pathPrefix === "string" && result.pathPrefix ? result.pathPrefix : "repository root");
     const count = Array.isArray(result.files) ? result.files.length : 0;
     const summary = failed
       ? (typeof result.error === "string" ? result.error.slice(0, 500) : "GitHub could not complete this read.")
