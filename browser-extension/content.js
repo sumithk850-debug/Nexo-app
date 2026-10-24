@@ -47,7 +47,13 @@ if (!window.__KYVORIX_LOCAL_BROWSER_CONTROL_INSTALLED__) {
     if (!["connect","read"].includes(event.data.action) || typeof event.data.requestId !== "string") return;
     if (event.data.action === "connect") {
       const result = await chrome.runtime.sendMessage({ type: "KYVORIX_REGISTER_APP_TAB" });
-      reply(event.data.requestId, result || { ok: false, message: "The extension did not respond." });
+      if (result?.ok) {
+        const { type: _type, ...response } = result;
+        reply(event.data.requestId, response);
+        window.postMessage({ source: "kyvorix-browser-extension", type: "KYVORIX_BROWSER_CONNECTED", title: result.title, url: result.url }, location.origin);
+      } else {
+        reply(event.data.requestId, result || { ok: false, message: "The extension did not respond." });
+      }
       return;
     }
     const result = await chrome.runtime.sendMessage({ type: "KYVORIX_APP_REQUEST", action: event.data.action, requestId: event.data.requestId });
