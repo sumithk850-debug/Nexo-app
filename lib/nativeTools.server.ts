@@ -9,7 +9,7 @@ import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { readUrlsFromText } from "@/lib/urlReader.server";
 import { isReadableWebPageResult, parseGeminiToolCalls, parseOpenRouterToolCalls } from "@/lib/nativeToolParsing";
 
-export type NativeToolProvider = "openrouter" | "gemini";
+export type NativeToolProvider = "openrouter" | "gemini" | "groq";
 export interface NativeToolDefinition {
   name: string;
   description: string;
@@ -31,11 +31,13 @@ export interface NativeToolLoopInput {
   githubEnabled: boolean;
   openRouterApiKey?: string;
   geminiApiKey?: string;
+  groqApiKey?: string;
   maxRounds?: number;
 }
 export interface NativeToolLoopResult { contextBlock: string; usedTools: string[]; rounds: number; }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MAX_TOOL_ROUNDS = 3;
 const MAX_TOOL_CALLS = 6;
@@ -291,8 +293,9 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
   let totalCalls = 0;
 
   for (const candidate of candidates) {
+    const useGroq = input.provider === "groq" && candidate === input.model;
     const useGemini = input.provider === "gemini" && candidate === input.model;
-    const apiKey = useGemini ? input.geminiApiKey : input.openRouterApiKey;
+    const apiKey = useGroq ? input.groqApiKey : useGemini ? input.geminiApiKey : input.openRouterApiKey;
     if (!apiKey) continue;
     const openMessages: any[] = [{ role: "system", content: toolSystemPrompt }, ...history.map((message) => ({ role: message.role, content: message.content }))];
     const geminiContents: any[] = history.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
@@ -301,9 +304,9 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       try {
         response = await fetch(useGemini
           ? GEMINI_API_BASE + "/" + encodeURIComponent(candidate) + ":generateContent?key=" + encodeURIComponent(apiKey)
-          : OPENROUTER_ENDPOINT, {
+          : useGroq ? GROQ_ENDPOINT : OPENROUTER_ENDPOINT, {
           method: "POST",
-          headers: useGemini ? { "Content-Type": "application/json" } : { "Content-Type": "application/json", Authorization: "Bearer " + apiKey, "HTTP-Referer": "https://nexo-app-delta.vercel.app", "X-Title": "KYVORIX AI" },
+          headers: useGemini ? { "Content-Type": "application/json" } : { "Content-Type": "application/json", Authorization: "Bearer " + apiKey, ...(useGroq ? {} : { "HTTP-Referer": "https://nexo-app-delta.vercel.app", "X-Title": "KYVORIX AI" }) },
           body: JSON.stringify(useGemini ? {
             system_instruction: { parts: [{ text: toolSystemPrompt }] },
             contents: geminiContents,
@@ -311,7 +314,8 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
             toolConfig: { functionCallingConfig: { mode: executed.length === 0 ? "ANY" : "AUTO" } },
             generationConfig: { temperature: 0.2, maxOutputTokens: 1200 },
           } : {
-            model: candidate, stream: false, temperature: 0.2, max_tokens: 1200,
+            model: candidate, stream: false, temperature: useGroq ? 0.6 : 0.2,
+            ...(useGroq ? { max_completion_tokens: 1200, reasoning_effort: "high", include_reasoning: false } : { max_tokens: 1200 }),
             messages: openMessages, tools: toOpenRouterTools(definitions), tool_choice: executed.length === 0 ? "required" : "auto",
           }),
           signal: AbortSignal.timeout(25_000),
