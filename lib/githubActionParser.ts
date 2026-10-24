@@ -61,9 +61,7 @@ export function parseGitHubActionActivitiesHeader(header: string | null): GitHub
 }
 
 export function createGitHubActionBlock(activity: GitHubActionActivity): string {
-  return ```github-live-action
-${JSON.stringify(activity)}
-```;
+  return ["```github-live-action", JSON.stringify(activity), "```"].join("\n");
 }
 
 export function parseGitHubActionBlocks(content: string): GitHubActionActivity[] {
