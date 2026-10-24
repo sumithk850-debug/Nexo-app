@@ -650,17 +650,15 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.id) return;
-    authenticatedFetch(`/api/browser/connection?userId=${encodeURIComponent(user.id)}`, { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => setBrowserConnectionState(data.connected ? "connected" : "not-connected"))
-      .catch(() => setBrowserConnectionState("unknown"));
-  }, [user?.id]);
-
-  useEffect(() => {
     const handleBrowserMessage = (event: MessageEvent) => {
       if (event.source !== window || !event.data || event.data.source !== "kyvorix-browser-extension") return;
       const data = event.data as { type?: string; requestId?: string; ok?: boolean; title?: string; url?: string; headings?: string[]; text?: string; message?: string };
+      if (data.type === "KYVORIX_BROWSER_DISCONNECTED") {
+        setBrowserConnectionState("not-connected");
+        setBrowserActiveTab(null);
+        setBrowserError(data.message ?? "The selected website tab is no longer connected.");
+        return;
+      }
       if (data.type === "KYVORIX_BROWSER_READY" || data.type === "KYVORIX_BROWSER_CONNECTED") {
         setBrowserConnectionState("connected");
         setBrowserError(null);
@@ -1578,7 +1576,7 @@ export default function ChatPage() {
       if (browserRequestRef.current !== requestId) return;
       browserRequestRef.current = null;
       setBrowserConnectionState("not-connected");
-      setBrowserError("Open the KYVORIX extension on your active tab once, then press Connect again.");
+      setBrowserError("Select the website tab from the extension popup, then connect the KYVORIX app tab and try again.");
     }, 4_000);
   }
 

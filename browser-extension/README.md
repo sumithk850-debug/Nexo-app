@@ -1,26 +1,29 @@
 # KYVORIX Local Browser Control
 
-This is an optional Manifest V3 extension for desktop Chromium browsers. It runs inside the user's own browser; it does not use a hosted browser, remote desktop, or KYVORIX server.
+This Manifest V3 extension connects KYVORIX chat to a website tab that you explicitly select in your own desktop Chrome or Edge browser. It does not use a hosted browser, remote desktop, or browser-hosting service.
 
-## Install for local testing
+## One-time local setup
 
-1. Download the repository ZIP from GitHub and extract it.
-2. In desktop Chrome or Edge, open the browser's Extensions page.
-3. Turn on Developer mode and choose **Load unpacked**.
-4. Select the `browser-extension` folder.
-5. Pin **KYVORIX Local Browser Control** to the toolbar.
-6. Return to the KYVORIX app tab and click the extension icon once, then choose **Connect to KYVORIX**. After this one-time step, browser-related requests can be started from KYVORIX chat.
+1. Get the extension source from the repository and load the `browser-extension` folder using `chrome://extensions` (Chrome) or `edge://extensions` (Edge) with Developer mode enabled. This unpacked installation is currently the supported distribution; the extension is not yet published to a browser store.
+2. Pin **KYVORIX Browser Control** to the toolbar.
+3. Open the website tab you want KYVORIX to use. Open the extension popup and click **Use this tab with KYVORIX**.
+4. Return to the KYVORIX AI app tab. Open the extension popup and click **Connect to KYVORIX**.
+5. Return to chat and ask KYVORIX to read the selected page. Repeat step 3 whenever you switch website tabs or after the selected tab navigates to a new page.
+
+The app tab and target website tab are registered locally for the current browser session. If the browser is restarted, select and connect the tabs again.
 
 ## Security model
 
-- The extension requests only `activeTab` and `scripting` permissions; it does not request all-sites access.
-- It should operate only after the user opens its popup for the active tab.
-- The KYVORIX page bridge remains inactive until the user explicitly chooses Connect to KYVORIX on a KYVORIX app tab.
-- It must not read or transmit cookies, passwords, authentication tokens, or hidden fields.
-- Form filling must never submit a form automatically; sensitive actions require a deliberate user action.
-- Page text is copied only when the user explicitly requests it. No page content is sent to a remote service automatically.
-- Avoid installing unpacked extensions from untrusted sources. Review the source before enabling it.
+- The extension requests `activeTab` access only when you open its popup for a tab; it does not request all-sites host permissions.
+- A website tab must be explicitly selected by the user before chat actions can be routed to it.
+- Browser actions are limited to reading visible page text, clicking a visible matching link/button, and filling a matching ordinary editable field.
+- Password, hidden, file, submit, button, reset, checkbox, and radio input types are blocked from filling.
+- Forms are never submitted automatically.
+- Cookies, passwords, hidden fields, and page contents are not stored on the KYVORIX server by this extension.
+- Only use extension source you trust.
 
-## Scope
+## Current scope and limitations
 
-The first implementation is local and user-controlled. It does not publish the extension to a store, require a separate browser-hosting service, or claim a persistent remote AI-control channel. Mobile browser support depends on whether the browser supports extensions; desktop Chrome/Edge is the initial target.
+- Desktop Chromium browsers (Chrome/Edge) are the initial target; mobile support depends on browser extension support.
+- The extension is not currently store-published, so initial installation still requires loading the extension folder once.
+- The extension can only act on a website tab where the user explicitly opened its popup and granted active-tab access.
