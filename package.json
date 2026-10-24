@@ -24,7 +24,8 @@
     "test:rls-hardening": "node scripts/verify-supabase-rls-hardening.mjs",
     "test:durable-missions": "rm -rf .tmp-durable-missions-test && tsc scripts/verify-durable-missions.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-durable-missions-test && node .tmp-durable-missions-test/verify-durable-missions.js",
     "test:browser-extension": "node scripts/verify-browser-extension.mjs && node --check browser-extension/popup.js && node --check browser-extension/content.js",
-    "test:github-action-cards": "rm -rf .tmp-github-action-cards-test && tsc lib/githubActionParser.ts scripts/verify-github-action-cards.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-action-cards-test && node .tmp-github-action-cards-test/scripts/verify-github-action-cards.js"
+    "test:github-action-cards": "rm -rf .tmp-github-action-cards-test && tsc lib/githubActionParser.ts scripts/verify-github-action-cards.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-action-cards-test && node .tmp-github-action-cards-test/scripts/verify-github-action-cards.js",
+    "test:action-engine": "rm -rf .tmp-action-engine-test && tsc lib/actionEngine.ts scripts/verify-action-engine.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-action-engine-test && node .tmp-action-engine-test/scripts/verify-action-engine.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
