@@ -7,10 +7,9 @@ export interface ProviderConfig {
   systemPrompt: string;
 }
 
-// All KYVORIX intelligence requests use OpenRouter. Keep each route explicit so
-// model identity is stable, then provide independent free fallbacks for queues
-// and transient provider failures. Nexio intentionally starts at OpenRouter's
-// capability-aware free router per the approved product routing policy.
+// Keep each route explicit so model identity is stable, then provide independent
+// fallbacks for transient provider failures. Brainex uses Groq's reasoning model;
+// the other standard profiles retain their existing OpenRouter/Gemini routes.
 const NEXIO_MODEL = "openrouter/free";
 const NEXIO_FALLBACKS = [
   "google/gemma-4-31b-it:free",
