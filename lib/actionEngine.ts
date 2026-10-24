@@ -76,11 +76,11 @@ export function createActionEvent(start: ActionStart, phase: ActionPhase = "queu
 }
 
 export function transitionAction(previous: ActionEvent, nextPhase: ActionPhase, outcome?: ActionOutcome, now = Date.now()): ActionEvent {
-  if (!TRANSITIONS[previous.phase].includes(nextPhase)) {
-    throw new Error(`Invalid action transition: ${previous.phase} -> ${nextPhase}`);
-  }
   if (nextPhase === "succeeded" && (!outcome || outcome.phase !== "succeeded" || (outcome.verification ?? "none") === "none")) {
     throw new Error("An action cannot be marked successful without an explicit verified outcome.");
+  }
+  if (!TRANSITIONS[previous.phase].includes(nextPhase)) {
+    throw new Error(`Invalid action transition: ${previous.phase} -> ${nextPhase}`);
   }
   if (TERMINAL.has(previous.phase)) throw new Error("Terminal action events are immutable; create a new attempt to retry.");
   const terminal = TERMINAL.has(nextPhase);
