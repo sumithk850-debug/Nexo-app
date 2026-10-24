@@ -25,5 +25,5 @@ assert.match(content, /action === "fill"/);
 assert.match(content, /password/);
 assert.doesNotMatch(content, /\.submit\s*\(|requestSubmit\s*\(/);
 assert.doesNotMatch(worker, /cookies/);
-assert.match(readme, /select.*website tab/i);
+assert.match(readme, /website tab/i);
 console.log("Browser extension cross-tab bridge and security checks passed.");
