@@ -5,7 +5,7 @@ function isAppUrl(value) {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    return url.protocol === "https:" && (host.includes("kyvorix") || host.includes("nexo-app") || host === "nexo" || host.startsWith("nexo-"));
+    return (url.protocol === "https:" || (url.protocol === "http:" && (host === "localhost" || host === "127.0.0.1"))) && (host.includes("kyvorix") || host.includes("nexo-app") || host === "nexo" || host.startsWith("nexo-") || host === "localhost" || host === "127.0.0.1");
   } catch { return false; }
 }
 
@@ -78,6 +78,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   const saved = await chrome.storage.session.get([APP_TAB_KEY, TARGET_TAB_KEY]);
   const remove = [];
   if (saved[APP_TAB_KEY] === tabId) remove.push(APP_TAB_KEY);
-  if (saved[TARGET_TAB_KEY] === tabId) remove.push(TARGET_TAB_KEY);
+  const targetClosed = saved[TARGET_TAB_KEY] === tabId;
+  if (targetClosed) remove.push(TARGET_TAB_KEY);
   if (remove.length) await chrome.storage.session.remove(remove);
+  if (targetClosed) await notifyApp({ type: "KYVORIX_BROWSER_DISCONNECTED", message: "The selected website tab was closed. Select another website tab to continue." });
 });
