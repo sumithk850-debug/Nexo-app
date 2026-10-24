@@ -441,9 +441,9 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       }
       if (totalCalls >= MAX_TOOL_CALLS) break;
     }
-    if (executed.length > 0) return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed) };
+    if (executed.length > 0) return { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed), actionEvents: verifiedActionEvents(executed) };
   }
   return executed.length
-    ? { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed) }
+    ? { contextBlock: toolContext(executed), usedTools: [...new Set(executed.map((item) => item.name))], rounds: Math.min(input.maxRounds ?? MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS), githubActivities: buildGithubToolActivities(executed), actionEvents: verifiedActionEvents(executed) }
     : { contextBlock: toolFailureContext(), usedTools: [], rounds: 0 };
 }
