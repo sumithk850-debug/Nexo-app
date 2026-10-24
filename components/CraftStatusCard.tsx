@@ -34,7 +34,7 @@ const STYLE_MAP: Record<
   },
   editing: {
     icon: Pencil,
-    label: "Edited",
+    label: "Edit proposed",
     activeLabel: "Editing",
     chipBg: "bg-amber-500/10",
     chipText: "text-amber-400",
@@ -42,7 +42,7 @@ const STYLE_MAP: Record<
   },
   creating: {
     icon: Sparkles,
-    label: "Created",
+    label: "Create proposed",
     activeLabel: "Creating",
     chipBg: "bg-green-500/10",
     chipText: "text-green-400",
@@ -50,7 +50,7 @@ const STYLE_MAP: Record<
   },
   deleting: {
     icon: Trash2,
-    label: "Deleted",
+    label: "Delete proposed",
     activeLabel: "Deleting",
     chipBg: "bg-red-500/10",
     chipText: "text-red-400",
@@ -125,7 +125,7 @@ export function CraftStatusCard({
         {streaming ? (
           <span className={`h-2 w-2 animate-ping rounded-full ${style.dot}`} />
         ) : (
-          <Check className={`h-3 w-3 flex-shrink-0 text-green-400`} />
+          {action.type === "reading" ? <Check className="h-3 w-3 flex-shrink-0 text-green-400" /> : <span className={`h-2 w-2 flex-shrink-0 rounded-full ${style.dot}`} aria-label="Proposal only" />}
         )}
 
         {/* 3. Action description — only the path + state, never the content */}
