@@ -373,6 +373,35 @@ export function MessageBubble({
         {/* Repository operation markers and file bodies belong exclusively in
             the activity panel above the composer. Only normal prose/report
             segments remain in the transcript. */}
+        {message.actionEvents && message.actionEvents.length > 0 && (
+          <div className="mb-3 space-y-2" aria-label="Verified action activity">
+            {message.actionEvents.map((event) => {
+              const successful = event.phase === "succeeded";
+              const failed = event.phase === "failed" || event.phase === "cancelled";
+              const needsAttention = event.phase === "needs_approval" || event.phase === "needs_connection";
+              const statusClass = successful
+                ? "border-emerald-400/25 bg-emerald-400/5 text-emerald-200"
+                : failed
+                ? "border-rose-400/25 bg-rose-400/5 text-rose-200"
+                : needsAttention
+                ? "border-amber-400/25 bg-amber-400/5 text-amber-200"
+                : "border-cyan/25 bg-cyan/5 text-cyan";
+              return (
+                <div key={event.id} className={`rounded-xl border px-3 py-2.5 ${statusClass}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{event.provider} · {event.operation.replace(/_/g, " ")}</span>
+                    <span className="text-[10px] uppercase tracking-wide">{event.phase.replace(/_/g, " ")}</span>
+                  </div>
+                  <p className="mt-1 break-words text-xs text-ink">{event.summary}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-faint">
+                    <span className="break-all">{event.target}</span>
+                    {event.verification !== "none" && <span>Evidence: {event.verification.replace(/_/g, " ")}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {wikipediaSearching && (
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200 shadow-sm">
             <Loader2 className="h-3 w-3 animate-spin text-sky-300" aria-hidden="true" />

@@ -1,6 +1,7 @@
 import type { NexoModelId } from "./models";
 import type { ArtifactDescriptor } from "./artifactTypes";
 import type { PresentationDescriptor } from "./presentationTypes";
+import type { ActionEvent } from "./actionEngine";
 
 export interface ChatImageAttachment {
   /** Browser-local data URL used to render the image the user just sent. */
@@ -23,4 +24,6 @@ export interface ChatMessage {
   generationState?: "stopped" | "failed";
   /** Local artifact card payload returned by the first-party artifact route. */
   artifact?: ArtifactDescriptor | PresentationDescriptor;
+  /** Verified lifecycle events emitted by server-side tool adapters. */
+  actionEvents?: ActionEvent[];
 }

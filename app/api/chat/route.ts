@@ -1714,6 +1714,7 @@ Structure your review with clear sections and use code examples where helpful.`;
             )
           ),
         "X-Kyvorix-GitHub-Activities": encodeURIComponent(JSON.stringify(nativeToolResult.githubActivities ?? [])),
+        "X-Kyvorix-Action-Events": encodeURIComponent(JSON.stringify(nativeToolResult.actionEvents ?? [])),
       },
     });
   } catch (err) {

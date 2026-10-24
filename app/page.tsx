@@ -1183,6 +1183,26 @@ export default function ChatPage() {
 
       if (!res.body) throw new Error("No response stream");
 
+      const actionEvents = (() => {
+        try {
+          const raw = res.headers.get("X-Kyvorix-Action-Events");
+          if (!raw) return [];
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          return Array.isArray(parsed) ? parsed.filter((event) =>
+            event && typeof event.id === "string" &&
+            typeof event.provider === "string" &&
+            typeof event.operation === "string" &&
+            typeof event.phase === "string" &&
+            typeof event.summary === "string"
+          ).slice(0, 12) : [];
+        } catch {
+          return [];
+        }
+      })();
+      if (actionEvents.length > 0) {
+        setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents } : m));
+      }
+
       const githubActivities = parseGitHubActionActivitiesHeader(res.headers.get("X-Kyvorix-GitHub-Activities"));
       if (githubActivities.length > 0) {
         const activityBlocks = githubActivities.map(createGitHubActionBlock).join("\n\n");
@@ -1549,6 +1569,23 @@ export default function ChatPage() {
       throw new Error(errorData?.message || errorData?.error || "Deep Research could not start. Please try again.");
     }
     if (!response.body) throw new Error("The research service returned no response stream.");
+    const researchActionEvents = (() => {
+      try {
+        const raw = response.headers.get("X-Kyvorix-Action-Events");
+        const parsed = raw ? JSON.parse(decodeURIComponent(raw)) : [];
+        return Array.isArray(parsed) ? parsed.filter((event) =>
+          event && typeof event.provider === "string" && typeof event.operation === "string" &&
+          typeof event.phase === "string" && typeof event.summary === "string"
+        ).slice(0, 12) : [];
+      } catch {
+        return [];
+      }
+    })();
+    const researchActionSummary = researchActionEvents.length
+      ? "### Research actions\n" + researchActionEvents.map((event: { provider: string; operation: string; target?: string; phase: string; summary: string; verification?: string }) =>
+          `- **${event.provider} / ${event.operation}** — ${event.phase.replace(/_/g, " ")}${event.target ? ` (${event.target})` : ""}: ${event.summary}${event.verification && event.verification !== "none" ? ` _[${event.verification.replace(/_/g, " ")}]_ ` : ""}`
+        ).join("\n") + "\n\n"
+      : "";
     onProgress("analysis");
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -1558,10 +1595,10 @@ export default function ChatPage() {
       if (done) break;
       report += decoder.decode(value, { stream: true });
       onProgress("writing");
-      onReportUpdate(stripWikipediaChatMarkers(report));
+      onReportUpdate(researchActionSummary + stripWikipediaChatMarkers(report));
     }
     report += decoder.decode();
-    const finalReport = stripWikipediaChatMarkers(report).trim();
+    const finalReport = (researchActionSummary + stripWikipediaChatMarkers(report)).trim();
     onReportUpdate(finalReport);
     return finalReport;
   }
