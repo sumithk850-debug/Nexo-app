@@ -34,7 +34,16 @@ export interface NativeToolLoopInput {
   groqApiKey?: string;
   maxRounds?: number;
 }
-export interface NativeToolLoopResult { contextBlock: string; usedTools: string[]; rounds: number; }
+export interface GitHubNativeToolActivity {
+  id: string;
+  operation: "read_file" | "list_files";
+  state: "success" | "error" | "needs_connection";
+  repository?: string;
+  target: string;
+  summary: string;
+  url?: string;
+}
+export interface NativeToolLoopResult { contextBlock: string; usedTools: string[]; rounds: number; githubActivities?: GitHubNativeToolActivity[]; }
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
