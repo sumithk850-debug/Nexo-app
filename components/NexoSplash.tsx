@@ -18,16 +18,36 @@ export function NexoSplash() {
         >
           <defs>
             <linearGradient id="kyvorix-splash-ribbon" x1="44" y1="58" x2="196" y2="182" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#195BFF" />
-              <stop offset="0.5" stopColor="#0FA9FF" />
-              <stop offset="1" stopColor="#54F1FF" />
+              <stop stopColor="#2457FF" />
+              <stop offset="0.42" stopColor="#087DFF" />
+              <stop offset="0.72" stopColor="#11C8FF" />
+              <stop offset="1" stopColor="#7AF7FF" />
             </linearGradient>
             <linearGradient id="kyvorix-splash-ring" x1="37" y1="200" x2="204" y2="38" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#184EFF" />
-              <stop offset="1" stopColor="#4EE9FF" />
+              <stop stopColor="#174BFF" />
+              <stop offset="0.52" stopColor="#168CFF" />
+              <stop offset="1" stopColor="#54EFFF" />
             </linearGradient>
+            <filter id="kyvorix-splash-ribbon-glow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.04 0 0 0 0 0.55 0 0 0 0 1 0 0 0 .62 0" />
+            </filter>
+            <filter id="kyvorix-splash-ring-glow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.04 0 0 0 0 0.42 0 0 0 0 1 0 0 0 .48 0" />
+            </filter>
           </defs>
 
+          <circle
+            className="kyvorix-splash-ring-glow"
+            cx="120"
+            cy="120"
+            r="93"
+            stroke="url(#kyvorix-splash-ring)"
+            strokeWidth="7"
+            strokeLinecap="round"
+            filter="url(#kyvorix-splash-ring-glow)"
+          />
           <circle
             className="kyvorix-splash-ring"
             cx="120"
@@ -36,6 +56,15 @@ export function NexoSplash() {
             stroke="url(#kyvorix-splash-ring)"
             strokeWidth="4"
             strokeLinecap="round"
+          />
+          <path
+            className="kyvorix-splash-ribbon-glow"
+            d="M48 120C70 77 96 77 120 120C144 163 170 163 192 120C170 77 144 77 120 120C96 163 70 163 48 120"
+            stroke="url(#kyvorix-splash-ribbon)"
+            strokeWidth="24"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#kyvorix-splash-ribbon-glow)"
           />
           <path
             className="kyvorix-splash-ribbon"
@@ -48,8 +77,8 @@ export function NexoSplash() {
           <path
             className="kyvorix-splash-ribbon-highlight"
             d="M48 120C70 77 96 77 120 120C144 163 170 163 192 120C170 77 144 77 120 120C96 163 70 163 48 120"
-            stroke="#B5FAFF"
-            strokeWidth="2"
+            stroke="#D4FDFF"
+            strokeWidth="1.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />

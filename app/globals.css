@@ -335,31 +335,45 @@ textarea:focus-visible {
 
 .kyvorix-splash-logo {
   display: block;
-  width: clamp(11.5rem, 45vw, 17.5rem);
+  width: clamp(12rem, 48vw, 19rem);
   height: auto;
   overflow: visible;
+  filter: drop-shadow(0 20px 42px rgb(0 80 255 / 0.12));
 }
 
 .kyvorix-splash-ribbon,
-.kyvorix-splash-ribbon-highlight {
+.kyvorix-splash-ribbon-highlight,
+.kyvorix-splash-ribbon-glow {
   stroke-dasharray: 430;
   stroke-dashoffset: 430;
 }
 
+.kyvorix-splash-ribbon-glow {
+  opacity: 0;
+  animation: nexo_ribbon_glow 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
+}
+
 .kyvorix-splash-ribbon {
-  animation: nexo_ribbon_draw 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
+  animation: nexo_ribbon_draw 1.02s cubic-bezier(0.65, 0, 0.25, 1) 0.1s forwards;
 }
 
 .kyvorix-splash-ribbon-highlight {
   opacity: 0;
-  animation: nexo_ribbon_highlight 0.92s cubic-bezier(0.65, 0, 0.25, 1) 0.12s forwards;
+  animation: nexo_ribbon_highlight 1.02s cubic-bezier(0.65, 0, 0.25, 1) 0.1s forwards;
 }
 
 .kyvorix-splash-ring {
   stroke-dasharray: 585;
   stroke-dashoffset: 585;
   opacity: 0;
-  animation: nexo_ring_draw 0.72s cubic-bezier(0.65, 0, 0.25, 1) 0.98s forwards;
+  animation: nexo_ring_draw 0.78s cubic-bezier(0.65, 0, 0.25, 1) 1.08s forwards;
+}
+
+.kyvorix-splash-ring-glow {
+  stroke-dasharray: 585;
+  stroke-dashoffset: 585;
+  opacity: 0;
+  animation: nexo_ring_glow 0.78s cubic-bezier(0.65, 0, 0.25, 1) 1.08s forwards;
 }
 
 @keyframes nexo_ribbon_draw {
@@ -372,10 +386,22 @@ textarea:focus-visible {
   100% { stroke-dashoffset: 0; opacity: 0.58; }
 }
 
+@keyframes nexo_ribbon_glow {
+  0% { stroke-dashoffset: 430; opacity: 0; }
+  35% { opacity: 0.8; }
+  100% { stroke-dashoffset: 0; opacity: 0.72; }
+}
+
 @keyframes nexo_ring_draw {
   0% { stroke-dashoffset: 585; opacity: 0; }
   12% { opacity: 0.9; }
   100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes nexo_ring_glow {
+  0% { stroke-dashoffset: 585; opacity: 0; }
+  20% { opacity: 0.8; }
+  100% { stroke-dashoffset: 0; opacity: 0.46; }
 }
 
 @keyframes nexo_splash_complete {
@@ -389,6 +415,8 @@ textarea:focus-visible {
   .kyvorix-splash-mark { animation: nexo_splash_reduced_exit 2.6s ease forwards; }
   .kyvorix-splash-ribbon,
   .kyvorix-splash-ribbon-highlight,
+  .kyvorix-splash-ribbon-glow,
+  .kyvorix-splash-ring-glow,
   .kyvorix-splash-ring {
     animation: none;
     stroke-dashoffset: 0;
