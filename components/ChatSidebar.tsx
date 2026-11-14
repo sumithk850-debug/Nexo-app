@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo, Newspaper } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -313,6 +313,22 @@ export function ChatSidebar({
             <span className="flex-1 text-left">Deep Research</span>
             <span className="rounded-md bg-cyan/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan">New</span>
           </button>
+
+          <Link
+            href="/news"
+            onClick={onClose}
+            className="group flex w-full items-center gap-2.5 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2.5 text-sm font-semibold text-ink transition hover:border-emerald-300/40 hover:bg-emerald-400/10"
+            aria-label="Open Daily News Summarization by Kyvorix AI"
+            title="Daily News Summarization by Kyvorix AI"
+          >
+            <span className="relative flex h-5 w-5 items-center justify-center">
+              <span className="absolute h-4 w-4 animate-ping rounded-full bg-emerald-400/25" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.95)]" />
+            </span>
+            <Newspaper className="h-4 w-4 text-emerald-300" />
+            <span className="flex-1 text-left">Daily News</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">Live</span>
+          </Link>
 
           <button
             type="button"
