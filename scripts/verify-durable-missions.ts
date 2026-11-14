@@ -53,7 +53,8 @@ assert.ok(dispatcher.includes("get_mission_dispatch_secrets"));
 assert.ok(dispatcher.includes("AbortSignal.timeout(58_000)"));
 
 assert.ok(vercel.includes("app/api/internal/mission-worker/route.ts"));
-assert.ok(!vercel.includes('"crons"'));
+assert.ok(vercel.includes('"crons"'));
+assert.ok(vercel.includes("/api/news/refresh"));
 assert.ok(ui.includes("Start durable mission"));
 assert.ok(ui.includes("setInterval"));
 assert.ok(ui.includes("browser tab"));

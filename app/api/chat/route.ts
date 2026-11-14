@@ -22,6 +22,7 @@ import { RESPONSE_CONTINUATION_MARKER } from "@/lib/responseContinuation";
 import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
 import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { runNativeToolLoop } from "@/lib/nativeTools.server";
+import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
 
 export const runtime = "nodejs";
 
@@ -977,6 +978,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let dailyNewsContext = "";
+    const dailyNewsRequested = Boolean(
+      lastUserMessage &&
+      searchGroundingEnabled &&
+      isDailyNewsRequest(latestUserText)
+    );
+    if (dailyNewsRequested) {
+      dailyNewsContext = await getTodayNewsContext();
+    }
+
     const hasExplicitSupabaseIntent =
       /supabase|database|schema|table|sql|ඩේටා|දත්ත|ටේබල්/i.test(
         latestUserText
@@ -1029,6 +1040,10 @@ export async function POST(req: NextRequest) {
     }
 
     systemPrompt += `\n\nWIKIPEDIA ORCHESTRATION RULE: Wikipedia retrieval is completed server-side before your generation begins. Never emit <wikipedia-searching>, <wikipedia-sources>, XML/HTML tags, JSON query payloads, tool-call text, or a promise to search later. If verified Wikipedia context is supplied below, use it now; if it is not supplied, do not claim that Wikipedia was searched. The user must receive the answer in this response, not a deferred search result.`;
+
+    if (dailyNewsRequested) {
+      systemPrompt += `\n\nDAILY NEWS ORCHESTRATION RULE: The Daily News Engine retrieved and stored today's edition server-side before your generation began. Use the verified edition below as the primary source for today's news. Do not claim that you personally browsed the web, do not invent stories, and clearly distinguish the source publication from Kyvorix's summary. For a news answer, give a useful multi-story briefing in the user's language, include source names and links, and include relevant image Markdown links such as ![News image](IMAGE_URL) when image URLs are supplied. If no context is supplied, say that today's edition is temporarily unavailable instead of guessing.\n\n===== VERIFIED KYVORIX DAILY NEWS EDITION =====\n${dailyNewsContext || "Today's verified edition is temporarily unavailable."}\n===== END VERIFIED DAILY NEWS EDITION =====`;
+    }
 
     systemPrompt += buildCurrentDateTimeContext();
     systemPrompt += projectBrainContext;

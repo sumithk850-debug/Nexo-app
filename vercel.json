@@ -6,5 +6,11 @@
     "app/api/internal/mission-worker/route.ts": {
       "maxDuration": 55
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/news/refresh",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
