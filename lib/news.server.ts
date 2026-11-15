@@ -96,6 +96,25 @@ function imageFromBlock(block: string): string | null {
   const htmlImage = block.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1];
   return htmlImage ?? null;
 }
+async function resolveArticleImage(article: RawArticle): Promise<RawArticle> {
+  if (article.imageUrl) return article;
+  try {
+    const response = await fetch(article.sourceUrl, {
+      headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(6_000),
+    });
+    if (!response.ok) return article;
+    const html = (await response.text()).slice(0, 250_000);
+    const imageUrl = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i)?.[1]
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i)?.[1]
+      ?? null;
+    if (!imageUrl) return article;
+    return { ...article, imageUrl: new URL(imageUrl, article.sourceUrl).toString() };
+  } catch {
+    return article;
+  }
+}
 function parseFeed(xml: string, feed: Feed): RawArticle[] {
   const blocks = [...xml.matchAll(/<(?:item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/(?:item|entry)>/gi)].slice(0, 10);
   return blocks.map((match) => {
@@ -134,12 +153,18 @@ async function collectArticles(): Promise<RawArticle[]> {
   }));
   const articles = responses.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   const seen = new Set<string>();
-  return articles.filter((article) => {
+  const uniqueArticles = articles.filter((article) => {
     const key = article.title.toLowerCase().replace(/\W/g, "");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   }).sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")).slice(0, MAX_ARTICLES);
+  const resolved: RawArticle[] = [];
+  for (let index = 0; index < uniqueArticles.length; index += 8) {
+    const batch = await Promise.all(uniqueArticles.slice(index, index + 8).map(resolveArticleImage));
+    resolved.push(...batch);
+  }
+  return resolved;
 }
 function utcDate(): string { return new Date().toISOString().slice(0, 10); }
 

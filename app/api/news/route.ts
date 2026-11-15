@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const verified = await requireVerifiedUser(request);
   if (verified.response) return verified.response;
   try {
-    const edition = await refreshTodayNews(false);
+    const edition = await refreshTodayNews(request.nextUrl.searchParams.get("refresh") === "1");
     return Response.json(edition, { headers: { "Cache-Control": "private, max-age=300" } });
   } catch (error) {
     console.error("[news] failed to load edition", error);
