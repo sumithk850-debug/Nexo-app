@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
@@ -137,6 +137,10 @@ const markdownComponents = {
   },
   td({ children }: { children?: React.ReactNode }) {
     return <td className="max-w-[18rem] break-words px-3 py-2.5 text-ink-muted">{children}</td>;
+  },
+  img({ src, alt }: ComponentProps<"img">) {
+    if (typeof src !== "string" || !src) return null;
+    return <img src={src} alt={alt || "Kyvorix generated image"} loading="lazy" className="my-3 max-h-[min(72vh,720px)] w-auto max-w-full rounded-2xl border border-edge object-contain shadow-[0_16px_45px_rgba(0,0,0,0.22)]" />;
   },
 };
 

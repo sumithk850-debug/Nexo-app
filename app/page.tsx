@@ -47,9 +47,20 @@ import { authenticatedFetch } from "@/lib/authFetch";
 import { getCurrentUser, onAuthStateChange, signOut, type AuthUser } from "@/lib/auth";
 import { MAX_ATTACHMENTS_PER_MESSAGE, prepareAttachmentsForVision } from "@/lib/attachmentProcessing";
 import { isArtifactRequest } from "@/lib/artifactIntent";
+import { cleanImagePrompt, isImageGenerationRequest } from "@/lib/imageIntent";
 import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
+
+declare global {
+  interface Window {
+    puter?: {
+      ai: {
+        txt2img: (prompt: string, options?: { model?: string; quality?: string }) => Promise<HTMLElement>;
+      };
+    };
+  }
+}
 
 // All five routed profiles use zero-cost provider paths and must remain selectable.
 const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
@@ -1644,11 +1655,62 @@ export default function ChatPage() {
     setBrowserReadResult(null);
   }
 
+  async function handleImageGeneration(prompt: string) {
+    const text = prompt.trim();
+    if (!text || isStreaming || streamingLockRef.current) return;
+    const chatId = await ensureChat();
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text };
+    const assistantId = crypto.randomUUID();
+    const nextMessages = [...messages, userMsg];
+    const preparing = "";
+    setPendingApproval(null);
+    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: preparing, modelId: selectedModel }]);
+    setInput("");
+    clearDraftForCurrentTurn(chatId);
+    if (chatId) {
+      await saveMessage(chatId, "user", text, selectedModel);
+      if (messages.length === 0) {
+        const title = `${text.split(/\s+/).slice(0, 5).join(" ")}...`;
+        void fetch("/api/chats", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: chatId, title }) });
+      }
+    }
+    try {
+      if (!window.puter) {
+        await new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector<HTMLScriptElement>('script[data-kyvorix-puter]');
+          if (existing) { existing.addEventListener("load", () => resolve(), { once: true }); existing.addEventListener("error", () => reject(new Error("Puter could not be loaded.")), { once: true }); return; }
+          const script = document.createElement("script");
+          script.src = "https://js.puter.com/v2/";
+          script.async = true;
+          script.dataset.kyvorixPuter = "true";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Puter could not be loaded."));
+          document.head.appendChild(script);
+        });
+      }
+      if (!window.puter) throw new Error("The free image service is unavailable right now.");
+      const generated = await window.puter.ai.txt2img(cleanImagePrompt(text), { model: "google/gemini-3.1-flash-image", quality: "low" });
+      const imageUrl = (generated as HTMLImageElement).src || generated.querySelector?.("img")?.getAttribute("src") || "";
+      if (!imageUrl) throw new Error("The image service returned no image.");
+      const assistantContent = `![Kyvorix generated image](${imageUrl})`;
+      setMessages((previous) => previous.map((message) => message.id === assistantId ? { ...message, content: assistantContent } : message));
+      if (chatId) await saveMessage(chatId, "assistant", assistantContent, selectedModel);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Image generation failed. Please try again.";
+      setMessages((previous) => previous.map((item) => item.id === assistantId ? { ...item, content: `Image generation could not be completed.\n\n${message}`, generationState: "failed" } : item));
+      if (chatId) await saveMessage(chatId, "assistant", `Image generation could not be completed.\n\n${message}`, selectedModel);
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
     if (text && attachedFiles.length === 0 && showBrowserCard(text)) {
       setInput("");
+      return;
+    }
+    if (text && attachedFiles.length === 0 && isImageGenerationRequest(text)) {
+      await handleImageGeneration(text);
       return;
     }
     if (text && attachedFiles.length === 0 && isArtifactRequest(text)) {
