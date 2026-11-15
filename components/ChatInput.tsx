@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2, FileSpreadsheet, Globe2 } from "lucide-react";
+import { ArrowUp, Menu, Mic, Plus, Square, X, Paperclip, Search, BookOpen, Sparkles, FileText, Code2, FileSpreadsheet, Globe2, ImagePlus } from "lucide-react";
 import { ModelSelectorChip } from "./ModelSelectorChip";
 import type { NexoModelId } from "@/lib/models";
 
@@ -14,7 +14,7 @@ function extractGithubPersonalAccessToken(value: string): string | null {
   return value.match(/(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/)?.[0] ?? null;
 }
 
-type ToolItem = "files" | "web" | "wikipedia" | "research" | "artifact" | "browser";
+type ToolItem = "files" | "image" | "web" | "wikipedia" | "research" | "artifact" | "browser";
 
 function SmartToolsMenu({
   onAttach,
@@ -39,6 +39,13 @@ function SmartToolsMenu({
       label: "Files & images",
       description: "Attach files or images to this chat",
       icon: Paperclip,
+    },
+    {
+      id: "image",
+      label: "Create Image New",
+      description: "Create a clean AI image from your idea",
+      icon: ImagePlus,
+      prompt: "Create a new image: ",
     },
     {
       id: "web",
@@ -115,14 +122,14 @@ function SmartToolsMenu({
               key={tool.id}
               type="button"
               onClick={() => selectTool(tool)}
-              className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-cyan/5"
+              className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${tool.id === "image" ? "bg-gradient-to-r from-violet-500/10 via-cyan/5 to-transparent hover:from-violet-500/20" : "hover:bg-cyan/5"}`}
               role="menuitem"
             >
               <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-edge bg-void/50 text-ink-muted transition group-hover:border-cyan/30 group-hover:text-cyan">
                 <Icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-xs font-semibold text-ink">{tool.label}</span>
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink"><span>{tool.label}</span>{tool.id === "image" && <span className="rounded-full bg-violet-400/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-violet-300">New</span>}</span>
                 <span className="mt-0.5 block truncate text-[10px] text-ink-faint">{tool.description}</span>
               </span>
               <span className="text-[10px] text-ink-faint opacity-0 transition group-hover:opacity-100">→</span>
