@@ -14,6 +14,7 @@ export function MissionControlHeader({
   attachmentState,
   approvalState,
   selectedModel,
+  activeModelLabel,
   isCoderMode,
 }: {
   streaming: boolean;
@@ -22,6 +23,7 @@ export function MissionControlHeader({
   attachmentState?: AttachmentState;
   approvalState?: ApprovalState | null;
   selectedModel: string;
+  activeModelLabel?: string;
   isCoderMode: boolean;
 }) {
   const [mobileExpanded, setMobileExpanded] = useState(false);
@@ -99,6 +101,7 @@ export function MissionControlHeader({
   }
 
   const activeSignals = Number(Boolean(searching)) + actions.length + Number(Boolean(attachmentState));
+  const displayedModel = activeModelLabel ?? (isCoderMode ? "Coder Agent" : selectedModel);
   const Icon = StatusIcon;
 
   return (
@@ -121,7 +124,7 @@ export function MissionControlHeader({
             <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-ink-muted">
               <span className={"h-1.5 w-1.5 rounded-full " + statusDot + (streaming || attachmentState === "preparing" || applyingApprovedChange ? " animate-pulse" : "")} />
               <span>{streaming ? "WORKING" : needsAttention ? "ATTENTION" : waitingForApproval ? "APPROVAL" : "STANDBY"}</span>
-              <span className="text-ink-faint">·</span><span className="truncate max-w-[112px]">{isCoderMode ? "Coder Agent" : selectedModel}</span>
+              <span className="text-ink-faint">·</span><span className="truncate max-w-[112px]">{displayedModel}</span>
             </span>
           </span>
         </span>
@@ -142,7 +145,7 @@ export function MissionControlHeader({
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 border-t border-edge/70 pt-2">
-              <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-wider text-ink-faint">Active mode</p><p className="mt-1 truncate text-[10px] font-semibold text-ink">{isCoderMode ? "Coder Agent" : selectedModel}</p></div>
+              <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-wider text-ink-faint">Active model</p><p className="mt-1 truncate text-[10px] font-semibold text-ink">{displayedModel}</p></div>
               <div><p className="text-[8px] font-bold uppercase tracking-wider text-ink-faint">Activity signals</p><p className="mt-1 text-[10px] font-semibold text-ink">{activeSignals} reported this turn</p></div>
             </div>
           </div>
@@ -188,7 +191,7 @@ export function MissionControlHeader({
               <Sparkles className="h-3.5 w-3.5 text-cyan" />
               <span className="text-[9px] font-bold uppercase tracking-wider">Active mode</span>
             </div>
-            <p className="mt-2 truncate text-xs font-semibold text-ink" title={isCoderMode ? "KYVORIX Coder" : selectedModel}>{isCoderMode ? "Coder Agent" : selectedModel}</p>
+            <p className="mt-2 truncate text-xs font-semibold text-ink" title={displayedModel}>{displayedModel}</p>
             <p className="mt-1 text-[10px] text-ink-muted">{isCoderMode ? "Code workspace" : "Chat model"}</p>
           </div>
           <div className="rounded-xl border border-edge/80 bg-void/55 p-3">

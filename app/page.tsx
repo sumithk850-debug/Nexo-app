@@ -51,6 +51,7 @@ import { isArtifactRequest } from "@/lib/artifactIntent";
 import { cleanImagePrompt, isImageGenerationRequest } from "@/lib/imageIntent";
 import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
+import { getActiveModelDisplayName } from "@/lib/modelDisplay";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 declare global {
@@ -604,6 +605,12 @@ export default function ChatPage() {
     const searches = segments.filter((s) => s.kind === "searching") as Extract<typeof segments[number], { kind: "searching" }>[];
     return searches.length > 0 ? searches[searches.length - 1] : null;
   })();
+  const activityEvents = lastAssistantMsg?.actionEvents ?? [];
+  const activeModelLabel = getActiveModelDisplayName({
+    selectedModel,
+    coderModel,
+    isCoderMode,
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -1468,6 +1475,7 @@ export default function ChatPage() {
         role: "assistant",
         content: "",
         modelId: isCoderMode ? "craft-v3" : selectedModel,
+        modelLabel: activeModelLabel,
       },
     ]);
     const controller = startStreamingTurn(assistantId);
@@ -1485,7 +1493,7 @@ export default function ChatPage() {
     const assistantId = crypto.randomUUID();
 
     setPendingApproval(null);
-    setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setMessages([...conversationSoFar, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel, modelLabel: activeModelLabel }]);
     const controller = startStreamingTurn(assistantId);
     await streamResponse(activeChatId, conversationSoFar, assistantId, undefined, undefined, controller);
   }
@@ -1505,7 +1513,7 @@ export default function ChatPage() {
     const conversationSoFar = messages.slice(0, userIndex + 1);
     const assistantId = crypto.randomUUID();
     setPendingApproval(null);
-    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel, modelLabel: activeModelLabel }]);
     const controller = startStreamingTurn(assistantId);
     await streamResponse(activeChatId, conversationSoFar, assistantId, undefined, undefined, controller);
   }
@@ -1522,7 +1530,7 @@ export default function ChatPage() {
     };
     const assistantId = crypto.randomUUID();
     setPendingApproval(null);
-    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setMessages([...messages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel, modelLabel: activeModelLabel }]);
     const controller = startStreamingTurn(assistantId);
     await streamResponse(activeChatId, [...conversationSoFar, continuationPrompt], assistantId, undefined, undefined, controller);
   }
@@ -1819,6 +1827,7 @@ export default function ChatPage() {
         role: "assistant",
         content: initialAssistantContent,
         modelId: isCoderMode ? "craft-v3" : selectedModel,
+        modelLabel: activeModelLabel,
       },
     ]);
     clearDraftForCurrentTurn(chatId);
@@ -1870,7 +1879,7 @@ export default function ChatPage() {
 
     const nextMessages = [...messages, userMsg];
     setPendingApproval(null);
-    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel }]);
+    setMessages([...nextMessages, { id: assistantId, role: "assistant", content: "", modelId: isCoderMode ? "craft-v3" : selectedModel, modelLabel: activeModelLabel }]);
     clearDraftForCurrentTurn(chatId);
     setInput("");
     setAttachedFiles([]);
@@ -2098,6 +2107,7 @@ export default function ChatPage() {
           attachmentState={attachmentPreparation?.state ?? null}
           approvalState={pendingApproval?.status ?? null}
           selectedModel={selectedModel}
+          activeModelLabel={activeModelLabel}
           isCoderMode={isCoderMode}
         />
 
@@ -2266,7 +2276,7 @@ export default function ChatPage() {
                         </div>
                       </div>
                     )}
-                    {isStreaming && <TypingIndicator modelId={isCoderMode ? "craft-v3" : selectedModel} />}
+                    {isStreaming && <TypingIndicator modelId={activeModelLabel} />}
                   </div>
                 )}
               </div>
@@ -2280,6 +2290,8 @@ export default function ChatPage() {
               searching={activitySearching?.action ?? null}
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
+              modelLabel={activeModelLabel}
+              actionEvents={activityEvents}
             />
 
             <LiveStatusBar
