@@ -9,6 +9,7 @@ interface Announcement {
   id: string;
   title: string;
   message: string;
+  video_url?: string | null;
 }
 
 const DISMISS_KEY_PREFIX = "nexo_dismissed_announcement_";
@@ -22,7 +23,7 @@ export function AnnouncementBanner() {
     async function load() {
       const { data } = await supabase
         .from("announcements")
-        .select("id, title, message")
+        .select("id, title, message, video_url")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -104,6 +105,18 @@ export function AnnouncementBanner() {
             <div className="prose-kyvorix mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
               {announcement.message}
             </div>
+
+            {announcement.video_url && (
+              <video
+                className="mt-5 w-full rounded-2xl border border-cyan/20 bg-black shadow-[0_15px_45px_rgba(0,0,0,.3)]"
+                src={announcement.video_url}
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                aria-label="Craft V5 launch announcement video"
+              />
+            )}
 
             <button
               onClick={(e) => {

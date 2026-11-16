@@ -12,6 +12,7 @@ interface Announcement {
   title: string;
   message: string;
   version: string;
+  video_url?: string | null;
 }
 
 function isVersionCurrentOrNewer(remoteVersion: string, localVersion: string): boolean {
@@ -37,7 +38,7 @@ export function AnnouncementModal() {
     async function load() {
       const { data } = await supabase
         .from("announcements")
-        .select("id, title, message, version")
+        .select("id, title, message, version, video_url")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -124,6 +125,20 @@ export function AnnouncementModal() {
             {announcement.title}
           </h2>
         </div>
+
+        {announcement.video_url && (
+          <div className="px-6 pt-3">
+            <video
+              className="w-full rounded-2xl border border-cyan/20 bg-black shadow-[0_15px_45px_rgba(0,0,0,.3)]"
+              src={announcement.video_url}
+              controls
+              muted
+              playsInline
+              preload="metadata"
+              aria-label="Craft V5 launch announcement video"
+            />
+          </div>
+        )}
 
         {/* Body — features as bullet points */}
         <div className="px-6 py-3 space-y-2">
