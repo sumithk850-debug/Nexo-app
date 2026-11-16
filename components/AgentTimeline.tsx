@@ -15,32 +15,77 @@ import {
   XCircle,
   GitBranch,
 } from "lucide-react";
+import type { ActionEvent } from "@/lib/actionEngine";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
 
 type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error";
 type AttachmentState = "preparing" | "error" | null;
+type StepState = "active" | "complete" | "waiting" | "error";
 
 type TimelineItem = {
   id: string;
   label: string;
   detail?: string;
-  state: "active" | "complete" | "waiting" | "error";
+  state: StepState;
   icon: typeof Search;
 };
 
 function actionLabel(action: FileAction): string {
-  if (action.type === "reading") return "Repository analyst reading source";
-  if (action.type === "editing") return "Change planner preparing edit";
-  if (action.type === "creating") return "Builder preparing new file";
-  return "Change planner preparing removal";
+  if (action.type === "reading") return "Reading verified repository context";
+  if (action.type === "editing") return "Preparing targeted edit";
+  if (action.type === "creating") return "Preparing new file";
+  return "Preparing file removal";
 }
 
 function approvalLabel(state: ApprovalState): TimelineItem {
   if (state === "approving") return { id: "approval", label: "Applying approved repository change", state: "active", icon: Loader2 };
   if (state === "approved") return { id: "approval", label: "Approved change completed", state: "complete", icon: ShieldCheck };
-  if (state === "rejected") return { id: "approval", label: "Approval declined", state: "complete", icon: ShieldCheck };
+  if (state === "rejected") return { id: "approval", label: "Approval declined — no change applied", state: "complete", icon: ShieldCheck };
   if (state === "error") return { id: "approval", label: "Approved action needs attention", state: "error", icon: XCircle };
   return { id: "approval", label: "Waiting for your approval", detail: "No repository change is applied until you approve it.", state: "waiting", icon: ShieldCheck };
+}
+
+function phaseState(streaming: boolean, hasExecution: boolean, hasVerification: boolean): TimelineItem[] {
+  const planning = streaming && !hasExecution;
+  const executing = streaming && hasExecution;
+  const finished = !streaming;
+  return [
+    {
+      id: "understand",
+      label: "Understand the request",
+      detail: "Identifying the goal, constraints, and affected surface.",
+      state: planning ? "complete" : streaming ? "complete" : "complete",
+      icon: Sparkles,
+    },
+    {
+      id: "plan",
+      label: "Plan the next steps",
+      detail: planning ? "Preparing a concise plan before taking action." : "Plan established for this response.",
+      state: planning ? "active" : "complete",
+      icon: FileSearch,
+    },
+    {
+      id: "execute",
+      label: hasExecution ? "Execute the reported work" : "Compose the response",
+      detail: hasExecution ? "Following the verified activity reported by the app." : "Generating the answer for this request.",
+      state: executing ? "active" : finished ? "complete" : "waiting",
+      icon: hasExecution ? GitBranch : Pencil,
+    },
+    {
+      id: "verify",
+      label: "Check the available result",
+      detail: hasVerification ? "Provider or application evidence is available." : "Separating reported results from unverified claims.",
+      state: streaming ? (hasVerification ? "active" : "waiting") : "complete",
+      icon: ShieldCheck,
+    },
+    {
+      id: "deliver",
+      label: finished ? "Deliver the result" : "Prepare the result",
+      detail: finished ? "The current response is ready to review." : "Keeping the response and live status synchronized.",
+      state: finished ? "complete" : "waiting",
+      icon: Check,
+    },
+  ];
 }
 
 export function AgentTimeline({
@@ -49,26 +94,33 @@ export function AgentTimeline({
   searching,
   attachmentState,
   approvalState,
+  modelLabel = "KYVORIX AI",
+  actionEvents = [],
 }: {
   streaming: boolean;
   actions: FileAction[];
   searching?: SearchingAction | null;
   attachmentState?: AttachmentState;
   approvalState?: ApprovalState | null;
+  modelLabel?: string;
+  actionEvents?: ActionEvent[];
 }) {
-  const items: TimelineItem[] = [];
-  const hasMeaningfulActivity = Boolean(attachmentState || searching || actions.length > 0 || approvalState);
+  const hasExecution = Boolean(attachmentState || searching || actions.length > 0 || actionEvents.length > 0 || approvalState);
+  if (!hasExecution && !streaming) return null;
+
+  const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || Boolean(approvalState === "approved");
+  const items: TimelineItem[] = phaseState(streaming, hasExecution, hasVerification);
 
   if (attachmentState === "preparing") {
-    items.push({ id: "attachments", label: "Context agent preparing attachments", state: "active", icon: FileUp });
+    items.splice(2, 0, { id: "attachments", label: "Prepare attached context", detail: "Reading the files supplied for this request.", state: "active", icon: FileUp });
   } else if (attachmentState === "error") {
-    items.push({ id: "attachments", label: "Attachment context needs attention", state: "error", icon: XCircle });
+    items.splice(2, 0, { id: "attachments", label: "Attachment context needs attention", state: "error", icon: XCircle });
   }
 
   if (searching) {
-    items.push({
+    items.splice(2, 0, {
       id: `search:${searching.queries.join(",")}`,
-      label: "Research agent gathering context",
+      label: streaming ? "Gathering research context" : "Research context gathered",
       detail: searching.queries.slice(0, 2).join(" · "),
       state: streaming ? "active" : "complete",
       icon: Search,
@@ -77,36 +129,26 @@ export function AgentTimeline({
 
   actions.slice(-4).forEach((action, index, visibleActions) => {
     const isLatest = index === visibleActions.length - 1;
-    items.push({
+    items.splice(2 + index, 0, {
       id: `${action.type}:${action.filePath}:${index}`,
       label: actionLabel(action),
-      detail: action.linesChanged !== undefined
-        ? `${action.filePath} · ${action.linesChanged} changed lines`
-        : action.filePath,
+      detail: action.linesChanged !== undefined ? `${action.filePath} · ${action.linesChanged} changed lines` : action.filePath,
       state: streaming && isLatest ? "active" : "complete",
       icon: action.type === "reading" ? FileSearch : Pencil,
     });
   });
 
-  if (streaming && hasMeaningfulActivity) {
-    items.push({ id: "response", label: "Synthesis agent drafting response", detail: "Combining verified results", state: "active", icon: Sparkles });
-  }
-
   if (approvalState) items.push(approvalLabel(approvalState));
-  if (items.length === 0) return null;
 
   const activeItem = [...items].reverse().find((item) => item.state === "active");
   const completedCount = items.filter((item) => item.state === "complete").length;
   const hasError = items.some((item) => item.state === "error");
   const progress = Math.min(100, Math.round((completedCount / Math.max(items.length, 1)) * 100));
   const agentCount = Math.min(3, 1 + Number(Boolean(searching)) + Number(actions.length > 0));
+  const currentLabel = activeItem?.label ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
 
   return (
-    <section
-      className="mx-auto mb-3 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl"
-      aria-label="KYVORIX agent execution timeline"
-      aria-live="polite"
-    >
+    <section className="mx-auto mb-3 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
       <div className="relative overflow-hidden border-b border-edge/70 bg-gradient-to-br from-cyan/[0.08] via-panel to-indigo/[0.07] px-4 pb-3 pt-3.5">
         <div className="pointer-events-none absolute -right-12 -top-16 h-36 w-36 rounded-full bg-cyan/10 blur-3xl" />
         <div className="relative flex items-start justify-between gap-3">
@@ -116,25 +158,24 @@ export function AgentTimeline({
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-display text-[12px] font-bold tracking-wide text-ink">Agent workspace</p>
-                <span className="rounded-full border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-cyan">orchestrated</span>
+                <p className="font-display text-[12px] font-bold tracking-wide text-ink">{modelLabel} workspace</p>
+                <span className="rounded-full border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-cyan">live plan</span>
               </div>
-              <p className="mt-0.5 truncate text-[10px] text-ink-faint">{activeItem?.label ?? (hasError ? "Action needs attention" : "Execution complete")}</p>
+              <p className="mt-0.5 truncate text-[10px] text-ink-faint">{currentLabel}</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[9px] font-mono text-ink-faint">
-            <span className="flex items-center gap-1"><Users className="h-3 w-3" />{agentCount} agents</span>
-            {streaming ? <span className="flex items-center gap-1 text-cyan"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan" />LIVE</span> : <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />LATEST</span>}
+            <span className="flex items-center gap-1"><Users className="h-3 w-3" />{agentCount} signals</span>
+            {streaming ? <span className="flex items-center gap-1 text-cyan"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan" />LIVE</span> : <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />READY</span>}
           </div>
         </div>
-        <div className="mt-3 h-1 overflow-hidden rounded-full bg-edge/70"><div className={`h-full rounded-full transition-all duration-500 ${hasError ? "bg-rose-400" : streaming ? "bg-cyan" : "bg-emerald-400"}`} style={{ width: `${streaming ? Math.max(progress, 18) : 100}%` }} /></div>
-        <div className="mt-1.5 flex items-center justify-between text-[9px] text-ink-faint"><span>{completedCount} completed steps</span><span>{streaming ? "Executing" : "Verified"}</span></div>
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-edge/70"><div className={`h-full rounded-full transition-all duration-500 ${hasError ? "bg-rose-400" : streaming ? "bg-cyan" : "bg-emerald-400"}`} style={{ width: `${streaming ? Math.max(progress, 14) : 100}%` }} /></div>
+        <div className="mt-1.5 flex items-center justify-between text-[9px] text-ink-faint"><span>{completedCount} completed steps</span><span>{streaming ? "Working" : hasError ? "Needs attention" : "Ready"}</span></div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 border-b border-edge/60 px-4 py-2.5">
-        <span className="inline-flex items-center gap-1 rounded-full border border-cyan/15 bg-cyan/[0.06] px-2 py-1 text-[9px] font-semibold text-cyan"><GitBranch className="h-3 w-3" />Repository agent</span>
-        {searching && <span className="inline-flex items-center gap-1 rounded-full border border-violet-400/20 bg-violet-400/[0.07] px-2 py-1 text-[9px] font-semibold text-violet-300"><Search className="h-3 w-3" />Research agent</span>}
-        {actions.length > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/20 bg-amber-300/[0.07] px-2 py-1 text-[9px] font-semibold text-amber-200"><Pencil className="h-3 w-3" />Change planner</span>}
+      <div className="border-b border-edge/60 px-4 py-2.5">
+        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Execution plan</p>
+        <p className="mt-1 text-[11px] leading-5 text-ink-muted">Understand the request → plan the approach → perform only reported work → check available evidence → deliver the result.</p>
       </div>
 
       <ol className="space-y-0 px-4 py-2.5">
@@ -159,6 +200,21 @@ export function AgentTimeline({
           );
         })}
       </ol>
+
+      {actionEvents.length > 0 && (
+        <div className="border-t border-edge/60 px-4 py-2.5">
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Verified activity</p>
+          <div className="mt-2 space-y-1.5">
+            {actionEvents.slice(-4).map((event) => (
+              <div key={event.id} className="flex min-w-0 items-center gap-2 text-[10px]">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${event.phase === "succeeded" ? "bg-emerald-400" : event.phase === "failed" || event.phase === "cancelled" ? "bg-rose-400" : "bg-cyan"}`} />
+                <span className="shrink-0 font-semibold text-ink-muted">{event.provider} · {event.operation.replace(/_/g, " ")}</span>
+                <span className="truncate text-ink-faint">{event.summary}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

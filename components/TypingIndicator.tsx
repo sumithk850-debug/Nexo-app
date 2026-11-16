@@ -25,7 +25,7 @@ export function TypingIndicator({ modelId }: { modelId?: string }) {
       <div className="flex flex-col">
         <span className="font-mono text-xs text-ink-muted">{message}</span>
         {modelId && (
-          <span className="text-[10px] text-ink-faint uppercase tracking-wider">{modelId} is thinking...</span>
+          <span className="text-[10px] text-ink-faint uppercase tracking-wider">{modelId} is working...</span>
         )}
       </div>
     </div>

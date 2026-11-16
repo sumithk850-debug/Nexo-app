@@ -369,9 +369,9 @@ export function MessageBubble({
         <Signal size="sm" />
       </div>
       <div className="min-w-0 max-w-[85%] md:max-w-[75%]">
-        {model && (
+        {(message.modelLabel || model) && (
           <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-cyan">
-            {model.name}
+            {message.modelLabel || model?.name}
           </p>
         )}
         {/* Repository operation markers and file bodies belong exclusively in

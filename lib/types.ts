@@ -18,6 +18,8 @@ export interface ChatMessage {
   /** Browser-local previews for a multi-image upload or rendered PDF pages. */
   imageAttachments?: ChatImageAttachment[];
   modelId?: NexoModelId;
+  /** Local display label for coder sub-models such as Craft V5. */
+  modelLabel?: string;
   /** True when this message was loaded from / saved to the database. */
   persisted?: boolean;
   /** Local-only recovery state for a streamed assistant response. */
