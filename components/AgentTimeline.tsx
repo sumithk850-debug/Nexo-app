@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   Check,
   Circle,
@@ -14,6 +16,8 @@ import {
   Users,
   XCircle,
   GitBranch,
+  Menu,
+  X,
 } from "lucide-react";
 import type { ActionEvent } from "@/lib/actionEngine";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
@@ -105,6 +109,7 @@ export function AgentTimeline({
   modelLabel?: string;
   actionEvents?: ActionEvent[];
 }) {
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const hasExecution = Boolean(attachmentState || searching || actions.length > 0 || actionEvents.length > 0 || approvalState);
   if (!hasExecution && !streaming) return null;
 
@@ -149,7 +154,31 @@ export function AgentTimeline({
 
   return (
     <section className="mx-auto mb-3 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
-      <div className="relative overflow-hidden border-b border-edge/70 bg-gradient-to-br from-cyan/[0.08] via-panel to-indigo/[0.07] px-4 pb-3 pt-3.5">
+      <button
+        type="button"
+        onClick={() => setMobileExpanded((expanded) => !expanded)}
+        aria-expanded={mobileExpanded}
+        aria-controls="mobile-execution-details"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:hidden"
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${hasError ? "border-rose-400/30 bg-rose-400/10 text-rose-300" : streaming ? "border-cyan/30 bg-cyan/10 text-cyan" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"}`}>
+            {hasError ? <XCircle className="h-3.5 w-3.5" /> : streaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-[11px] font-bold text-ink">{modelLabel}</span>
+              <span className="rounded-full border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-cyan">{streaming ? "working" : "ready"}</span>
+            </span>
+            <span className="mt-0.5 block truncate text-[9px] text-ink-faint">{currentLabel}</span>
+          </span>
+        </span>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-edge bg-void/50 text-ink-muted" aria-hidden="true">
+          {mobileExpanded ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        </span>
+      </button>
+
+      <div className="relative hidden overflow-hidden border-b border-edge/70 bg-gradient-to-br from-cyan/[0.08] via-panel to-indigo/[0.07] px-4 pb-3 pt-3.5 sm:block">
         <div className="pointer-events-none absolute -right-12 -top-16 h-36 w-36 rounded-full bg-cyan/10 blur-3xl" />
         <div className="relative flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -173,12 +202,12 @@ export function AgentTimeline({
         <div className="mt-1.5 flex items-center justify-between text-[9px] text-ink-faint"><span>{completedCount} completed steps</span><span>{streaming ? "Working" : hasError ? "Needs attention" : "Ready"}</span></div>
       </div>
 
-      <div className="border-b border-edge/60 px-4 py-2.5">
+      <div id="mobile-execution-details" className={`${mobileExpanded ? "block" : "hidden"} border-b border-edge/60 px-4 py-2.5 sm:block`}>
         <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Execution plan</p>
         <p className="mt-1 text-[11px] leading-5 text-ink-muted">Understand the request → plan the approach → perform only reported work → check available evidence → deliver the result.</p>
       </div>
 
-      <ol className="space-y-0 px-4 py-2.5">
+      <ol className={`${mobileExpanded ? "block" : "hidden"} space-y-0 px-4 py-2.5 sm:block`}>
         {items.map((item, index) => {
           const Icon = item.icon;
           const isActive = item.state === "active";
@@ -202,7 +231,7 @@ export function AgentTimeline({
       </ol>
 
       {actionEvents.length > 0 && (
-        <div className="border-t border-edge/60 px-4 py-2.5">
+        <div className={`${mobileExpanded ? "block" : "hidden"} border-t border-edge/60 px-4 py-2.5 sm:block`}>
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Verified activity</p>
           <div className="mt-2 space-y-1.5">
             {actionEvents.slice(-4).map((event) => (

@@ -46,6 +46,8 @@ assert.match(timeline, /search/);
 assert.match(timeline, /Execution plan/);
 assert.match(timeline, /actionEvents/);
 assert.match(timeline, /modelLabel/);
+assert.match(timeline, /aria-controls="mobile-execution-details"/);
+assert.match(timeline, /sm:hidden/);
 assert.match(typing, /modelId} is working/);
 assert.match(missionControl, /activeModelLabel/);
 assert.match(modelDisplay, /"craft-v5": "Craft V5"/);
