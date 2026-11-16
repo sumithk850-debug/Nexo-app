@@ -51,7 +51,7 @@ import { isArtifactRequest } from "@/lib/artifactIntent";
 import { cleanImagePrompt, isImageGenerationRequest } from "@/lib/imageIntent";
 import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
-import { getActiveModelDisplayName } from "@/lib/modelDisplay";
+import { getActiveModelDisplayName, getModelDisplayName } from "@/lib/modelDisplay";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 declare global {
@@ -606,11 +606,9 @@ export default function ChatPage() {
     return searches.length > 0 ? searches[searches.length - 1] : null;
   })();
   const activityEvents = lastAssistantMsg?.actionEvents ?? [];
-  const activeModelLabel = getActiveModelDisplayName({
-    selectedModel,
-    coderModel,
-    isCoderMode,
-  });
+  const activeModelLabel = isCoderMode
+    ? getModelDisplayName(coderModel, true)
+    : getActiveModelDisplayName({ selectedModel, coderModel, isCoderMode });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
