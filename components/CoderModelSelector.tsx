@@ -7,12 +7,13 @@ import { CODER_MODELS, type CoderModelId } from "@/lib/providers.server";
 interface CoderModelSelectorProps {
   selected: CoderModelId;
   onSelect: (id: CoderModelId) => void;
+  craftV5Available?: boolean;
 }
 
 // Coder sub-model selector — only renders inside Kyvorix Coder Agent mode.
 // Craft V3 Lite is the active UltraSpeed coding profile with a deeper prompt.
 // Craft V3 and Craft V4 are visually locked paid tiers.
-export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorProps) {
+export function CoderModelSelector({ selected, onSelect, craftV5Available = false }: CoderModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [upgradeModel, setUpgradeModel] = useState<(typeof CODER_MODELS)[number] | null>(null);
   const [upgradeInterestShown, setUpgradeInterestShown] = useState(false);
@@ -37,7 +38,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
   }, [upgradeModel]);
 
   const activeInfo = CODER_MODELS.find((m) => m.id === selected) ?? CODER_MODELS[0];
-  const ActiveIcon = activeInfo.id === "craft-v3-lite" ? Zap : LockIcon;
+  const ActiveIcon = activeInfo.id === "craft-v3-lite" || activeInfo.id === "craft-v5" ? Zap : LockIcon;
   const upgradeBenefits = upgradeModel?.id === "craft-v4"
     ? [
         "Next-generation architecture planning",
@@ -76,7 +77,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
         </span>
         <span
           className={`rounded px-1.5 py-0.5 text-[9px] font-black tracking-wide ${
-            activeInfo.badge === "LITE" ? "bg-cyan/15 text-cyan" : "bg-amber-500/15 text-amber-400"
+            activeInfo.badge === "LITE" ? "bg-cyan/15 text-cyan" : activeInfo.badge === "TRIAL" ? "bg-violet-500/15 text-violet-300" : "bg-amber-500/15 text-amber-400"
           }`}
         >
           {activeInfo.badge}
@@ -106,7 +107,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
             </div>
           </div>
           <div className="p-1.5">
-            {CODER_MODELS.map((m) => {
+            {CODER_MODELS.filter((m) => m.id !== "craft-v5" || craftV5Available).map((m) => {
               const isActive = m.id === selected;
               const Icon =
                 m.id === "craft-v3-lite" ? Zap : m.id === "craft-v3" ? Rocket : Rocket;
@@ -149,7 +150,7 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                       <span className="text-xs font-bold text-ink">{m.name}</span>
                       <span
                         className={`rounded px-1.5 py-px text-[9px] font-black tracking-wide ${
-                          m.badge === "LITE" ? "bg-cyan/15 text-cyan" : "bg-amber-500/15 text-amber-400"
+                          m.badge === "LITE" ? "bg-cyan/15 text-cyan" : m.badge === "TRIAL" ? "bg-violet-500/15 text-violet-300" : "bg-amber-500/15 text-amber-400"
                         }`}
                       >
                         {m.badge}
@@ -161,6 +162,8 @@ export function CoderModelSelector({ selected, onSelect }: CoderModelSelectorPro
                     <span className="mt-0.5 block truncate text-[10px] text-ink-muted">
                       {m.id === "craft-v3-lite"
                         ? "UltraSpeed coding · Free tier"
+                        : m.id === "craft-v5"
+                          ? "Flagship orchestration · 12-hour token window"
                         : m.id === "craft-v3"
                           ? "Advanced coding capability · Paid upgrade"
                           : "Next-generation architecture · Paid upgrade"}

@@ -6,6 +6,7 @@ import {
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
 } from "@/lib/providersWithWikipedia.server";
+import type { CoderModelId } from "@/lib/providersWithWikipedia.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
@@ -23,6 +24,7 @@ import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
 import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { runNativeToolLoop } from "@/lib/nativeTools.server";
 import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
+import { consumeCraftV5Tokens, requireActiveCraftV5Trial } from "@/lib/craftV5Trial.server";
 
 export const runtime = "nodejs";
 
@@ -666,6 +668,17 @@ export async function POST(req: NextRequest) {
 
     const coderModel = body.coderModel as string | undefined;
 
+    const requestedCraftV5 = isCoderMode && coderModel === "craft-v5";
+    if (requestedCraftV5) {
+      if (!userId) {
+        return Response.json({ error: "craft_v5_auth_required", message: "Sign in is required to start the Craft V5 trial." }, { status: 401 });
+      }
+      try {
+        await requireActiveCraftV5Trial(userId);
+      } catch {
+        return Response.json({ error: "craft_v5_trial_expired", message: "Your Craft V5 trial is not active. Craft V3 Lite remains available." }, { status: 403 });
+      }
+    }
     const requestedLockedCoderModel =
       (isCoderMode &&
         (coderModel === "craft-v3" || coderModel === "craft-v4")) ||
@@ -688,12 +701,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const explicitlyUnlockedLite =
-      isCoderMode && coderModel === "craft-v3-lite";
-
-    const activeCoderModel = explicitlyUnlockedLite
-      ? "craft-v3-lite"
-      : CODER_MODELS[0].id;
+    const explicitlyUnlockedLite = isCoderMode && coderModel === "craft-v3-lite";
+    const explicitlyUnlockedV5 = requestedCraftV5;
+    const activeCoderModel: CoderModelId = explicitlyUnlockedV5
+      ? "craft-v5"
+      : explicitlyUnlockedLite
+        ? "craft-v3-lite"
+        : CODER_MODELS[0].id;
 
     const lastUserMessage = [...messages]
       .reverse()
@@ -705,7 +719,7 @@ export async function POST(req: NextRequest) {
         : "";
 
     const usesCoderBudget = Boolean(
-      isCoderMode || modelId === "craft-v3"
+      (isCoderMode || modelId === "craft-v3") && !requestedCraftV5
     );
 
     let coderRemainingTokens: number | undefined;
@@ -760,8 +774,8 @@ export async function POST(req: NextRequest) {
 
     const baseConfig = PROVIDER_CONFIG[modelId];
 
-    const coderOverridePrompt = explicitlyUnlockedLite
-      ? CODER_PROMPT_OVERRIDES["craft-v3-lite"]
+    const coderOverridePrompt = isCoderMode
+      ? CODER_PROMPT_OVERRIDES[activeCoderModel]
       : undefined;
 
     const config = coderOverridePrompt
@@ -804,6 +818,27 @@ export async function POST(req: NextRequest) {
           status: 503,
         }
       );
+    }
+
+    if (requestedCraftV5 && userId) {
+      // Reserve the input plus a bounded response allowance atomically before
+      // any provider work starts. This prevents concurrent requests from
+      // bypassing the 8,000-token / 12-hour V5 window.
+      const reservation = await consumeCraftV5Tokens(
+        userId,
+        estimateTokens(lastUserMessage?.content ?? "") + 2_048
+      );
+      if (!reservation.allowed) {
+        return Response.json(
+          {
+            error: "craft_v5_token_limit_reached",
+            message: "Craft V5 has reached its 8,000-token limit for this 12-hour window. Craft V3 Lite remains available.",
+            remainingTokens: reservation.remainingTokens,
+            resetAt: reservation.resetAt,
+          },
+          { status: 429 }
+        );
+      }
     }
 
     const webContext = lastUserMessage

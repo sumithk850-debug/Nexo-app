@@ -22,6 +22,7 @@ import { SessionResumeCard } from "@/components/SessionResumeCard";
 import { IntegrationsPanel } from "@/components/IntegrationsPanel";
 import { DevelopmentIntelligencePanel } from "@/components/DevelopmentIntelligencePanel";
 import { CoderModelSelector } from "@/components/CoderModelSelector";
+import { CraftV5LaunchScreen, type CraftV5TrialView } from "@/components/CraftV5LaunchScreen";
 import { NexoLivePanel } from "@/components/NexoLivePanel";
 import { MissionControlHeader } from "@/components/MissionControlHeader";
 import { DeepResearchPanel, type DeepResearchRequest, type DeepResearchStage } from "@/components/DeepResearchPanel";
@@ -210,11 +211,14 @@ export default function ChatPage() {
   const [coderModel, setCoderModel] = useState<CoderModelId>(() => {
     if (typeof window === "undefined") return "craft-v3-lite";
     const stored = window.localStorage.getItem(CODER_MODEL_STORAGE_KEY);
-    if (stored === "craft-v3-lite" || stored === "craft-v3" || stored === "craft-v4") {
+    if (stored === "craft-v3-lite" || stored === "craft-v5" || stored === "craft-v3" || stored === "craft-v4") {
       return stored;
     }
     return "craft-v3-lite";
   });
+  const [craftV5Trial, setCraftV5Trial] = useState<CraftV5TrialView | null>(null);
+  const [craftV5TokenWindow, setCraftV5TokenWindow] = useState<{ remainingTokens: number; resetAt: string | null }>({ remainingTokens: 8000, resetAt: null });
+  const [craftV5LaunchOpen, setCraftV5LaunchOpen] = useState(false);
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
@@ -646,6 +650,7 @@ export default function ChatPage() {
       setAuthLoading(false);
       if (u) {
         loadSelectedRepo(u.id);
+        void loadCraftV5Trial(u.id);
         void loadSavedDefaultModel(u.id);
       }
     });
@@ -655,8 +660,12 @@ export default function ChatPage() {
       setAuthLoading(false);
       if (u) {
         loadSelectedRepo(u.id);
+        void loadCraftV5Trial(u.id);
         void loadSavedDefaultModel(u.id);
-      } else setSelectedRepo(null);
+      } else {
+        setSelectedRepo(null);
+        setCraftV5Trial(null);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -768,6 +777,43 @@ export default function ChatPage() {
       setSelectedRepo(data.selectedRepo ?? null);
     } catch {
       setSelectedRepo(null);
+    }
+  }
+
+  async function loadCraftV5Trial(userId: string) {
+    try {
+      const response = await authenticatedFetch(`/api/craft-v5/trial?userId=${encodeURIComponent(userId)}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      setCraftV5Trial(data.trial ?? null);
+      if (data.tokenWindow) setCraftV5TokenWindow(data.tokenWindow);
+      if (coderModel === "craft-v5" && !data.trial?.active) {
+        setCoderModel("craft-v3-lite");
+        window.localStorage.setItem(CODER_MODEL_STORAGE_KEY, "craft-v3-lite");
+      }
+    } catch {
+      // The regular coder remains usable if the optional V5 status is unavailable.
+    }
+  }
+
+  async function startCraftV5Trial() {
+    if (!user) return;
+    try {
+      const response = await authenticatedFetch("/api/craft-v5/trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.trial) return;
+      setCraftV5Trial(data.trial);
+      if (data.tokenWindow) setCraftV5TokenWindow(data.tokenWindow);
+      setCraftV5LaunchOpen(false);
+      setCoderModel("craft-v5");
+      window.localStorage.setItem(CODER_MODEL_STORAGE_KEY, "craft-v5");
+      setIsCoderMode(true);
+    } catch {
+      // Keep the current screen when activation cannot be confirmed.
     }
   }
 
@@ -1916,6 +1962,20 @@ export default function ChatPage() {
 
   const firstName = user?.fullName?.split(" ")[0] || "there";
 
+  if (craftV5LaunchOpen) {
+    return (
+      <CraftV5LaunchScreen
+        trial={craftV5Trial ?? {
+          startedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+          active: true,
+          remainingMs: 48 * 60 * 60 * 1000,
+        }}
+        onStart={startCraftV5Trial}
+      />
+    );
+  }
+
   return (
     <div className={`flex h-[100dvh] bg-void transition-all duration-300 ${isCoderMode ? 'ring-1 ring-inset ring-cyan/30' : ''}`}>
       <ChatSidebar
@@ -1932,7 +1992,13 @@ export default function ChatPage() {
         onOpenAuth={() => setAuthModalOpen(true)}
         onSignOut={handleSignOut}
         isCoderMode={isCoderMode}
-        onToggleCoderMode={() => setIsCoderMode(!isCoderMode)}
+        onToggleCoderMode={() => {
+          if (!isCoderMode && !craftV5Trial) {
+            setCraftV5LaunchOpen(true);
+            return;
+          }
+          setIsCoderMode(!isCoderMode);
+        }}
         onGlobalSearch={() => setSearchModalOpen(true)}
         onOpenDeepResearch={() => { setDeepResearchOpen(true); setSidebarOpen(false); }}
         onOpenIntegrations={() => setIntegrationsOpen(true)}
@@ -1988,6 +2054,7 @@ export default function ChatPage() {
           {isCoderMode && (
             <CoderModelSelector
               selected={coderModel}
+              craftV5Available={Boolean(craftV5Trial?.active)}
               onSelect={(id) => {
                 setCoderModel(id);
                 try {
@@ -1997,6 +2064,11 @@ export default function ChatPage() {
                 }
               }}
             />
+          )}
+          {isCoderMode && coderModel === "craft-v5" && (
+            <span className="hidden items-center gap-1 rounded-lg border border-violet-400/25 bg-violet-400/10 px-2 py-1 font-mono text-[10px] font-bold text-violet-200 sm:flex" title="Craft V5 token allowance">
+              V5 · {craftV5TokenWindow.remainingTokens.toLocaleString()} tokens
+            </span>
           )}
           {isCoderMode && (
             <button

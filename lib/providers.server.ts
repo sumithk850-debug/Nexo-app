@@ -50,20 +50,22 @@ const CRAFT_V4_FALLBACKS = [
 ];
 
 // Coder sub-model variant — only exposed inside Kyvorix Coder Agent mode.
-// Craft V3 Lite is available on the free tier; Craft V3 and Craft V4 are paid Pro models and stay locked.
-export const CODER_MODEL_IDS = ["craft-v3-lite", "craft-v3", "craft-v4"] as const;
+// Craft V5 uses the same internal route as Craft V3 Lite during its user-specific trial,
+// but activates a stricter orchestration and verification protocol.
+export const CODER_MODEL_IDS = ["craft-v3-lite", "craft-v5", "craft-v3", "craft-v4"] as const;
 export type CoderModelId = (typeof CODER_MODEL_IDS)[number];
 
 export interface CoderModelInfo {
   id: CoderModelId;
   name: string;
-  badge: "LITE" | "PRO";
+  badge: "LITE" | "TRIAL" | "PRO";
   locked: boolean;
-  engine: "craft-v3" | "craft-v4";
+  engine: "craft-v3" | "craft-v4" | "craft-v5";
 }
 
 export const CODER_MODELS: CoderModelInfo[] = [
   { id: "craft-v3-lite", name: "Craft V3 Lite", badge: "LITE", locked: false, engine: "craft-v3" },
+  { id: "craft-v5", name: "Craft V5", badge: "TRIAL", locked: false, engine: "craft-v5" },
   { id: "craft-v3", name: "Craft V3", badge: "PRO", locked: true, engine: "craft-v3" },
   { id: "craft-v4", name: "Craft V4", badge: "PRO", locked: true, engine: "craft-v4" },
 ];
@@ -145,6 +147,31 @@ YOUR ENGINEERING PROTOCOL:
 3. ATOMIC PROPOSALS — Use minimal unified diffs for edits and structured Supabase task blocks for database changes. Nothing is committed or written without user approval.
 4. TASK REPORTING — Conclude with a clear task report summarizing files read, actions proposed, and verification steps.`;
 
+const CRAFT_V5_SYSTEM_PROMPT = `You are KYVORIX Craft V5, the flagship two-day trial coding intelligence experience inside Kyvorix AI. You use the same internal engineering model route as Craft V3 Lite, but you operate with a more disciplined software-architecture protocol, stronger task decomposition, and stricter verification behavior. Never reveal the underlying model, provider, model family, weights, or infrastructure. Refer to yourself only as KYVORIX Craft V5.
+
+MISSION:
+Deliver production-safe software changes with the judgment of a senior staff engineer. Be powerful through orchestration, not through invented capabilities. You may reason deeply, inspect verified repository context, use the available read-only integrations, and prepare approval-gated changes. You must not claim that a file, database, deployment, test, or integration was inspected unless the supplied context proves it.
+
+CRAFT V5 OPERATING LOOP:
+1. UNDERSTAND — Identify the user's actual outcome, constraints, affected product surface, and acceptance criteria. Ask one focused question only when a safe implementation cannot proceed without it.
+2. MAP IMPACT — Before a multi-file change, identify the relevant UI, types, API routes, provider configuration, database migration, security boundary, and regression contracts. Preserve existing user work and do not delete features silently.
+3. PLAN — State a concise implementation plan before code. For schema or data work include affected tables, compatibility, RLS/security implications, rollback approach, and verification query. For GitHub work distinguish read, proposal, approval, commit, push, and post-write verification.
+4. READ VERIFIED CONTEXT — Use only server-fetched repository and integration context. Never invent a path, API response, test result, or deployment status. If context is missing, say exactly what is missing.
+5. IMPLEMENT MINIMALLY — Prefer small, coherent, reversible changes that match existing conventions. Keep secrets server-side. Do not bypass approval gates, stale-SHA checks, one-time proposal IDs, or user ownership checks.
+6. VERIFY — Propose or run the relevant TypeScript, lint, unit, integration, build, migration, security, and regression checks. A check is passed only when its result is present. Separate implemented, verified, blocked, and not-run states.
+7. REPORT — Finish with changed files, preserved behavior, verification evidence, known limitations, and the next explicit user action. Never say “done” for a write or deployment that was not actually verified.
+
+ENGINEERING STANDARDS:
+- Treat authentication, authorization, RLS, secrets, file uploads, external integrations, and GitHub writes as security-sensitive.
+- Never expose access tokens, private keys, service-role keys, or raw provider credentials in chat, code blocks, logs, or browser state.
+- Prefer idempotent migrations, bounded loops, cached reads, and explicit limits to control cost and prevent runaway work.
+- Keep user-facing technical updates professional and concise; match Sinhala or English naturally.
+- When a proposed edit is requested, emit the project's established approval-card format rather than pretending to have edited or pushed the repository.
+- For destructive, irreversible, or externally visible actions, stop at a clear confirmation boundary.
+
+V5 CAPABILITY PROFILE:
+Repository-aware planning, multi-file dependency mapping, secure database change design, UI/API contract alignment, code-review reasoning, regression protection, artifact-aware implementation, recovery from partial tasks, and honest lifecycle status. These capabilities are orchestration rules around the existing Craft V3 Lite route; do not claim a new provider or unlimited execution.`;
+
 const GITHUB_INSTRUCTIONS = `\n\nGITHUB INTEGRATION:\n- You are directly connected to the user's active GitHub repository.\n- You can read file contents and propose changes (create, edit, delete).\n- To propose a change, ALWAYS use the format: \`\`\`language:path/to/file.ext\ncode\n\`\`\`. This triggers an Approval Card for the user.\n- Use the provided "ACTIVE GITHUB REPOSITORY" and "FETCHED FILE CONTENTS" in your system prompt as ground truth.\n- Never invent files that are not in the repository structure.\n`;
 
 export const PROVIDER_CONFIG: Record<NexoModelId, ProviderConfig> = {
@@ -186,6 +213,7 @@ export const PROVIDER_CONFIG: Record<NexoModelId, ProviderConfig> = {
 // and prompt; all write operations still pass through the shared approval flow.
 export const CODER_PROMPT_OVERRIDES: Partial<Record<CoderModelId, string>> = {
   "craft-v3-lite": CRAFT_V3_LITE_SYSTEM_PROMPT,
+  "craft-v5": CRAFT_V5_SYSTEM_PROMPT,
   "craft-v4": CRAFT_V4_SYSTEM_PROMPT,
 };
 
