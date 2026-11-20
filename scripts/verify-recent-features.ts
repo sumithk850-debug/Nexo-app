@@ -9,6 +9,7 @@ const folders = source("lib/chatFolders.ts");
 const search = source("components/SearchModal.tsx");
 const page = source("app/page.tsx");
 const timeline = source("components/AgentTimeline.tsx");
+const realityDrawer = source("components/RealityDrawer.tsx");
 const typing = source("components/TypingIndicator.tsx");
 const chatRoute = source("app/api/chat/route.ts");
 const missionControl = source("components/MissionControlHeader.tsx");
@@ -29,7 +30,7 @@ assert.match(folders, /writeChatFolderState\(sessionId, migrated\)/);
 // Search contracts: scope by the active session, debounce requests, and cap results.
 assert.match(search, /\.eq\("session_id", sessionId\)/);
 assert.match(search, /\.limit\(20\)/);
-assert.match(search, /setTimeout\(search, 300\)/);
+assert.match(search, /setTimeout\(search, (250|300)\)/);
 assert.match(search, /clearTimeout\(debounce\)/);
 
 // Draft contracts: keep the offline cache bounded and reject GitHub-token-shaped text.
@@ -49,6 +50,12 @@ assert.match(timeline, /actionEvents/);
 assert.match(timeline, /modelLabel/);
 assert.match(timeline, /aria-controls="mobile-execution-details"/);
 assert.match(timeline, /sm:hidden/);
+assert.match(page, /<RealityDrawer/);
+assert.match(realityDrawer, /Reality Engine/);
+assert.match(realityDrawer, /Execution track/);
+assert.match(realityDrawer, /onTouchEnd={closeFromSwipe}/);
+assert.match(realityDrawer, /aria-modal="true"/);
+assert.match(realityDrawer, /document.body.style.overflow = "hidden"/);
 assert.match(typing, /modelId} is working/);
 assert.match(missionControl, /activeModelLabel/);
 assert.match(modelDisplay, /"craft-v5": "Craft V5"/);

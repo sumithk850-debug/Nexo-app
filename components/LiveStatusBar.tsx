@@ -53,7 +53,7 @@ const STYLE_MAP: Record<
 function SearchingPill({ searching, streaming }: { searching: SearchingAction; streaming: boolean }) {
   const queries = searching.queries.join(", ");
   return (
-    <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
+    <div className="mx-4 mb-2 hidden overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all sm:block">
       <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/10">
           {streaming ? (
@@ -82,7 +82,7 @@ function GeneratingPill({ charsPerSecond, elapsedSeconds }: { charsPerSecond?: n
   const speed = charsPerSecond ?? 0;
   const tone = speed > 50 ? "text-green-400" : speed > 20 ? "text-cyan" : speed > 0 ? "text-amber-400" : "text-ink-muted";
   return (
-    <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
+    <div className="mx-4 mb-2 hidden overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all sm:block">
       <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-cyan/10">
           <Loader2 className="h-3 w-3 animate-spin text-cyan" />
@@ -165,7 +165,7 @@ export function LiveStatusBar({
   const Icon = style.icon;
 
   return (
-    <div className="mx-4 mb-2 overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all">
+    <div className="mx-4 mb-2 hidden overflow-hidden rounded-xl border border-edge bg-panel shadow-sm transition-all sm:block">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
