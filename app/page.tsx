@@ -16,6 +16,7 @@ import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
+import { RealityDrawer } from "@/components/RealityDrawer";
 import { ConnectionRecoveryBanner } from "@/components/ConnectionRecoveryBanner";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
 import { SessionResumeCard } from "@/components/SessionResumeCard";
@@ -2290,6 +2291,18 @@ export default function ChatPage() {
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
               actionEvents={activityEvents}
+            />
+
+            <RealityDrawer
+              streaming={isStreaming}
+              actions={githubIntegrationEnabled ? activityActions : []}
+              searching={activitySearching?.action ?? null}
+              attachmentState={attachmentPreparation?.state ?? null}
+              approvalState={pendingApproval?.status ?? null}
+              modelLabel={activeModelLabel}
+              actionEvents={activityEvents}
+              repoFullName={githubIntegrationEnabled ? selectedRepo : null}
+              charsPerSecond={typingSpeed}
             />
 
             <LiveStatusBar

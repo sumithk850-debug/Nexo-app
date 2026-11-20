@@ -153,7 +153,7 @@ export function AgentTimeline({
   const currentLabel = activeItem?.label ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
 
   return (
-    <section className="mx-auto mb-3 w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
+    <section className="mx-auto mb-3 hidden w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:block" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
       <button
         type="button"
         onClick={() => setMobileExpanded((expanded) => !expanded)}
