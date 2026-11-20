@@ -778,12 +778,20 @@ export async function POST(req: NextRequest) {
       ? CODER_PROMPT_OVERRIDES[activeCoderModel]
       : undefined;
 
+    // Craft V5 deliberately uses the same provider/model route as Brainex
+    // 10.8. Its distinct behavior comes from the V5 orchestration prompt,
+    // while this explicit route keeps the execution engine aligned with the
+    // model requested by the user.
+    const coderBaseConfig =
+      activeCoderModel === "craft-v5"
+        ? PROVIDER_CONFIG["brainex-10.8"]
+        : baseConfig;
     const config = coderOverridePrompt
       ? {
-          ...baseConfig,
+          ...coderBaseConfig,
           systemPrompt: coderOverridePrompt,
         }
-      : baseConfig;
+      : coderBaseConfig;
 
     if (!config) {
       return new Response(

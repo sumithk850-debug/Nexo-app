@@ -159,7 +159,7 @@ export function AgentTimeline({
         onClick={() => setMobileExpanded((expanded) => !expanded)}
         aria-expanded={mobileExpanded}
         aria-controls="mobile-execution-details"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:hidden"
+        className="relative z-10 flex w-full items-center justify-between gap-3 border-b border-cyan/15 bg-cyan/[0.03] px-3 py-2.5 text-left sm:hidden"
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${hasError ? "border-rose-400/30 bg-rose-400/10 text-rose-300" : streaming ? "border-cyan/30 bg-cyan/10 text-cyan" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"}`}>
@@ -173,7 +173,7 @@ export function AgentTimeline({
             <span className="mt-0.5 block truncate text-[9px] text-ink-faint">{currentLabel}</span>
           </span>
         </span>
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-edge bg-void/50 text-ink-muted" aria-hidden="true">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan/40 bg-cyan/10 text-cyan shadow-[0_0_12px_rgba(0,229,255,0.12)]" aria-hidden="true">
           {mobileExpanded ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </span>
       </button>

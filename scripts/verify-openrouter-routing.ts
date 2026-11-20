@@ -24,7 +24,7 @@ const expectedRoutes = {
     fallbacks: ["google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free"],
   },
   "galex-4.0": {
-    model: "google/gemma-4-31b-it:free",
+    model: "particle-ai/particle-1:free",
     fallbacks: ["dots-studio/dots-3-note-preview:free", "nvidia/nemotron-3-super-120b-a12b:free"],
   },
   "brainex-10.8": {
@@ -77,4 +77,3 @@ assert(chatRoute.includes('!isCoderMode && modelId === "craft-v3"'), "The public
 assert(chatRoute.includes("This Craft model is locked until the Kyvorix Pro plan is available."), "Paid-model response must explain the Pro requirement");
 assert(chatRoute.includes('activeCoderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
 assert(chatPage.includes("proposalId: proposalData.proposalId"), "GitHub writes must continue through the server-approved proposal flow");
-

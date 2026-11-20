@@ -21,7 +21,10 @@ const SPADEC_FALLBACKS = [
   "google/gemma-4-31b-it:free",
   "openai/gpt-oss-20b:free",
 ];
-const GALEX_MODEL = "google/gemma-4-31b-it:free";
+// Galex is optimized for capable coding and codebase reasoning while keeping
+// the existing OpenRouter API-key route. Dots3 remains a compatibility
+// fallback, but it is scheduled to leave OpenRouter on 2026-12-31.
+const GALEX_MODEL = "particle-ai/particle-1:free";
 const GALEX_FALLBACKS = [
   "dots-studio/dots-3-note-preview:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
