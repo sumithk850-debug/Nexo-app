@@ -35,7 +35,7 @@ export default function BrowserAutomationPage() {
             <li>• Fill a matching regular text field; it never submits a form automatically.</li>
             <li>• Copy a page summary for you to paste into KYVORIX when you choose.</li>
           </ul>
-          <div className="mt-7 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-xs leading-5 text-amber-100/90"><strong>Important:</strong> Review each action before using it. Password, hidden, file, checkbox, and radio fields are blocked. The extension does not automatically execute AI instructions, send page contents to a server, or submit forms. It currently targets desktop Chromium browsers; mobile support depends on the browser's extension support.</div>
+          <div className="mt-7 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-xs leading-5 text-amber-100/90"><strong>Important:</strong> Review each action before using it. Password, hidden, file, checkbox, and radio fields are blocked. The extension does not automatically execute AI instructions, send page contents to a server, or submit forms. It currently targets desktop Chromium browsers; mobile support depends on the browser&apos;s extension support.</div>
         </div>
       </div>
     </main>

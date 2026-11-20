@@ -674,6 +674,9 @@ export default function ChatPage() {
       }
     });
     return () => subscription.unsubscribe();
+    // The auth subscription is intentionally installed once for the page
+    // lifetime; the loader functions use the current auth/session state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -832,13 +835,18 @@ export default function ChatPage() {
       const data = await res.json();
       if (data.messages) {
         setMessages(
-          data.messages.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            modelId: m.model_id,
-            persisted: true,
-          }))
+          data.messages.map((m: any) => {
+            const modelId = typeof m.model_id === "string" ? m.model_id : undefined;
+            const isCoderMessage = modelId === "craft-v3-lite" || modelId === "craft-v5" || modelId === "craft-v3" || modelId === "craft-v4";
+            return {
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              modelId: modelId as NexoModelId | undefined,
+              ...(isCoderMessage && modelId ? { modelLabel: getModelDisplayName(modelId, true) } : {}),
+              persisted: true,
+            };
+          })
         );
       }
     } catch {
@@ -1154,6 +1162,9 @@ export default function ChatPage() {
     const effectiveCoder = Boolean(
       (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
     );
+    // Keep the selected Coder sub-model in history while the public modelId
+    // remains the profile used for the server routing request.
+    const persistedModelId = effectiveCoder ? (coderModel || "craft-v3") : effectiveModel;
     const controller = providedController ?? streamAbortControllerRef.current ?? startStreamingTurn(assistantId);
     let accumulated = initialContent;
     try {
@@ -1211,7 +1222,7 @@ export default function ChatPage() {
               )
             );
             if (chatId) {
-              await saveMessage(chatId, "assistant", pausedMessage, "craft-v3");
+              await saveMessage(chatId, "assistant", pausedMessage, persistedModelId);
             }
             setIsStreaming(false);
             return;
@@ -1410,14 +1421,14 @@ export default function ChatPage() {
       }
 
       if (chatId && accumulated) {
-        saveMessage(chatId, "assistant", accumulated, effectiveModel);
+        saveMessage(chatId, "assistant", accumulated, persistedModelId);
       }
     } catch {
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (
           m.id === assistantId ? { ...m, generationState: "stopped" } : m
         )));
-        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, effectiveModel);
+        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, persistedModelId);
         return;
       }
       setMessages((prev) =>

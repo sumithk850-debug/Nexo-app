@@ -61,6 +61,8 @@ assert.match(missionControl, /activeModelLabel/);
 assert.match(modelDisplay, /"craft-v5": "Craft V5"/);
 assert.match(page, /modelLabel: activeModelLabel/);
 assert.match(page, /isCoderMode\s*\?\s*getModelDisplayName\(coderModel, true\)/);
+assert.match(page, /const persistedModelId = effectiveCoder \? \(coderModel \|\| "craft-v3"\) : effectiveModel/);
+assert.match(page, /getModelDisplayName\(modelId, true\)/);
 assert.match(chatRoute, /activeCoderModel === "craft-v5"/);
 assert.match(chatRoute, /PROVIDER_CONFIG\["brainex-10\.8"\]/);
 assert.match(recovery, /navigator\.onLine/);

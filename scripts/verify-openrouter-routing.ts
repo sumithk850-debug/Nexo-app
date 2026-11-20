@@ -75,5 +75,6 @@ assert(chatRoute.includes("requestedLockedCoderModel"), "Server must enforce the
 assert(chatRoute.includes('coderModel === "craft-v3" || coderModel === "craft-v4"'), "Both paid Coder variants must be locked server-side");
 assert(chatRoute.includes('!isCoderMode && modelId === "craft-v3"'), "The public Craft V3 profile must remain paid-gated");
 assert(chatRoute.includes("This Craft model is locked until the Kyvorix Pro plan is available."), "Paid-model response must explain the Pro requirement");
-assert(chatRoute.includes('activeCoderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
+assert(chatRoute.includes('coderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
+assert(chatRoute.includes('activeCoderModel === "craft-v5"'), "Craft V5 selection must remain explicit and server-side");
 assert(chatPage.includes("proposalId: proposalData.proposalId"), "GitHub writes must continue through the server-approved proposal flow");
