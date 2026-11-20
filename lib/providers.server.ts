@@ -8,15 +8,16 @@ export interface ProviderConfig {
 }
 
 // Keep each route explicit so model identity is stable, then provide independent
-// fallbacks for transient provider failures. Brainex uses Groq's reasoning model;
-// the other standard profiles retain their existing OpenRouter/Gemini routes.
-const NEXIO_MODEL = "openrouter/free";
+// fallbacks for transient provider failures. The first three public profiles
+// share Galex's Particle-1 primary intelligence route; Brainex remains on Groq
+// and Craft remains on its dedicated Gemini/OpenRouter routes.
+const NEXIO_MODEL = "particle-ai/particle-1:free";
 const NEXIO_FALLBACKS = [
   "google/gemma-4-31b-it:free",
   "dots-studio/dots-3-note-preview:free",
   "google/gemma-4-26b-a4b-it:free",
 ];
-const SPADEC_MODEL = "dots-studio/dots-3-note-preview:free";
+const SPADEC_MODEL = "particle-ai/particle-1:free";
 const SPADEC_FALLBACKS = [
   "google/gemma-4-31b-it:free",
   "openai/gpt-oss-20b:free",

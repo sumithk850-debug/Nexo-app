@@ -12,7 +12,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 const expectedRoutes = {
   "nexio-1.1": {
-    model: "openrouter/free",
+    model: "particle-ai/particle-1:free",
     fallbacks: [
       "google/gemma-4-31b-it:free",
       "dots-studio/dots-3-note-preview:free",
@@ -20,7 +20,7 @@ const expectedRoutes = {
     ],
   },
   "spadec-3.5": {
-    model: "dots-studio/dots-3-note-preview:free",
+    model: "particle-ai/particle-1:free",
     fallbacks: ["google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free"],
   },
   "galex-4.0": {
