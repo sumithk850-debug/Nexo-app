@@ -12,4 +12,3 @@ values (
   '/galex-4-5-launch.png',
   true
 );
-***

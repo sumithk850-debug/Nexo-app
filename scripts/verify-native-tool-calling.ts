@@ -107,8 +107,11 @@ const readFileDefinition = { name: "github_read_file", description: "Read a file
 assert.equal(validateToolCall(readFileDefinition, { path: "README.md" }).valid, true);
 assert.equal(validateToolCall(readFileDefinition, {}).valid, false);
 assert.equal(validateToolCall(readFileDefinition, { path: "README.md", extra: true }).valid, false);
-assert.equal(verifyToolResult({ ok: true, content: "verified" }).verified, true);
-assert.equal(verifyToolResult({ ok: false, error: "not connected" }).verified, false);
+assert.equal(verifyToolResult("custom_tool", { ok: true, content: "verified" }).verified, true);
+assert.equal(verifyToolResult("custom_tool", { ok: false, error: "not connected" }).verified, false);
+assert.equal(verifyToolResult("github_read_file", { ok: true, repository: "owner/repo", path: "README.md", content: "verified" }).verified, true);
+assert.equal(verifyToolResult("github_read_file", { ok: true, repository: "owner/repo" }).verified, false);
+assert.equal(verifyToolResult("vercel_list_projects", { ok: true, projects: [] }).verified, true);
 const documentation = buildToolDocumentationContext([readFileDefinition]);
 assert.match(documentation, /DOCUMENTATION-DRIVEN TOOL PROTOCOL/);
 assert.match(documentation, /github_read_file/);

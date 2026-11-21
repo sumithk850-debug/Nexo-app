@@ -70,11 +70,25 @@ export interface ToolVerificationResult {
   summary: string;
 }
 
-export function verifyToolResult(result: unknown): ToolVerificationResult {
+export function verifyToolResult(toolName: string, result: unknown): ToolVerificationResult {
   if (!isRecord(result)) return { verified: false, summary: "The tool returned no structured result." };
   if (result.ok === false || typeof result.error === "string") {
     return { verified: false, summary: typeof result.error === "string" ? result.error.slice(0, 240) : "The tool reported an error." };
   }
+  const evidenceChecks: Record<string, () => boolean> = {
+    web_fetch_url: () => typeof result.url === "string" && typeof result.content === "string" && result.content.trim().length > 0,
+    wikipedia_search: () => Array.isArray(result.results),
+    github_read_file: () => typeof result.repository === "string" && typeof result.path === "string" && typeof result.content === "string",
+    github_list_files: () => typeof result.repository === "string" && Array.isArray(result.files),
+    supabase_list_projects: () => Array.isArray(result.projects),
+    supabase_list_tables: () => isRecord(result.project) && Array.isArray(result.tables),
+    supabase_describe_table: () => isRecord(result.project) && typeof result.table === "string" && Array.isArray(result.columns),
+    supabase_read_rows: () => isRecord(result.project) && typeof result.table === "string" && Array.isArray(result.rows),
+    vercel_list_projects: () => Array.isArray(result.projects),
+    vercel_list_deployments: () => isRecord(result.project) && Array.isArray(result.deployments),
+  };
+  const check = evidenceChecks[toolName];
+  if (check && !check()) return { verified: false, summary: "The provider responded, but the required evidence fields were missing." };
   if (result.truncated === true) {
     return { verified: true, summary: "The tool returned a successful but bounded/truncated result." };
   }

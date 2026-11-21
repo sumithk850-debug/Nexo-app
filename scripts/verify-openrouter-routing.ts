@@ -5,6 +5,7 @@ import {
   CODER_MODELS,
   PROVIDER_CONFIG,
 } from "../lib/providers.server";
+import { getModelToolCapability } from "../lib/modelToolCapabilities";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -45,6 +46,14 @@ for (const [id, expected] of Object.entries(expectedRoutes)) {
   assert(JSON.stringify(config.fallbackModels ?? []) === JSON.stringify(expected.fallbacks), `${id} fallback order is incorrect`);
 }
 
+for (const id of ["nexio-1.1", "spadec-3.5", "galex-4.0"]) {
+  const config = PROVIDER_CONFIG[id as keyof typeof PROVIDER_CONFIG];
+  assert((config.fallbackModels?.length ?? 0) > 0, `${id} must have at least one safe fallback`);
+}
+const galex = getModelToolCapability("galex-4.0");
+assert(galex.displayName === "Galex 4.5", "Galex must expose the 4.5 public identity");
+assert(galex.modelId === "galex-4.0" && galex.maxCalls >= 6, "Galex internal compatibility id and tool budget must remain valid");
+
 assert(CRAFT_V3_PRO_ENGINE_CONFIG.provider === "openrouter", "Craft V3 Pro must use OpenRouter only");
 assert(CRAFT_V3_PRO_ENGINE_CONFIG.model === "poolside/laguna-s-2.1:free", "Craft V3 Pro primary route is incorrect");
 assert(JSON.stringify(CRAFT_V3_PRO_ENGINE_CONFIG.fallbackModels) === JSON.stringify([
@@ -77,4 +86,5 @@ assert(chatRoute.includes('!isCoderMode && modelId === "craft-v3"'), "The public
 assert(chatRoute.includes("This Craft model is locked until the Kyvorix Pro plan is available."), "Paid-model response must explain the Pro requirement");
 assert(chatRoute.includes('coderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
 assert(chatRoute.includes('activeCoderModel === "craft-v5"'), "Craft V5 selection must remain explicit and server-side");
+assert(chatRoute.includes("Math.min(1_000, estimateTokens(lastUserMessage?.content ?? \"\") + 512)"), "Craft V5 reservation must fit the 1,000-token daily allowance");
 assert(chatPage.includes("proposalId: proposalData.proposalId"), "GitHub writes must continue through the server-approved proposal flow");

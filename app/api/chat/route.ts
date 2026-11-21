@@ -834,7 +834,10 @@ export async function POST(req: NextRequest) {
       // bypassing the 1,000-token / daily V5 window.
       const reservation = await consumeCraftV5Tokens(
         userId,
-        estimateTokens(lastUserMessage?.content ?? "") + 2_048
+        // Keep a modest response headroom, but never reserve more than the
+        // entire daily allowance. The old fixed +2,048 reserve rejected most
+        // requests before Craft V5 could run against its 1,000-token window.
+        Math.min(1_000, estimateTokens(lastUserMessage?.content ?? "") + 512)
       );
       if (!reservation.allowed) {
         return Response.json(

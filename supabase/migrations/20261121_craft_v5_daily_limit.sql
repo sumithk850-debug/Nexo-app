@@ -45,4 +45,3 @@ $$;
 
 grant execute on function public.consume_craft_v5_tokens(uuid, integer, integer) to service_role;
 revoke execute on function public.consume_craft_v5_tokens(uuid, integer, integer) from anon, authenticated;
-***
