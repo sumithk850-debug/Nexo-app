@@ -82,6 +82,11 @@ export function ModelSelectorChip({
                         UltraSpeed
                       </span>
                     )}
+                    {model.isNew && (
+                      <span className="rounded border border-blue-400/40 bg-blue-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.06em] text-blue-300">
+                        NEW
+                      </span>
+                    )}
                   </div>
                   <p className="truncate text-xs text-ink-muted">
                     {model.tagline}

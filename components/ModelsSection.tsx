@@ -30,10 +30,17 @@ export function ModelsSection() {
               key={model.id}
               className="group relative overflow-hidden rounded-2xl border border-edge bg-panel p-6 shadow-sm transition hover:border-cyan/40 hover:shadow-md"
             >
-              <div
-                className={`inline-block rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-widest ${tierColor[model.tier]}`}
-              >
-                {model.badge}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`inline-block rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-widest ${tierColor[model.tier]}`}
+                >
+                  {model.badge}
+                </div>
+                {model.isNew && (
+                  <span className="rounded-full border border-blue-400/40 bg-blue-500/15 px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-blue-300">
+                    NEW
+                  </span>
+                )}
               </div>
               <h3 className="mt-4 font-display text-xl font-semibold text-ink">
                 {model.name}

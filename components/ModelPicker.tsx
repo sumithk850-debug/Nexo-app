@@ -38,13 +38,20 @@ export function ModelPicker({
             } ${isLocked ? "cursor-not-allowed opacity-50" : ""}`}
           >
             <div className="min-w-0">
-              <p
-                className={`truncate font-display text-sm font-semibold ${
-                  isSelected ? "text-cyan" : "text-ink"
-                }`}
-              >
-                {model.name}
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p
+                  className={`truncate font-display text-sm font-semibold ${
+                    isSelected ? "text-cyan" : "text-ink"
+                  }`}
+                >
+                  {model.name}
+                </p>
+                {model.isNew && (
+                  <span className="flex-shrink-0 rounded-full border border-blue-400/40 bg-blue-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.08em] text-blue-300">
+                    NEW
+                  </span>
+                )}
+              </div>
               <p className="truncate text-xs text-ink-muted">{model.tagline}</p>
             </div>
             {isLocked && (

@@ -16,7 +16,7 @@ interface ModelUsage {
 const MODEL_CONFIGS: ModelUsage[] = [
   { id: "nexio-1.1", name: "Nexio 1.1", color: "#06b6d4", gradient: "from-cyan-400 to-cyan-600", icon: "⚡" },
   { id: "spadec-3.5", name: "Spadec 3.5", color: "#8b5cf6", gradient: "from-violet-400 to-violet-600", icon: "🎨" },
-  { id: "galex-4.0", name: "Galex 4.0", color: "#f59e0b", gradient: "from-amber-400 to-amber-600", icon: "🔥" },
+  { id: "galex-4.0", name: "Galex 4.5 · NEW", color: "#60a5fa", gradient: "from-blue-400 to-blue-600", icon: "✦" },
   { id: "brainex-10.8", name: "Brainex 10.8", color: "#10b981", gradient: "from-emerald-400 to-emerald-600", icon: "🧠" },
   { id: "craft-v3", name: "Craft V3", color: "#ef4444", gradient: "from-red-400 to-red-600", icon: "🛠️" },
 ];
@@ -47,6 +47,11 @@ interface NexoLiveUsage {
   remainingSeconds: number;
   limitSeconds: number;
   resetAt: string;
+}
+
+interface CraftV5Usage {
+  remainingTokens: number;
+  resetAt: string | null;
 }
 
 interface Props {
@@ -128,18 +133,20 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [nexoLiveUsage, setNexoLiveUsage] = useState<NexoLiveUsage | null>(null);
+  const [craftV5Usage, setCraftV5Usage] = useState<CraftV5Usage | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeUntilReset, setTimeUntilReset] = useState("");
 
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, liveRes] = await Promise.all([
+      const [res, liveRes, craftV5Res] = await Promise.all([
         fetch("/api/usage", {
           headers: { "x-session-id": sessionId },
           cache: "no-store",
         }),
         authenticatedFetch("/api/nexo/voice/usage", { cache: "no-store" }),
+        authenticatedFetch("/api/craft-v5/trial", { cache: "no-store" }),
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -151,6 +158,12 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
         setNexoLiveUsage(data.usage ?? null);
       } else {
         setNexoLiveUsage(null);
+      }
+      if (craftV5Res.ok) {
+        const data = await craftV5Res.json() as { tokenWindow?: CraftV5Usage };
+        setCraftV5Usage(data.tokenWindow ?? null);
+      } else {
+        setCraftV5Usage(null);
       }
     } catch {
       setNexoLiveUsage(null);
@@ -260,6 +273,27 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
             </div>
           </div>
 
+          {/* Craft V5 daily allowance */}
+          <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-500/15 to-cyan-500/10 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-blue-200">Craft V5 · NEW</p>
+                <p className="mt-1 text-sm font-semibold text-white">Free daily allowance</p>
+                <p className="mt-1 text-xs text-blue-200/70">
+                  {craftV5Usage ? `${formatNumber(1000 - craftV5Usage.remainingTokens)} used of 1,000 tokens` : "1,000 tokens available each day"}
+                </p>
+              </div>
+              <CircularProgress percentage={craftV5Usage ? ((1000 - craftV5Usage.remainingTokens) / 1000) * 100 : 0} color="#60a5fa" size={52} />
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-700" style={{ width: `${Math.min(craftV5Usage ? ((1000 - craftV5Usage.remainingTokens) / 1000) * 100 : 0, 100)}%` }} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-white/55">
+              <span>{craftV5Usage ? `${formatNumber(craftV5Usage.remainingTokens)} remaining` : "Sign in to view usage"}</span>
+              <span>Resets daily</span>
+            </div>
+          </div>
+
           {/* Messages Count */}
           <div className="flex gap-3">
             <div className="flex-1 rounded-xl bg-white/5 border border-white/5 p-3">
@@ -311,7 +345,7 @@ export default function RateLimitationPanel({ sessionId, theme, open, onClose }:
 
           {/* Note */}
           <p className="text-[10px] text-gray-500 text-center">
-            Token counts are estimates. Craft V3 pauses for exactly 24 hours after its 3K-token budget is exhausted; other limits reset daily at midnight (UTC).
+            Token counts are estimates. Craft V5 includes 1,000 free tokens per day; Craft V3 retains its separate 3K-token budget.
           </p>
         </div>
       </div>

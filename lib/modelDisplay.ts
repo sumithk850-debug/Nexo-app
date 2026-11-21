@@ -4,7 +4,7 @@ import type { NexoModelId } from "./models";
 const CHAT_MODEL_NAMES: Record<NexoModelId, string> = {
   "nexio-1.1": "Nexio 1.1",
   "spadec-3.5": "Spadec 3.5",
-  "galex-4.0": "Galex 4.0",
+  "galex-4.0": "Galex 4.5",
   "brainex-10.8": "Brainex 10.8",
   "craft-v3": "Craft V3",
 };

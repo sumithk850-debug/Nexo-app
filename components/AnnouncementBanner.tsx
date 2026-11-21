@@ -9,6 +9,7 @@ interface Announcement {
   id: string;
   title: string;
   message: string;
+  image_url?: string | null;
   video_url?: string | null;
 }
 
@@ -23,7 +24,7 @@ export function AnnouncementBanner() {
     async function load() {
       const { data } = await supabase
         .from("announcements")
-        .select("id, title, message, video_url")
+        .select("id, title, message, image_url, video_url")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -102,6 +103,16 @@ export function AnnouncementBanner() {
               </h2>
             </div>
 
+            {announcement.image_url && (
+              // Announcement images may be stored as Supabase/CDN URLs at runtime.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={announcement.image_url}
+                alt={`${announcement.title} capabilities visual`}
+                className="mt-5 w-full rounded-2xl border border-blue-400/20 object-cover shadow-[0_15px_45px_rgba(37,99,235,.18)]"
+              />
+            )}
+
             <div className="prose-kyvorix mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
               {announcement.message}
             </div>
@@ -114,7 +125,7 @@ export function AnnouncementBanner() {
                 muted
                 playsInline
                 preload="metadata"
-                aria-label="Craft V5 launch announcement video"
+                aria-label="Galex 4.5 launch announcement video"
               />
             )}
 

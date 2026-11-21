@@ -3,8 +3,8 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 
 export const CRAFT_V5_TRIAL_DURATION_MS = 48 * 60 * 60 * 1000;
-export const CRAFT_V5_TOKEN_LIMIT = 8_000;
-export const CRAFT_V5_TOKEN_WINDOW_MS = 12 * 60 * 60 * 1000;
+export const CRAFT_V5_TOKEN_LIMIT = 1_000;
+export const CRAFT_V5_TOKEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface CraftV5Trial {
   userId: string;

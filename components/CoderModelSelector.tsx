@@ -163,7 +163,7 @@ export function CoderModelSelector({ selected, onSelect, craftV5Available = fals
                       {m.id === "craft-v3-lite"
                         ? "UltraSpeed coding · Free tier"
                         : m.id === "craft-v5"
-                          ? "Flagship orchestration · 12-hour token window"
+                          ? "Flagship orchestration · 1,000 tokens per day"
                         : m.id === "craft-v3"
                           ? "Advanced coding capability · Paid upgrade"
                           : "Next-generation architecture · Paid upgrade"}

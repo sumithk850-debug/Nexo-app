@@ -831,7 +831,7 @@ export async function POST(req: NextRequest) {
     if (requestedCraftV5 && userId) {
       // Reserve the input plus a bounded response allowance atomically before
       // any provider work starts. This prevents concurrent requests from
-      // bypassing the 8,000-token / 12-hour V5 window.
+      // bypassing the 1,000-token / daily V5 window.
       const reservation = await consumeCraftV5Tokens(
         userId,
         estimateTokens(lastUserMessage?.content ?? "") + 2_048
@@ -840,7 +840,7 @@ export async function POST(req: NextRequest) {
         return Response.json(
           {
             error: "craft_v5_token_limit_reached",
-            message: "Craft V5 has reached its 8,000-token limit for this 12-hour window. Craft V3 Lite remains available.",
+            message: "Craft V5 has reached its 1,000-token daily limit. Craft V3 Lite remains available.",
             remainingTokens: reservation.remainingTokens,
             resetAt: reservation.resetAt,
           },

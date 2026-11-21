@@ -15,6 +15,7 @@ export interface NexoModelPublic {
   tagline: string;
   tier: "Free" | "Galex" | "Brainex" | "Craft";
   badge: string;
+  isNew?: boolean;
 }
 
 // Client-safe metadata — safe to import in components
@@ -35,10 +36,11 @@ export const NEXO_MODELS: NexoModelPublic[] = [
   },
   {
     id: "galex-4.0",
-    name: "KYVORIX Galex 4.0",
-    tagline: "Balanced power + ultra speed",
+    name: "KYVORIX Galex 4.5",
+    tagline: "Advanced reasoning + ultra speed",
     tier: "Galex",
     badge: "GALEX",
+    isNew: true,
   },
   {
     id: "brainex-10.8",

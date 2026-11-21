@@ -35,8 +35,8 @@ export const DAILY_LIMITS: DailyLimits = {
   spadec: { tokens: 150_000, messages: 30 },
   galex: { tokens: 100_000, messages: 20 },
   brainex: { tokens: 60_000, messages: 10 },
-  // Craft V3 is measured only by its 3K token budget; coder_count remains an
-  // informational dashboard metric and no longer stops the fifth request.
+  // Craft V3 remains the legacy coder allowance; Craft V5 has its own
+  // user-scoped daily window and is shown separately in the dashboard.
   craft: { tokens: 3_000, messages: 0 },
 };
 

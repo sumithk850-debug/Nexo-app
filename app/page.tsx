@@ -219,7 +219,7 @@ export default function ChatPage() {
     return "craft-v3-lite";
   });
   const [craftV5Trial, setCraftV5Trial] = useState<CraftV5TrialView | null>(null);
-  const [craftV5TokenWindow, setCraftV5TokenWindow] = useState<{ remainingTokens: number; resetAt: string | null }>({ remainingTokens: 8000, resetAt: null });
+  const [craftV5TokenWindow, setCraftV5TokenWindow] = useState<{ remainingTokens: number; resetAt: string | null }>({ remainingTokens: 1000, resetAt: null });
   const [craftV5LaunchOpen, setCraftV5LaunchOpen] = useState(false);
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);

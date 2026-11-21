@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, X, Rocket } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const APP_VERSION = "4.0.0";
+const APP_VERSION = "4.5.0";
 const DISMISS_KEY_PREFIX = "nexo_dismissed_announcement_";
 
 interface Announcement {
@@ -12,6 +12,7 @@ interface Announcement {
   title: string;
   message: string;
   version: string;
+  image_url?: string | null;
   video_url?: string | null;
 }
 
@@ -38,7 +39,7 @@ export function AnnouncementModal() {
     async function load() {
       const { data } = await supabase
         .from("announcements")
-        .select("id, title, message, version, video_url")
+        .select("id, title, message, version, image_url, video_url")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -135,7 +136,19 @@ export function AnnouncementModal() {
               muted
               playsInline
               preload="metadata"
-              aria-label="Craft V5 launch announcement video"
+              aria-label="Galex 4.5 launch announcement video"
+            />
+          </div>
+        )}
+
+        {announcement.image_url && (
+          <div className="px-6 pt-3">
+            {/* Announcement images may be stored as Supabase/CDN URLs at runtime. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={announcement.image_url}
+              alt={`${announcement.title} capabilities visual`}
+              className="w-full rounded-2xl border border-blue-400/20 object-cover shadow-[0_15px_45px_rgba(37,99,235,.18)]"
             />
           </div>
         )}

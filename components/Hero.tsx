@@ -55,7 +55,7 @@ export function Hero() {
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-cyan" />
               <span className="font-mono text-xs text-ink-muted">
-                kyvorix-galex-4.0 · streaming
+                kyvorix-galex-4.5 · streaming
               </span>
             </div>
             <Signal size="md" />

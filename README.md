@@ -10,7 +10,7 @@ KYVORIX is a modern AI workspace built with Next.js, combining everyday chat, ad
 
 - 💬 **Nexio 1.1** — fast everyday AI conversations
 - 🧠 **Spadec 3.5** — reasoning, creativity, and structured thinking
-- ⚡ **Galex 4.0** — premium balanced intelligence
+- ⚡ **Galex 4.5** — premium balanced intelligence
 - 🔬 **Brainex 10.8** — deep analysis and research-oriented tasks
 - 💻 **Kyvorix Coder** — Craft V3 Lite, Craft V3, and Craft V4 coding profiles
 - 🐙 **GitHub integration** — repository-aware development assistance
@@ -117,7 +117,7 @@ The available KYVORIX intelligence profiles currently include:
 |---|---|
 | Nexio 1.1 | Fast everyday assistance |
 | Spadec 3.5 | Reasoning and creativity |
-| Galex 4.0 | Premium general intelligence |
+| Galex 4.5 | Premium general intelligence |
 | Brainex 10.8 | Deep analysis and research |
 | Craft V3 Lite | Accessible coding assistance |
 | Craft V3 | Advanced coding / architecture |
