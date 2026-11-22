@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import type { ActionEvent } from "@/lib/actionEngine";
+import { getActionStatusLabel, getToolCallLabel, latestActionEvents } from "@/lib/toolCallDisplay";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
 
 type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error";
@@ -93,6 +94,8 @@ export function RealityDrawer({
 
   const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || approvalState === "approved";
   const hasError = attachmentState === "error" || approvalState === "error" || actionEvents.some((event) => event.phase === "failed" || event.phase === "cancelled");
+  const latestToolEvents = latestActionEvents(actionEvents);
+  const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
   const track = phases({ streaming, hasExecution, hasVerification, hasError });
   const activeAction = actions[actions.length - 1];
   const currentLabel = approvalState === "pending"
@@ -105,6 +108,8 @@ export function RealityDrawer({
           ? "Preparing attached context"
           : activeAction
             ? actionDescription(activeAction)
+            : activeTool
+              ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}`
             : hasError
               ? "Action needs attention"
               : streaming
@@ -188,7 +193,7 @@ export function RealityDrawer({
 
               {actions.length > 0 && <section aria-labelledby="reality-activity-title"><h3 id="reality-activity-title" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Live activity</h3><div className="mt-2 space-y-1.5">{actions.slice(-5).map((action, index) => { const Icon = action.type === "reading" ? FileSearch : action.type === "creating" ? FilePlus2 : action.type === "deleting" ? Trash2 : Pencil; const active = streaming && index === Math.min(actions.length, 5) - 1; return <div key={`${action.type}-${action.filePath}-${index}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-edge bg-void/30 px-2.5 py-2"><Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-cyan" : "text-ink-muted"}`} /><span className={`shrink-0 text-[10px] font-semibold ${active ? "text-cyan" : "text-ink-muted"}`}>{active ? "Active" : "Done"}</span><span className="min-w-0 truncate font-mono text-[10px] text-ink" title={action.filePath}>{action.filePath}</span></div>; })}</div></section>}
 
-              {actionEvents.length > 0 && <section aria-labelledby="reality-verification-title"><h3 id="reality-verification-title" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Verified activity</h3><div className="mt-2 space-y-1.5">{actionEvents.slice(-5).map((event) => <div key={event.id} className="flex min-w-0 items-start gap-2 rounded-lg border border-edge bg-void/30 px-2.5 py-2 text-[10px]"><ShieldCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${event.phase === "succeeded" ? "text-emerald-400" : event.phase === "failed" || event.phase === "cancelled" ? "text-rose-400" : "text-cyan"}`} /><span className="min-w-0"><span className="block font-semibold text-ink-muted">{event.provider} · {event.operation.replace(/_/g, " ")}</span><span className="mt-0.5 block truncate text-ink-faint">{event.summary}</span></span></div>)}</div></section>}
+              {latestToolEvents.length > 0 && <section aria-labelledby="reality-verification-title"><h3 id="reality-verification-title" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Tool activity</h3><div className="mt-2 space-y-1.5">{latestToolEvents.slice(-5).map((event) => <div key={event.id} className="flex min-w-0 items-start gap-2 rounded-lg border border-edge bg-void/30 px-2.5 py-2 text-[10px]"><ShieldCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${event.phase === "succeeded" ? "text-emerald-400" : event.phase === "failed" || event.phase === "cancelled" ? "text-rose-400" : "text-cyan"}`} /><span className="min-w-0"><span className="block font-semibold text-ink-muted">{getToolCallLabel(event.operation)}</span><span className="mt-0.5 block truncate text-ink-faint">{getActionStatusLabel(event.phase)} · {event.summary}</span></span></div>)}</div></section>}
 
               {approvalState && <section aria-labelledby="reality-approval-title"><h3 id="reality-approval-title" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Approval status</h3><div className={`mt-2 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs ${approvalState === "error" ? "border-rose-400/30 bg-rose-400/10 text-rose-200" : approvalState === "approved" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200" : "border-amber-300/30 bg-amber-300/10 text-amber-200"}`}><ShieldCheck className="h-4 w-4 shrink-0" /><span>{approvalState === "pending" ? "Approval required — no repository change has been applied yet." : approvalState === "approving" ? "Applying the approved repository change." : approvalState === "approved" ? "Approved change completed." : approvalState === "rejected" ? "Approval declined — no change applied." : "Approved action needs attention."}</span></div></section>}
 

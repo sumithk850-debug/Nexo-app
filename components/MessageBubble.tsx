@@ -22,6 +22,7 @@ import { VercelReadCard } from "./VercelReadCard";
 import { GitHubActionCard } from "./GitHubActionCard";
 import { parseGitHubActionBlocks, stripGitHubActionBlocks } from "@/lib/githubActionParser";
 import { SummaryCard } from "./SummaryCard";
+import { getActionStatusLabel, getToolCallLabel, latestActionEvents } from "@/lib/toolCallDisplay";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-typescript";
@@ -379,7 +380,7 @@ export function MessageBubble({
             segments remain in the transcript. */}
         {message.actionEvents && message.actionEvents.length > 0 && (
           <div className="mb-3 space-y-2" aria-label="Verified action activity">
-            {message.actionEvents.map((event) => {
+            {latestActionEvents(message.actionEvents).map((event) => {
               const successful = event.phase === "succeeded";
               const failed = event.phase === "failed" || event.phase === "cancelled";
               const needsAttention = event.phase === "needs_approval" || event.phase === "needs_connection";
@@ -393,8 +394,8 @@ export function MessageBubble({
               return (
                 <div key={event.id} className={`rounded-xl border px-3 py-2.5 ${statusClass}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{event.provider} · {event.operation.replace(/_/g, " ")}</span>
-                    <span className="text-[10px] uppercase tracking-wide">{event.phase.replace(/_/g, " ")}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{getToolCallLabel(event.operation)}</span>
+                    <span className="text-[10px] uppercase tracking-wide">{getActionStatusLabel(event.phase)}</span>
                   </div>
                   <p className="mt-1 break-words text-xs text-ink">{event.summary}</p>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-faint">

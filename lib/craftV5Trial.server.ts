@@ -66,6 +66,17 @@ export async function requireActiveCraftV5Trial(userId: string): Promise<CraftV5
   return trial;
 }
 
+/**
+ * Craft V5 remains available after the launch window through its separate
+ * daily token allowance. A user must have activated the experience once, but
+ * the 48-hour launch window must not hide or disable the model afterwards.
+ */
+export async function requireCraftV5Access(userId: string): Promise<CraftV5Trial> {
+  const trial = await getCraftV5Trial(userId);
+  if (!trial) throw new Error("Craft V5 has not been activated for this account.");
+  return trial;
+}
+
 /** Atomically reserves a bounded estimate for one V5 request. */
 export async function consumeCraftV5Tokens(userId: string, requestedTokens: number): Promise<CraftV5TokenWindow & { allowed: boolean }> {
   const bounded = Math.max(1, Math.ceil(requestedTokens));

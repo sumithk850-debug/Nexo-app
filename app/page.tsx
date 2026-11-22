@@ -53,6 +53,7 @@ import { cleanImagePrompt, isImageGenerationRequest } from "@/lib/imageIntent";
 import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { getActiveModelDisplayName, getModelDisplayName } from "@/lib/modelDisplay";
+import { consumeToolCallStreamMarkers } from "@/lib/toolCallDisplay";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 declare global {
@@ -796,7 +797,7 @@ export default function ChatPage() {
       if (!response.ok) return;
       setCraftV5Trial(data.trial ?? null);
       if (data.tokenWindow) setCraftV5TokenWindow(data.tokenWindow);
-      if (coderModel === "craft-v5" && !data.trial?.active) {
+      if (coderModel === "craft-v5" && !data.trial) {
         setCoderModel("craft-v3-lite");
         window.localStorage.setItem(CODER_MODEL_STORAGE_KEY, "craft-v3-lite");
       }
@@ -1268,14 +1269,13 @@ export default function ChatPage() {
             typeof event.operation === "string" &&
             typeof event.phase === "string" &&
             typeof event.summary === "string"
-          ).slice(0, 12) : [];
+          ).slice(0, 48) : [];
         } catch {
           return [];
         }
       })();
-      if (actionEvents.length > 0) {
-        setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents } : m));
-      }
+      // The header is the final authoritative snapshot. Live `call-tool`
+      // events arrive through the response stream below and are applied first.
 
       const githubActivities = parseGitHubActionActivitiesHeader(res.headers.get("X-Kyvorix-GitHub-Activities"));
       if (githubActivities.length > 0) {
@@ -1296,13 +1296,19 @@ export default function ChatPage() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let actionMarkerBuffer = "";
       let needsAutomaticContinuation = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const streamedText = decoder.decode(value, { stream: true });
-        const marker = consumeResponseContinuationMarker(streamedText);
+        const toolMarker = consumeToolCallStreamMarkers(actionMarkerBuffer + streamedText);
+        actionMarkerBuffer = toolMarker.pending;
+        if (toolMarker.events.length > 0) {
+          setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents: [...(m.actionEvents ?? []), ...toolMarker.events] } : m));
+        }
+        const marker = consumeResponseContinuationMarker(toolMarker.content);
         needsAutomaticContinuation ||= marker.shouldContinue;
         accumulated += marker.content;
         recordStreamText(marker.content);
@@ -1316,6 +1322,9 @@ export default function ChatPage() {
       needsAutomaticContinuation ||= completedMarker.shouldContinue;
       accumulated = completedMarker.content;
       accumulated = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
+      if (actionEvents.length > 0) {
+        setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents } : m));
+      }
 
       if (
         needsAutomaticContinuation &&
@@ -1648,10 +1657,10 @@ export default function ChatPage() {
       try {
         const raw = response.headers.get("X-Kyvorix-Action-Events");
         const parsed = raw ? JSON.parse(decodeURIComponent(raw)) : [];
-        return Array.isArray(parsed) ? parsed.filter((event) =>
-          event && typeof event.provider === "string" && typeof event.operation === "string" &&
-          typeof event.phase === "string" && typeof event.summary === "string"
-        ).slice(0, 12) : [];
+          return Array.isArray(parsed) ? parsed.filter((event) =>
+            event && typeof event.provider === "string" && typeof event.operation === "string" &&
+            typeof event.phase === "string" && typeof event.summary === "string"
+          ).slice(0, 48) : [];
       } catch {
         return [];
       }
@@ -2073,7 +2082,7 @@ export default function ChatPage() {
           {isCoderMode && (
             <CoderModelSelector
               selected={coderModel}
-              craftV5Available={Boolean(craftV5Trial?.active)}
+              craftV5Available={Boolean(craftV5Trial)}
               onSelect={(id) => {
                 setCoderModel(id);
                 try {

@@ -333,7 +333,8 @@ function verifiedActionEvents(executed: Array<{ name: string; args?: unknown; re
       const running = transitionAction(queued, "running", undefined);
       const verifying = transitionAction(running, "verifying", { phase: "succeeded", summary: "Provider responded; result evidence is being checked.", verification: "provider_acknowledged" });
       const verification = verifyToolResult(item.name, item.result);
-      return [transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: verification.summary, verification: failed ? "none" : "result_checked", details: { tool: item.name, resultPresent: Object.keys(result).length > 0, documentationVersion: "1.0.0" } })];
+      const terminal = transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: verification.summary, verification: failed ? "none" : "result_checked", details: { tool: item.name, resultPresent: Object.keys(result).length > 0, documentationVersion: "1.0.0" } });
+      return [queued, running, verifying, terminal];
     } catch {
       return [];
     }

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import type { ActionEvent } from "@/lib/actionEngine";
+import { getActionStatusLabel, getToolCallLabel, latestActionEvents } from "@/lib/toolCallDisplay";
 import type { FileAction, SearchingAction } from "@/lib/craftParser";
 
 type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error";
@@ -114,6 +115,7 @@ export function AgentTimeline({
   if (!hasExecution && !streaming) return null;
 
   const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || Boolean(approvalState === "approved");
+  const latestToolEvents = latestActionEvents(actionEvents);
   const items: TimelineItem[] = phaseState(streaming, hasExecution, hasVerification);
 
   if (attachmentState === "preparing") {
@@ -150,7 +152,8 @@ export function AgentTimeline({
   const hasError = items.some((item) => item.state === "error");
   const progress = Math.min(100, Math.round((completedCount / Math.max(items.length, 1)) * 100));
   const agentCount = Math.min(3, 1 + Number(Boolean(searching)) + Number(actions.length > 0));
-  const currentLabel = activeItem?.label ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
+  const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
+  const currentLabel = activeTool ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}` : activeItem?.label ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
 
   return (
     <section className="mx-auto mb-3 hidden w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:block" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
@@ -234,10 +237,11 @@ export function AgentTimeline({
         <div className={`${mobileExpanded ? "block" : "hidden"} border-t border-edge/60 px-4 py-2.5 sm:block`}>
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Verified activity</p>
           <div className="mt-2 space-y-1.5">
-            {actionEvents.slice(-4).map((event) => (
+            {latestToolEvents.slice(-4).map((event) => (
               <div key={event.id} className="flex min-w-0 items-center gap-2 text-[10px]">
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${event.phase === "succeeded" ? "bg-emerald-400" : event.phase === "failed" || event.phase === "cancelled" ? "bg-rose-400" : "bg-cyan"}`} />
-                <span className="shrink-0 font-semibold text-ink-muted">{event.provider} · {event.operation.replace(/_/g, " ")}</span>
+                <span className="shrink-0 font-semibold text-ink-muted">{getToolCallLabel(event.operation)}</span>
+                <span className="shrink-0 uppercase tracking-wide text-cyan/80">{getActionStatusLabel(event.phase)}</span>
                 <span className="truncate text-ink-faint">{event.summary}</span>
               </div>
             ))}

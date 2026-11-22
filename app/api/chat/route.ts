@@ -24,7 +24,8 @@ import { getWikipediaEnabled } from "@/lib/wikipediaGate.server";
 import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { runNativeToolLoop } from "@/lib/nativeTools.server";
 import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
-import { consumeCraftV5Tokens, requireActiveCraftV5Trial } from "@/lib/craftV5Trial.server";
+import { consumeCraftV5Tokens, requireCraftV5Access } from "@/lib/craftV5Trial.server";
+import { createToolCallStreamMarker } from "@/lib/toolCallDisplay";
 
 export const runtime = "nodejs";
 
@@ -674,9 +675,12 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "craft_v5_auth_required", message: "Sign in is required to start the Craft V5 trial." }, { status: 401 });
       }
       try {
-        await requireActiveCraftV5Trial(userId);
+        // The launch window controls the introductory experience only. After
+        // it ends, Craft V5 remains selectable through the daily 1,000-token
+        // allowance, so only prior activation is required here.
+        await requireCraftV5Access(userId);
       } catch {
-        return Response.json({ error: "craft_v5_trial_expired", message: "Your Craft V5 trial is not active. Craft V3 Lite remains available." }, { status: 403 });
+        return Response.json({ error: "craft_v5_activation_required", message: "Activate Craft V5 once to unlock its daily 1,000-token allowance." }, { status: 403 });
       }
     }
     const requestedLockedCoderModel =
@@ -1532,6 +1536,11 @@ Structure your review with clear sections and use code examples where helpful.`;
               WIKIPEDIA_SEARCH_MARKER
             )
           );
+        }
+
+        const callingEvents = (nativeToolResult.actionEvents ?? []).filter((event) => event.phase === "running");
+        if (callingEvents.length > 0) {
+          controller.enqueue(encoder.encode(createToolCallStreamMarker(callingEvents)));
         }
 
         let buffer = "";
