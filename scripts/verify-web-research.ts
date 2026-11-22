@@ -73,7 +73,8 @@ assert.ok(native.includes("searchAndReadWithTavily(query)"), "Native model tool 
 assert.ok(native.includes('definition.name !== "tavily_web_research" || shouldUseWebResearchIntent(latest)'), "Tavily must not be offered to models for ordinary questions or unrelated integration tasks.");
 assert.ok(native.includes("shouldUseWebResearchIntent(latest)"), "Native research must use the shared intent classifier.");
 assert.ok(/isDeepResearchRequest \? Boolean\(researchTopic\) : shouldSearchWikipedia\(latestUserText\)/.test(chatRoute), "Deep Research must retain its explicit research path.");
-assert.ok(/function shouldSearchWikipedia\(query: string\): boolean[\s\S]*?return \/\\b\(\?:wikipedia/.test(chatRoute), "Automatic Wikipedia search must be restricted to explicit Wikipedia requests.");
+assert.ok(/function shouldSearchWikipedia\(query: string\): boolean[\s\S]*?search\(\?: the\)\? wikipedia/.test(chatRoute), "Automatic Wikipedia search must require an explicit source request.");
+assert.ok(native.includes("personalResourceQuery") && native.includes("directFileOperation"), "Connected tools must require an explicit operation or a clear request about the user’s connected resources.");
 assert.ok(timeline.includes("researchProgress") && drawer.includes("researchProgress"), "Desktop and mobile activity UI must retain research progress.");
 
 console.log("Autonomous Tavily web-research intent, regression, and safety tests passed.");
