@@ -36,7 +36,7 @@ assert.ok(tavily.includes('const TAVILY_BASE = "https://api.tavily.com"') && tav
 assert.ok(tavily.includes('"/extract"'), "Tavily must extract actual page contents, not only snippets.");
 assert.ok(tavily.includes("extractSameSiteLinks"), "Relevant same-site links must be discovered and followed.");
 assert.ok(tavily.includes("isSafeWebResearchQuery"), "The server-side Tavily operation must enforce safe topic filtering.");
-assert.ok(tavily.includes("onProgress?.({ stage: \"reading\""), "Page-reading progress must be emitted while extraction runs.");
+assert.ok(tavily.includes('stage: item.linkedFrom ? "following_links" : "reading"'), "Page-reading progress must be emitted while extraction runs.");
 assert.ok(tavily.includes("AbortSignal.timeout"), "Tavily requests must have bounded timeouts.");
 assert.ok(route.includes("requireVerifiedUser"), "Web research endpoint must require a verified user.");
 assert.ok(route.includes("text/event-stream"), "Web research endpoint must stream progress using SSE.");
