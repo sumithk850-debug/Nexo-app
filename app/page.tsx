@@ -1815,8 +1815,9 @@ export default function ChatPage() {
             ...(typeof event.totalPages === "number" ? { totalPages: event.totalPages } : {}),
           });
         } else if (event.type === "error") {
-          streamError = typeof event.message === "string" ? event.message : "Web research could not be completed.";
-          setWebResearchProgress({ stage: "failed", message: streamError });
+          const message = typeof event.message === "string" ? event.message : "Web research could not be completed.";
+          streamError = message;
+          setWebResearchProgress({ stage: "failed", message });
         } else if (event.type === "result" && typeof event.token === "string") {
           signedToken = event.token;
         }
