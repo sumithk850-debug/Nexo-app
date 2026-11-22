@@ -66,7 +66,7 @@ function shouldSearchWikipedia(query: string): boolean {
   // Wikipedia is a user-selected source, not a default search engine.
   // General factual questions stay in normal chat; fresh web research is
   // handled by the intent-aware Tavily flow.
-  return /\\b(?:wikipedia|encyclopedia|wiki page|wiki article)\\b/i.test(value)
+  return /\b(?:wikipedia|encyclopedia|wiki page|wiki article)\b/i.test(value)
     || /විකිපීඩියා|විශ්වකෝෂ/i.test(value);
 }
 function buildCurrentDateTimeContext(now = new Date()) {
