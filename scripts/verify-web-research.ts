@@ -31,7 +31,7 @@ const timeline = readFileSync("components/AgentTimeline.tsx", "utf8");
 const signature = readFileSync("lib/webResearchSignature.server.ts", "utf8");
 const drawer = readFileSync("components/RealityDrawer.tsx", "utf8");
 
-assert.ok(tavily.includes("https://api.tavily.com/search"), "Tavily search endpoint must be used.");
+assert.ok(tavily.includes('const TAVILY_BASE = "https://api.tavily.com"') && tavily.includes('"/search"'), "Tavily search endpoint must be used.");
 assert.ok(tavily.includes('"/extract"'), "Tavily must extract actual page contents, not only snippets.");
 assert.ok(tavily.includes("extractSameSiteLinks"), "Relevant same-site links must be discovered and followed.");
 assert.ok(tavily.includes("isSafeWebResearchQuery"), "The server-side Tavily operation must enforce safe topic filtering.");
