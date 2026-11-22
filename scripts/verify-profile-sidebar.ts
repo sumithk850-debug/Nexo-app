@@ -10,9 +10,11 @@ assert.ok(sidebar.includes('aria-controls="kyvorix-sidebar-more"'), "Sidebar Mor
 assert.ok(sidebar.includes("onOpenProfile"), "Sidebar must expose the Profile entry");
 assert.ok(sidebar.includes("onToggleCoderMode(); onClose();"), "Primary Coder Agent shortcut must activate coder mode and close the mobile sidebar");
 assert.ok(sidebar.includes('href="/news"'), "Primary Daily News shortcut must navigate to the existing news page");
-assert.ok(sidebar.indexOf("Coder Agent") < sidebar.indexOf("More"), "Coder Agent must appear in the primary sidebar before More");
-assert.ok(sidebar.indexOf('href="/news"') < sidebar.indexOf("More"), "Daily News must appear in the primary sidebar before More");
+assert.ok(sidebar.indexOf('title="Open Kyvorix Coder Agent"') < sidebar.indexOf('aria-controls="kyvorix-sidebar-more"'), "Coder Agent must appear in the primary sidebar before More");
+assert.ok(sidebar.indexOf('href="/news"') < sidebar.indexOf('aria-controls="kyvorix-sidebar-more"'), "Daily News must appear in the primary sidebar before More");
 assert.ok(!sidebar.includes(">Chats</button>") && !sidebar.includes(">Search</button>"), "Chats and Search must not remain as primary sidebar shortcuts");
+assert.ok(!sidebar.includes('>Kyvorix Coder Agent</span>'), "Coder Agent must not be duplicated inside More");
+assert.equal((sidebar.match(/href="\\/news"/g) ?? []).length, 1, "Daily News must have exactly one sidebar entry");
 for (const feature of ["Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
   assert.ok(sidebar.includes(feature), `Existing navigation feature must remain available: ${feature}`);
 }
