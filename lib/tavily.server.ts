@@ -74,11 +74,12 @@ function extractSameSiteLinks(markdown: string, sourceUrl: string, seen: Set<str
 }
 
 export async function searchAndReadWithTavily(rawQuery: string, onProgress?: ProgressCallback) {
-  const query = rawQuery.trim().slice(0, MAX_QUERY_LENGTH);
-  if (!query) throw new Error("A non-empty web research query is required.");
-  if (!isSafeWebResearchQuery(query)) {
+  const fullQuery = rawQuery.trim();
+  if (!fullQuery) throw new Error("A non-empty web research query is required.");
+  if (!isSafeWebResearchQuery(fullQuery)) {
     throw new Error("This topic is not available through web research. I can help with general, safety-focused information instead.");
   }
+  const query = fullQuery.slice(0, MAX_QUERY_LENGTH);
 
   onProgress?.({ stage: "searching", message: "Searching public web sources with Tavily." });
   const search = await tavilyRequest<TavilyResponse>("/search", {
