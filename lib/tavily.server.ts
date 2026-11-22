@@ -6,7 +6,7 @@ const MAX_QUERY_LENGTH = 1_000;
 const MAX_SEARCH_RESULTS = 5;
 const MAX_INITIAL_PAGES = 3;
 const MAX_FOLLOWED_LINKS = 2;
-const MAX_PAGE_CHARS = 6_000;
+const MAX_PAGE_CHARS = 4_500;
 
 export type TavilyProgress = {
   stage: "searching" | "selecting" | "reading" | "following_links" | "verifying" | "completed" | "failed";
