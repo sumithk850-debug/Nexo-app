@@ -2,23 +2,41 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { isSafeWebResearchQuery, shouldUseWebResearchIntent } from "../lib/webResearchIntent";
 
-assert.equal(shouldUseWebResearchIntent("What are the latest changes in TypeScript?"), true);
-assert.equal(shouldUseWebResearchIntent("Search the web for recent climate research"), true);
-assert.equal(shouldUseWebResearchIntent("Explain the causes of the French Revolution"), true);
-assert.equal(shouldUseWebResearchIntent("ශ්‍රී ලංකාවේ අද පුවත් මොනවාද?"), true);
-assert.equal(shouldUseWebResearchIntent("මට අලුත්ම තොරතුරු සොයා බලන්න"), true);
-assert.equal(shouldUseWebResearchIntent("Please debug this React component"), false);
-assert.equal(shouldUseWebResearchIntent("Translate this paragraph into Sinhala"), false);
-assert.equal(shouldUseWebResearchIntent("Hello, how are you?"), false);
+const shouldSearch = [
+  "Search the web for recent climate research",
+  "Please look up online the latest TypeScript release",
+  "Find sources online about renewable energy",
+  "What are the latest changes in TypeScript?",
+  "Who is the current CEO of Microsoft?",
+  "Compare the current prices of these phones",
+  "ශ්‍රී ලංකාවේ අද පුවත් මොනවාද?",
+  "මට අලුත්ම තොරතුරු සොයා බලන්න",
+  "අන්තර්ජාලයෙන් මේ ගැන හොයලා බලන්න",
+  "මේ සතියේ අලුත්ම AI updates මොනවාද?",
+  "https://example.com please summarize this page",
+];
+for (const query of shouldSearch) assert.equal(shouldUseWebResearchIntent(query), true, "Expected web research: " + query);
 
-for (const query of [
-  "latest information about guns",
-  "find knives for sale",
-  "where to buy recreational drugs",
-  "online casino recommendations",
-  "sports betting sites",
-  "dangerous stunt challenge ideas",
-]) {
+const shouldNotSearch = [
+  "What is a Python function?",
+  "Explain the causes of the French Revolution",
+  "How does photosynthesis work?",
+  "Which sorting algorithm is faster?",
+  "Tell me about the history of Sri Lanka",
+  "Hello, how are you?",
+  "Can you explain this concept simply?",
+  "Python වල function එකක් කියන්නේ මොකක්ද?",
+  "ප්‍රභාසංස්ලේෂණය කියන්නේ මොකක්ද?",
+  "ප්‍රංශ විප්ලවයට හේතු මොනවාද?",
+  "මේ code එකේ වැරැද්ද මොකක්ද?",
+  "අද දිනය කුමක්ද?",
+  "What is today's date?",
+  "latest?",
+  "today?",
+];
+for (const query of shouldNotSearch) assert.equal(shouldUseWebResearchIntent(query), false, "Unexpected web research: " + query);
+
+for (const query of ["latest information about guns","find knives for sale","where to buy recreational drugs","online casino recommendations","sports betting sites","dangerous stunt challenge ideas"]) {
   assert.equal(isSafeWebResearchQuery(query), false, "Restricted topic must be blocked: " + query);
   assert.equal(shouldUseWebResearchIntent(query), false, "Restricted topic must not start web research: " + query);
 }
@@ -52,7 +70,10 @@ assert.ok(chatRoute.includes("verifyWebResearchContext(body.webResearchToken"), 
 assert.ok(chatRoute.includes("webResearchAlreadyDone: Boolean(webResearchContext)"), "Chat must avoid a duplicate web search after pre-research.");
 assert.ok(native.includes('name: "tavily_web_research"'), "Tavily must remain available to the shared native tool registry.");
 assert.ok(native.includes("searchAndReadWithTavily(query)"), "Native model tool calls must route through Tavily.");
-assert.ok(timeline.includes("researchProgress={") || timeline.includes("researchProgress"), "Desktop activity timeline must render research progress.");
-assert.ok(drawer.includes("researchProgress"), "Mobile activity drawer must render research progress.");
+assert.ok(native.includes('definition.name !== "tavily_web_research" || shouldUseWebResearchIntent(latest)'), "Tavily must not be offered to models for ordinary questions or unrelated integration tasks.");
+assert.ok(native.includes("shouldUseWebResearchIntent(latest)"), "Native research must use the shared intent classifier.");
+assert.ok(/isDeepResearchRequest \? Boolean\(researchTopic\) : shouldSearchWikipedia\(latestUserText\)/.test(chatRoute), "Deep Research must retain its explicit research path.");
+assert.ok(/function shouldSearchWikipedia\(query: string\): boolean[\s\S]*?return \/\\b\(\?:wikipedia/.test(chatRoute), "Automatic Wikipedia search must be restricted to explicit Wikipedia requests.");
+assert.ok(timeline.includes("researchProgress") && drawer.includes("researchProgress"), "Desktop and mobile activity UI must retain research progress.");
 
-console.log("Autonomous Tavily web-research contract and safety tests passed.");
+console.log("Autonomous Tavily web-research intent, regression, and safety tests passed.");
