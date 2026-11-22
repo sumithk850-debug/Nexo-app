@@ -280,7 +280,7 @@ export function ChatSidebar({
 
           <button
             type="button"
-            onClick={() => document.getElementById("kyvorix-chat-history")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            onClick={() => document.getElementById("kyvorix-chat-history")?.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
           >
             <MessageSquare className="h-4 w-4 text-ink-muted" />
@@ -312,14 +312,14 @@ export function ChatSidebar({
             {moreOpen && (
               <div id="kyvorix-sidebar-more" className="mt-2 space-y-1 rounded-xl border border-edge/70 bg-void/25 p-2">
                 <button
-                  onClick={onToggleCoderMode}
+                  onClick={() => { onToggleCoderMode(); onClose(); }}
                   className={`group relative flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition ${isCoderMode ? "bg-cyan/10 text-cyan border border-cyan/20" : "text-ink hover:bg-panel"}`}
                 >
                   <span className="flex items-center gap-2.5"><Code2 className="h-4 w-4" />Kyvorix Coder Agent</span>
                   {isCoderMode ? <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" /> : <Zap className="h-3 w-3 text-ink-faint group-hover:text-cyan" />}
                 </button>
 
-                <button type="button" onClick={onOpenDeepResearch} className="flex w-full items-center gap-2.5 rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40 hover:bg-cyan/10" aria-label="Deep Research" title="Deep Research">
+                <button type="button" onClick={() => { onOpenDeepResearch(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40 hover:bg-cyan/10" aria-label="Deep Research" title="Deep Research">
                   <Sparkles className="h-4 w-4 text-cyan" />
                   <span className="flex-1 text-left">Deep Research</span>
                   <span className="rounded-md bg-cyan/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan">New</span>
@@ -332,7 +332,7 @@ export function ChatSidebar({
                   <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">Live</span>
                 </Link>
 
-                <button type="button" onClick={onOpenIntegrations} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel" aria-label="Integrations" title="Integrations">
+                <button type="button" onClick={() => { onOpenIntegrations(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel" aria-label="Integrations" title="Integrations">
                   <Plug className="h-4 w-4 text-ink-muted" />Integrations
                 </button>
 
@@ -346,7 +346,7 @@ export function ChatSidebar({
                     {personasOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                   </button>
                   {personasOpen && <div className="flex flex-col gap-1 px-3 pb-2">{PERSONAS.map((persona) => (
-                    <button key={persona.id} onClick={() => { onSelectPersona(persona.id); setPersonasOpen(false); }} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition ${activePersona === persona.id ? "bg-cyan/10 text-cyan" : "text-ink-muted hover:bg-edge"}`}>
+                    <button key={persona.id} onClick={() => { onSelectPersona(persona.id); setPersonasOpen(false); onClose(); }} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition ${activePersona === persona.id ? "bg-cyan/10 text-cyan" : "text-ink-muted hover:bg-edge"}`}>
                       <persona.icon className="h-3.5 w-3.5" />{persona.name}
                     </button>
                   ))}</div>}
@@ -356,7 +356,7 @@ export function ChatSidebar({
                     {templatesOpen ? <ChevronDown className="ml-auto h-3.5 w-3.5" /> : <ChevronRight className="ml-auto h-3.5 w-3.5" />}
                   </button>
                   {templatesOpen && <div className="flex flex-col gap-1 px-3 pb-2">{TEMPLATES.map((template) => (
-                    <button key={template.id} onClick={() => { onInsertTemplate(template.prompt); setTemplatesOpen(false); }} className="rounded-lg px-2 py-1.5 text-left text-xs text-ink-muted transition hover:bg-edge hover:text-ink">{template.name}</button>
+                    <button key={template.id} onClick={() => { onInsertTemplate(template.prompt); setTemplatesOpen(false); onClose(); }} className="rounded-lg px-2 py-1.5 text-left text-xs text-ink-muted transition hover:bg-edge hover:text-ink">{template.name}</button>
                   ))}</div>}
                 </div>
               </div>
