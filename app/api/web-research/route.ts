@@ -5,7 +5,7 @@ import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 import { signWebResearchContext } from "@/lib/webResearchSignature.server";
 
 export const runtime = "nodejs";
-export const maxDuration = 100;
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
