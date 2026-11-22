@@ -11,7 +11,7 @@ assert.ok(sidebar.includes("onOpenProfile"), "Sidebar must expose the Profile en
 for (const feature of ["Kyvorix Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
   assert.ok(sidebar.includes(feature), `Existing navigation feature must remain available: ${feature}`);
 }
-assert.ok(sidebar.includes("scrollTo({ top: 0, behavior: \\"smooth\\" })"), "Chats shortcut must scroll the chat history list itself to the top");
+assert.ok(sidebar.includes('scrollTo({ top: 0, behavior: "smooth" })'), "Chats shortcut must scroll the chat history list itself to the top");
 assert.ok(sidebar.includes("onClose();"), "Secondary navigation actions must close the mobile sidebar after selection");
 assert.ok(sidebar.includes('id="kyvorix-chat-history"'), "Chats shortcut must target chat history");
 assert.ok(page.includes("<ProfilePanel"), "Chat page must render the Profile panel");
