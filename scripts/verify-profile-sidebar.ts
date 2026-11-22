@@ -8,12 +8,15 @@ const auth = readFileSync("lib/auth.ts", "utf8");
 
 assert.ok(sidebar.includes('aria-controls="kyvorix-sidebar-more"'), "Sidebar More menu must be collapsible and accessible");
 assert.ok(sidebar.includes("onOpenProfile"), "Sidebar must expose the Profile entry");
+assert.ok(sidebar.includes("onToggleCoderMode(); onClose();"), "Primary Coder Agent shortcut must activate coder mode and close the mobile sidebar");
+assert.ok(sidebar.includes('href="/news"'), "Primary Daily News shortcut must navigate to the existing news page");
+assert.ok(sidebar.indexOf("Coder Agent") < sidebar.indexOf("More"), "Coder Agent must appear in the primary sidebar before More");
+assert.ok(sidebar.indexOf('href="/news"') < sidebar.indexOf("More"), "Daily News must appear in the primary sidebar before More");
+assert.ok(!sidebar.includes(">Chats</button>") && !sidebar.includes(">Search</button>"), "Chats and Search must not remain as primary sidebar shortcuts");
 for (const feature of ["Kyvorix Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
   assert.ok(sidebar.includes(feature), `Existing navigation feature must remain available: ${feature}`);
 }
-assert.ok(sidebar.includes('scrollTo({ top: 0, behavior: "smooth" })'), "Chats shortcut must scroll the chat history list itself to the top");
 assert.ok(sidebar.includes("onClose();"), "Secondary navigation actions must close the mobile sidebar after selection");
-assert.ok(sidebar.includes('id="kyvorix-chat-history"'), "Chats shortcut must target chat history");
 assert.ok(page.includes("<ProfilePanel"), "Chat page must render the Profile panel");
 assert.ok(page.includes("onOpenProfile={() =>"), "Chat page must open Profile from the sidebar");
 assert.ok(auth.includes("createdAt: data.user.created_at"), "Authenticated user must expose account creation date");
