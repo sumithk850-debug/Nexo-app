@@ -14,7 +14,7 @@ assert.ok(sidebar.indexOf('title="Open Kyvorix Coder Agent"') < sidebar.indexOf(
 assert.ok(sidebar.indexOf('href="/news"') < sidebar.indexOf('aria-controls="kyvorix-sidebar-more"'), "Daily News must appear in the primary sidebar before More");
 assert.ok(!sidebar.includes(">Chats</button>") && !sidebar.includes(">Search</button>"), "Chats and Search must not remain as primary sidebar shortcuts");
 assert.ok(!sidebar.includes('>Kyvorix Coder Agent</span>'), "Coder Agent must not be duplicated inside More");
-assert.equal((sidebar.match(/href="\\/news"/g) ?? []).length, 1, "Daily News must have exactly one sidebar entry");
+assert.equal(sidebar.split('href="/news"').length - 1, 1, "Daily News must have exactly one sidebar entry");
 for (const feature of ["Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
   assert.ok(sidebar.includes(feature), `Existing navigation feature must remain available: ${feature}`);
 }
