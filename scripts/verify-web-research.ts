@@ -28,6 +28,7 @@ const chatRoute = readFileSync("app/api/chat/route.ts", "utf8");
 const page = readFileSync("app/page.tsx", "utf8");
 const native = readFileSync("lib/nativeTools.server.ts", "utf8");
 const timeline = readFileSync("components/AgentTimeline.tsx", "utf8");
+const signature = readFileSync("lib/webResearchSignature.server.ts", "utf8");
 const drawer = readFileSync("components/RealityDrawer.tsx", "utf8");
 
 assert.ok(tavily.includes("https://api.tavily.com/search"), "Tavily search endpoint must be used.");
@@ -39,10 +40,14 @@ assert.ok(tavily.includes("AbortSignal.timeout"), "Tavily requests must have bou
 assert.ok(route.includes("requireVerifiedUser"), "Web research endpoint must require a verified user.");
 assert.ok(route.includes("text/event-stream"), "Web research endpoint must stream progress using SSE.");
 assert.ok(route.includes("searchAndReadWithTavily(query"), "SSE route must execute Tavily research.");
+assert.ok(route.includes("signWebResearchContext"), "Research results must be signed before being sent to the client.");
 assert.ok(page.includes('authenticatedFetch("/api/web-research"'), "Chat must call the authenticated web research endpoint.");
 assert.ok(page.includes("reader.read()"), "Chat must consume live SSE progress.");
-assert.ok(page.includes("webResearchContext"), "Extracted source content must be forwarded to chat generation.");
+assert.ok(page.includes("webResearchToken"), "Signed research context must be forwarded to chat generation.");
+assert.ok(signature.includes("timingSafeEqual"), "Chat must verify signed research tokens using constant-time comparison.");
+assert.ok(signature.includes("SUPABASE_SERVICE_ROLE_KEY"), "Research signing must use a server-only secret.");
 assert.ok(chatRoute.includes("VERIFIED WEB RESEARCH CONTEXT"), "Final model must receive extracted research context.");
+assert.ok(chatRoute.includes("verifyWebResearchContext(body.webResearchToken"), "Chat must reject forged or expired client research context.");
 assert.ok(chatRoute.includes("webResearchAlreadyDone: Boolean(webResearchContext)"), "Chat must avoid a duplicate web search after pre-research.");
 assert.ok(native.includes('name: "tavily_web_research"'), "Tavily must remain available to the shared native tool registry.");
 assert.ok(native.includes("searchAndReadWithTavily(query)"), "Native model tool calls must route through Tavily.");
