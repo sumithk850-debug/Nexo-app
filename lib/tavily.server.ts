@@ -45,7 +45,7 @@ async function tavilyRequest<T>(path: "/search" | "/extract", body: Record<strin
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
     body: JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(path === "/search" ? 18_000 : 18_000),
+    signal: AbortSignal.timeout(path === "/search" ? 18_000 : 14_000),
   });
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) throw new Error("Tavily rejected the configured API key. Check the Vercel environment setting.");
@@ -105,8 +105,10 @@ export async function searchAndReadWithTavily(rawQuery: string, onProgress?: Pro
   let completedPages = 0;
   const initialUrls = new Set(queue.map((item) => item.url));
 
-  while (queue.length > 0 && sources.length < MAX_INITIAL_PAGES + MAX_FOLLOWED_LINKS) {
+  let attemptedPages = 0;
+  while (queue.length > 0 && attemptedPages < MAX_INITIAL_PAGES + MAX_FOLLOWED_LINKS) {
     const item = queue.shift()!;
+    attemptedPages += 1;
     onProgress?.({
       stage: item.linkedFrom ? "following_links" : "reading",
       message: item.linkedFrom ? "Following a relevant link from an extracted page." : "Reading the selected webpage content.",
@@ -114,7 +116,7 @@ export async function searchAndReadWithTavily(rawQuery: string, onProgress?: Pro
     });
     try {
       const extracted = await tavilyRequest<TavilyResponse>("/extract", {
-        urls: [item.url], extract_depth: "basic", format: "markdown", timeout: 15,
+        urls: [item.url], extract_depth: "basic", format: "markdown", timeout: 12,
       });
       const page = (extracted.results ?? []).find((entry) => safePublicUrl(entry.url) === item.url);
       const pageContent = (page?.raw_content ?? "").slice(0, MAX_PAGE_CHARS);
