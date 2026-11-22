@@ -4,6 +4,7 @@ import { isSafeWebResearchQuery, shouldUseWebResearchIntent } from "../lib/webRe
 
 assert.equal(shouldUseWebResearchIntent("What are the latest changes in TypeScript?"), true);
 assert.equal(shouldUseWebResearchIntent("Search the web for recent climate research"), true);
+assert.equal(shouldUseWebResearchIntent("Explain the causes of the French Revolution"), true);
 assert.equal(shouldUseWebResearchIntent("ශ්‍රී ලංකාවේ අද පුවත් මොනවාද?"), true);
 assert.equal(shouldUseWebResearchIntent("මට අලුත්ම තොරතුරු සොයා බලන්න"), true);
 assert.equal(shouldUseWebResearchIntent("Please debug this React component"), false);
