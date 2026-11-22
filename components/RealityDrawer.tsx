@@ -96,7 +96,7 @@ export function RealityDrawer({
   const hasExecution = Boolean(attachmentState || searching || researchProgress || actions.length > 0 || actionEvents.length > 0 || approvalState);
 
   const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || approvalState === "approved";
-  const hasError = attachmentState === "error" || approvalState === "error" || actionEvents.some((event) => event.phase === "failed" || event.phase === "cancelled");
+  const hasError = attachmentState === "error" || approvalState === "error" || researchProgress?.stage === "failed" || actionEvents.some((event) => event.phase === "failed" || event.phase === "cancelled");
   const latestToolEvents = latestActionEvents(actionEvents);
   const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
   const track = phases({ streaming, hasExecution, hasVerification, hasError });
