@@ -27,6 +27,8 @@ type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error"
 type AttachmentState = "preparing" | "error" | null;
 type StepState = "active" | "complete" | "waiting" | "error";
 
+type WebResearchProgress = { stage: string; message: string; url?: string; completedPages?: number; totalPages?: number } | null;
+
 type TimelineItem = {
   id: string;
   label: string;
@@ -101,6 +103,7 @@ export function AgentTimeline({
   approvalState,
   modelLabel = "KYVORIX AI",
   actionEvents = [],
+  researchProgress = null,
 }: {
   streaming: boolean;
   actions: FileAction[];
@@ -109,9 +112,10 @@ export function AgentTimeline({
   approvalState?: ApprovalState | null;
   modelLabel?: string;
   actionEvents?: ActionEvent[];
+  researchProgress?: WebResearchProgress;
 }) {
   const [mobileExpanded, setMobileExpanded] = useState(false);
-  const hasExecution = Boolean(attachmentState || searching || actions.length > 0 || actionEvents.length > 0 || approvalState);
+  const hasExecution = Boolean(attachmentState || searching || researchProgress || actions.length > 0 || actionEvents.length > 0 || approvalState);
   if (!hasExecution && !streaming) return null;
 
   const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || Boolean(approvalState === "approved");
@@ -130,6 +134,18 @@ export function AgentTimeline({
       label: streaming ? "Gathering research context" : "Research context gathered",
       detail: searching.queries.slice(0, 2).join(" · "),
       state: streaming ? "active" : "complete",
+      icon: Search,
+    });
+  }
+
+  if (researchProgress) {
+    const done = researchProgress.stage === "completed";
+    const failed = researchProgress.stage === "failed";
+    items.splice(2, 0, {
+      id: "web-research-progress",
+      label: researchProgress.message,
+      detail: [researchProgress.url, researchProgress.completedPages !== undefined ? `${researchProgress.completedPages}/${researchProgress.totalPages ?? "?"} pages` : ""].filter(Boolean).join(" · "),
+      state: failed ? "error" : done ? "complete" : "active",
       icon: Search,
     });
   }
@@ -153,7 +169,7 @@ export function AgentTimeline({
   const progress = Math.min(100, Math.round((completedCount / Math.max(items.length, 1)) * 100));
   const agentCount = Math.min(3, 1 + Number(Boolean(searching)) + Number(actions.length > 0));
   const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
-  const currentLabel = activeTool ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}` : activeItem?.label ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
+  const currentLabel = researchProgress?.message ?? (activeTool ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}` : activeItem?.label) ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
 
   return (
     <section className="mx-auto mb-3 hidden w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:block" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
