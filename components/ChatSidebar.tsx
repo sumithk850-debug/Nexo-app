@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo, Newspaper } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Sun, Moon, Edit2, Check, Code2, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo, Newspaper } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
