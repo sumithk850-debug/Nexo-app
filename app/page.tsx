@@ -55,6 +55,7 @@ import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { getActiveModelDisplayName, getModelDisplayName } from "@/lib/modelDisplay";
 import { consumeToolCallStreamMarkers } from "@/lib/toolCallDisplay";
+import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
 declare global {
@@ -243,6 +244,7 @@ export default function ChatPage() {
   const [browserActiveTab, setBrowserActiveTab] = useState<{ title?: string; url?: string } | null>(null);
   const [browserError, setBrowserError] = useState<string | null>(null);
   const [browserReadResult, setBrowserReadResult] = useState<{ title?: string; url?: string; headings?: string[]; text?: string } | null>(null);
+  const [webResearchProgress, setWebResearchProgress] = useState<{ stage: string; message: string; url?: string; completedPages?: number; totalPages?: number } | null>(null);
   const browserRequestRef = useRef<string | null>(null);
 
   // Typing speed tracking starts at the first provider text chunk, not at
@@ -1155,7 +1157,8 @@ export default function ChatPage() {
     providedController?: AbortController,
     initialContent = "",
     liveToolDepth = 0,
-    responseContinuationDepth = 0
+    responseContinuationDepth = 0,
+    webResearchToken?: string
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -1203,6 +1206,7 @@ export default function ChatPage() {
           isAutomaticContinuation: responseContinuationDepth > 0,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
+          webResearchToken,
         }),
       });
 
@@ -1777,6 +1781,75 @@ export default function ChatPage() {
     }
   }
 
+  async function runWebResearch(query: string, signal: AbortSignal): Promise<string | null> {
+    if (!user?.id || !shouldUseWebResearchIntent(query)) return null;
+    setWebResearchProgress({ stage: "queued", message: "Preparing secure web research." });
+    try {
+      const response = await authenticatedFetch("/api/web-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        body: JSON.stringify({ userId: user.id, query }),
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        setWebResearchProgress({ stage: "failed", message: typeof data.error === "string" ? data.error : "Web research is unavailable for this request." });
+        return null;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let signedToken: string | null = null;
+      let streamError: string | null = null;
+
+      const handleEvent = (raw: string) => {
+        let event: any;
+        try { event = JSON.parse(raw); } catch { return; }
+        if (event.type === "progress") {
+          setWebResearchProgress({
+            stage: typeof event.stage === "string" ? event.stage : "working",
+            message: typeof event.message === "string" ? event.message : "Working on web research.",
+            ...(typeof event.url === "string" ? { url: event.url } : {}),
+            ...(typeof event.completedPages === "number" ? { completedPages: event.completedPages } : {}),
+            ...(typeof event.totalPages === "number" ? { totalPages: event.totalPages } : {}),
+          });
+        } else if (event.type === "error") {
+          const message = typeof event.message === "string" ? event.message : "Web research could not be completed.";
+          streamError = message;
+          setWebResearchProgress({ stage: "failed", message });
+        } else if (event.type === "result" && typeof event.token === "string") {
+          signedToken = event.token;
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? "";
+        for (const block of blocks) {
+          for (const line of block.split(/\r?\n/)) {
+            if (line.startsWith("data:")) handleEvent(line.slice(5).trim());
+          }
+        }
+      }
+      if (streamError) return null;
+      return signedToken;
+    } catch (error) {
+      if (signal.aborted) {
+        setWebResearchProgress({ stage: "failed", message: "Web research was cancelled." });
+        return null;
+      }
+      setWebResearchProgress({
+        stage: "failed",
+        message: error instanceof Error ? error.message.slice(0, 220) : "Web research could not be completed.",
+      });
+      return null;
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachedFiles.length === 0) || isStreaming || streamingLockRef.current || attachmentPreparationLockRef.current) return;
@@ -1855,6 +1928,7 @@ export default function ChatPage() {
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
+    setWebResearchProgress(null);
 
     if (chatId) {
       const persistedMessageText = `${messageText}${hasAttachments ? `\n\n[Files uploaded & prepared: ${prepared.sourceNames.join(", ")}]` : ""}`;
@@ -1876,7 +1950,8 @@ export default function ChatPage() {
       );
     }
 
-    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent);
+    const webResearchToken = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal) : null;
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined);
   }
 
   function handleNewChat() {
@@ -1886,6 +1961,7 @@ export default function ChatPage() {
     setInput("");
     setAttachedFiles([]);
     setPendingApproval(null);
+    setWebResearchProgress(null);
   }
 
   async function handleSuggestionSelect(suggestion: string) {
@@ -1905,6 +1981,7 @@ export default function ChatPage() {
     setInput("");
     setAttachedFiles([]);
     const controller = startStreamingTurn(assistantId);
+    setWebResearchProgress(null);
 
     if (chatId) saveMessage(chatId, "user", text);
 
@@ -1919,7 +1996,8 @@ export default function ChatPage() {
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
     }
 
-    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller);
+    const webResearchToken = await runWebResearch(text, controller.signal);
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined);
   }
 
   async function handleSelectChat(chatId: string) {
@@ -2313,6 +2391,7 @@ export default function ChatPage() {
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
               actionEvents={activityEvents}
+              researchProgress={webResearchProgress}
             />
 
             <RealityDrawer
@@ -2325,6 +2404,7 @@ export default function ChatPage() {
               actionEvents={activityEvents}
               repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               charsPerSecond={typingSpeed}
+              researchProgress={webResearchProgress}
             />
 
             <LiveStatusBar
