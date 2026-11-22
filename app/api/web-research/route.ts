@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
           const result = await searchAndReadWithTavily(query, (event) => send({ type: "progress", ...event }));
           const context = JSON.stringify(result).slice(0, 28_000);
           const token = signWebResearchContext(verified.user.id, query, context);
-          send({ type: "result", result, token });
+          send({ type: "result", token });
         } catch (error) {
           send({
             type: "error",
