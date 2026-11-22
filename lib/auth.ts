@@ -6,6 +6,7 @@ export interface AuthUser {
   fullName?: string;
   birthday?: string;
   profilePrompted?: boolean;
+  createdAt?: string;
 }
 
 export interface SignUpDetails {
@@ -78,7 +79,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     email: data.user.email ?? "",
     fullName: data.user.user_metadata?.full_name ?? data.user.user_metadata?.name,
     birthday: data.user.user_metadata?.birthday,
-    profilePrompted: data.user.user_metadata?.profile_prompted === true
+    profilePrompted: data.user.user_metadata?.profile_prompted === true,
+    createdAt: data.user.created_at
   };
 }
 
@@ -90,7 +92,8 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
         email: session.user.email ?? "",
         fullName: session.user.user_metadata?.full_name ?? session.user.user_metadata?.name,
         birthday: session.user.user_metadata?.birthday,
-        profilePrompted: session.user.user_metadata?.profile_prompted === true
+        profilePrompted: session.user.user_metadata?.profile_prompted === true,
+        createdAt: session.user.created_at
       });
     } else {
       callback(null);
