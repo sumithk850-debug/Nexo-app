@@ -1837,7 +1837,10 @@ export default function ChatPage() {
       if (streamError) return null;
       return signedToken;
     } catch (error) {
-      if (signal.aborted) return null;
+      if (signal.aborted) {
+        setWebResearchProgress({ stage: "failed", message: "Web research was cancelled." });
+        return null;
+      }
       setWebResearchProgress({
         stage: "failed",
         message: error instanceof Error ? error.message.slice(0, 220) : "Web research could not be completed.",
