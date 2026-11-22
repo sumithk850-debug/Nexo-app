@@ -8,8 +8,8 @@ export function isSafeWebResearchQuery(query: string): boolean {
 
 // Explicit requests to consult the public web. Ordinary question words such as
 // "what is", "explain", "how does", and "which" are deliberately NOT signals.
-const EXPLICIT_WEB_SIGNALS = /\b(?:search (?:the )?(?:web|internet|online)|web search|browse (?:the )?(?:web|internet)|google (?:it|this|that|for)|look up online|research online|find (?:this|that|information|sources?) online|search for|check online|verify online|fact[- ]check|find source links|include (?:web )?sources|with citations from the web|on the internet)\b/i;
-const SI_EXPLICIT_WEB_SIGNALS = /(?:අන්තර්ජාලයෙන්|වෙබ් එකේ|ගූගල් කර|ගූගල් එකෙන්|සර්ච් කර|සෙවුම් කර|ඔන්ලයින් සොය|අන්තර්ජාලයේ සොය|වෙබ් සර්ච්).{0,45}(?:සොය|හොය|බල|තොරතුරු|විස්තර)?|(?:සොයා බලන්න|හොයලා බලන්න|සර්ච් කරන්න|සෙවුම් කරන්න|ගූගල් කරන්න)/i;
+const EXPLICIT_WEB_SIGNALS = /\b(?:search (?:the )?(?:web|internet|online)|web search|browse (?:the )?(?:web|internet)|google (?:it|this|that|for)|look up(?: online)?|research(?: online)?|find (?:this|that|it|information|sources?) online|search (?:this|that|it|for)|check online|verify online|fact[- ]check|find source links|include (?:web )?sources|with citations from the web|on the internet)\b/i;
+const SI_EXPLICIT_WEB_SIGNALS = /(?:අන්තර්ජාලයෙන්|වෙබ් එකේ|ගූගල් කර|ගූගල් එකෙන්|සර්ච් කර|සෙවුම් කර|ඔන්ලයින් සොය|අන්තර්ජාලයේ සොය|වෙබ් සර්ච්).{0,45}(?:සොය|හොය|බල|තොරතුරු|විස්තර)|(?:සොයා බලන්න|හොයලා බලන්න|සර්ච් කරන්න|සෙවුම් කරන්න|ගූගල් කරන්න|පර්යේෂණ කරන්න)/i;
 
 // These signals mean the answer is likely to have changed and needs fresh
 // evidence. They do not include generic question/explanation phrasing.
@@ -22,9 +22,9 @@ const SI_DATE_TIME_ONLY = /^(?:අද දිනය කුමක්ද|අද ද
 export function shouldUseWebResearchIntent(raw: string): boolean {
   const query = raw.trim();
   if (!query || query.length > 4_000 || !isSafeWebResearchQuery(query)) return false;
-  if (/https?:\/\//i.test(query)) return true;
   if (EXPLICIT_WEB_SIGNALS.test(query) || SI_EXPLICIT_WEB_SIGNALS.test(query)) return true;
   if (EXCLUDED_TASK.test(query) || DATE_TIME_ONLY.test(query) || SI_DATE_TIME_ONLY.test(query)) return false;
+  if (/https?:\/\//i.test(query)) return true;
   // Freshness alone is insufficient: require a real subject as well.
   const hasFreshness = FRESHNESS_SIGNALS.test(query) || SI_FRESHNESS_SIGNALS.test(query);
   const subject = query.replace(FRESHNESS_SIGNALS, " ").replace(SI_FRESHNESS_SIGNALS, " ").replace(/[?!.，,。:;\s]/g, "");
