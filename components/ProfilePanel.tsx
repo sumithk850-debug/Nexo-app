@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, CalendarDays, ChevronRight, CircleCheck, Clock3, Mail, Settings, ShieldCheck, User, X, Loader2, LogOut } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, Clock3, Mail, Settings, ShieldCheck, User, X, Loader2, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 
