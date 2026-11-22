@@ -61,104 +61,12 @@ const WIKIPEDIA_SOURCES_MARKER = (sources: { title: string; url: string }[]) =>
  */
 function shouldSearchWikipedia(query: string): boolean {
   const value = query.trim();
-
   if (!value || value.length > 1000) return false;
 
-  const normalized = value
-    .toLocaleLowerCase("en-US")
-    .replace(/[“”‘’]/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // Explicit Wikipedia / encyclopedia requests always qualify.
-  if (
-    /\b(?:wikipedia|encyclopedia|wiki page|wiki article)\b/i.test(normalized) ||
-    /විකිපීඩියා|විශ්වකෝෂ/i.test(normalized)
-  ) {
-    return true;
-  }
-
-  // Requests that should remain in KYVORIX's normal capabilities.
-  const nonWikipediaIntent =
-    /\b(?:code|coding|program|programming|debug|debugging|bug|error|fix|implement|implementation|typescript|javascript|python|java|react|next\.js|nextjs|sql|supabase|vercel|github|api|api route|component|function|regex|terminal|npm|package|compile|compiler|build|deploy|deployment|database|schema|table|translate|translation|translator|rewrite|rephrase|proofread|proofreading|email|caption|poem|poetry|song|lyrics|story|creative writing|roleplay|math|mathematics|calculate|calculation)\b/i.test(
-      normalized
-    ) ||
-    /පරිවර්තනය|පරිවර්තනය කරන්න|කෝඩ්|කේතය|කේත|වැරැද්ද|දෝෂය|ඩිබග්|ක්‍රමලේඛ|ක්‍රමලේඛනය|කතාවක් ලිය|කවියක් ලිය|ගණනය|ගණිත|ඩේටාබේස්|දත්ත සමුදාය/i.test(
-      normalized
-    );
-
-  if (nonWikipediaIntent) {
-    return false;
-  }
-
-  // Signals that the answer may have changed recently or is tied
-  // to a particular year/current office-holder.
-  const currentness =
-    /\b(?:current|currently|right now|now|today|latest|recent|recently|present|at present|as of|this year|this month|this week|newest|updated|up to date|in \d{4}|\d{4})\b/i.test(
-      normalized
-    ) ||
-    /\b(?:president|prime minister|king|queen|leader|governor|minister|ceo|chairperson|head of state)\b/i.test(
-      normalized
-    ) ||
-    /දැනට|වත්මන්|වර්තමානයේ|අලුත්ම|නවතම|මෑතකදී|මෑත|මේ වසරේ|මේ අවුරුද්දේ|මේ මාසේ|මේ මාසයේ|මේ සතියේ|දැනටමත්|වර්තමාන|20\d{2}|ජනාධිපති|අගමැති|රජු|රැජින|නායකයා|නායිකාව|ආණ්ඩුකාර|ඇමති|ප්‍රධාන විධායක|රාජ්‍ය නායක/i.test(
-      normalized
-    );
-
-  // Factual / knowledge-seeking language.
-  const factualQuestion =
-    /\b(?:who is|who was|who were|what is|what are|what was|what were|where is|where was|where are|when is|when was|when were|which|whose|how did|why did|what happened|tell me about|information about|facts about|history of|biography of|define|definition of|meaning of|explain|describe)\b/i.test(
-      normalized
-    ) ||
-    /\b(?:who|what|where|when)\b/i.test(normalized) ||
-    /කවුද|කවුරුද|මොකක්ද|මොකක්|මොනවාද|මොනවද|කොහෙද|කොහේද|කවදාද|කවදා|කාගේද|ගැන කියන්න|ගැන විස්තර|විස්තර කරන්න|තොරතුරු|ඉතිහාසය|ජීවිත කතාව|අර්ථය|නිර්වචනය|පැහැදිලි කරන්න|සිදුවුණේ|සිදු වුණේ|සිද්ධ වුණේ|ඇයි|කොහොමද/i.test(
-      normalized
-    );
-
-  // Topics that naturally benefit from encyclopedic grounding.
-  const encyclopedicTopic =
-    /\b(?:history|historical|biography|person|people|country|countries|city|capital|president|prime minister|government|politician|scientist|artist|actor|actress|author|writer|book|film|movie|company|organization|university|landmark|monument|war|battle|empire|kingdom|religion|language|culture|science|technology|planet|moon|star|animal|species|disease|event|invention|inventor|founder|born|died|population|geography|physics|chemistry|biology|photosynthesis|evolution|astronomy|architecture|economics|philosophy|literature|music)\b/i.test(
-      normalized
-    ) ||
-    /ඉතිහාස|ජීවිත|පුද්ගල|පුද්ගලයා|පුද්ගලයින්|රට|රටවල්|නගර|අගනුවර|ජනාධිපති|අගමැති|රජය|දේශපාල|දේශපාලඥ|විද්‍යා|විද්‍යාඥ|කලා|කලාකර|නළුව|නිළිය|කර්තෘ|ලේඛක|පොත|ග්‍රන්ථ|චිත්‍රපට|සමාගම|සංවිධානය|විශ්වවිද්‍යාල|ස්මාරක|යුද්ධ|සටන|අධිරාජ්‍ය|රාජධානි|ආගම|භාෂාව|සංස්කෘති|විද්‍යාව|තාක්ෂණ|ග්‍රහලෝක|සඳ|තරුව|සත්ත්ව|සත්ව|විශේෂ|රෝග|සිදුවීම|නව නිපැයුම්|නිර්මාතෘ|උපත|මරණය|ජනගහනය|භූගෝල|භෞතික විද්‍යා|රසායන විද්‍යා|ජීව විද්‍යා|ප්‍රභාසංස්ලේෂණ|පරිණාමය|තාරකා විද්‍යා|වාස්තු විද්‍යා|ආර්ථික විද්‍යා|දර්ශනය|සාහිත්‍ය|සංගීත/i.test(
-      normalized
-    );
-
-  const isQuestion = /\?/.test(normalized);
-
-  // Current / year-specific factual questions are high-confidence
-  // Wikipedia requests.
-  if (
-    currentness &&
-    (factualQuestion || encyclopedicTopic || isQuestion)
-  ) {
-    return true;
-  }
-
-  // Ordinary factual questions qualify when they contain a genuine
-  // knowledge-seeking signal.
-  if (
-    factualQuestion &&
-    (isQuestion || encyclopedicTopic)
-  ) {
-    return true;
-  }
-
-  // Short encyclopedic questions such as:
-  // "Albert Einstein?"
-  // "Sri Lanka history?"
-  // "ශ්‍රී ලංකාවේ ඉතිහාසය?"
-  if (encyclopedicTopic && isQuestion) {
-    return true;
-  }
-
-  // Knowledge requests sometimes omit a question mark.
-  if (factualQuestion && encyclopedicTopic) {
-    return true;
-  }
-
-  return false;
+  // Search Wikipedia only when the user explicitly selects that source.
+  return /\b(?:search(?: the)? wikipedia|wikipedia (?:article|page|search)|according to wikipedia|on wikipedia|from wikipedia|use wikipedia)\b/i.test(value)
+    || /විකිපීඩියා(?:වෙන්| ලිපිය| පිටුව).{0,35}(?:සොය|කියව|බල)|විකිපීඩියා සොයන්න/i.test(value);
 }
-
 function buildCurrentDateTimeContext(now = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-GB", {
     timeZone: NEXO_DEFAULT_TIME_ZONE,
