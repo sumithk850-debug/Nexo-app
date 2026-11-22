@@ -25,6 +25,7 @@ type ApprovalState = "pending" | "approving" | "approved" | "rejected" | "error"
 type AttachmentState = "preparing" | "error" | null;
 type PhaseState = "waiting" | "active" | "complete" | "error";
 type Phase = { id: string; label: string; detail: string; state: PhaseState };
+type WebResearchProgress = { stage: string; message: string; url?: string; completedPages?: number; totalPages?: number } | null;
 
 function actionDescription(action: FileAction): string {
   if (action.type === "reading") return "Reading verified repository context";
@@ -77,6 +78,7 @@ export function RealityDrawer({
   actionEvents,
   repoFullName,
   charsPerSecond,
+  researchProgress = null,
 }: {
   streaming: boolean;
   actions: FileAction[];
@@ -87,10 +89,11 @@ export function RealityDrawer({
   actionEvents: ActionEvent[];
   repoFullName?: string | null;
   charsPerSecond?: number;
+  researchProgress?: WebResearchProgress;
 }) {
   const [open, setOpen] = useState(false);
   const touchStartY = useRef<number | null>(null);
-  const hasExecution = Boolean(attachmentState || searching || actions.length > 0 || actionEvents.length > 0 || approvalState);
+  const hasExecution = Boolean(attachmentState || searching || researchProgress || actions.length > 0 || actionEvents.length > 0 || approvalState);
 
   const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || approvalState === "approved";
   const hasError = attachmentState === "error" || approvalState === "error" || actionEvents.some((event) => event.phase === "failed" || event.phase === "cancelled");
@@ -102,8 +105,10 @@ export function RealityDrawer({
     ? "Waiting for your approval"
     : approvalState === "approving"
       ? "Applying approved repository change"
-      : searching
-        ? (streaming ? "Gathering research context" : "Research context gathered")
+      : researchProgress
+        ? researchProgress.message
+        : searching
+          ? (streaming ? "Gathering research context" : "Research context gathered")
         : attachmentState === "preparing"
           ? "Preparing attached context"
           : activeAction
@@ -186,7 +191,7 @@ export function RealityDrawer({
             <div className="max-h-[calc(82dvh-116px)] space-y-4 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
               <section aria-labelledby="reality-current-task">
                 <div className="flex items-center justify-between gap-2"><h3 id="reality-current-task" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Current task</h3>{charsPerSecond !== undefined && charsPerSecond > 0 && <span className="font-mono text-[9px] text-cyan">{Math.round(charsPerSecond)} chars/s</span>}</div>
-                <div className="mt-2 rounded-xl border border-cyan/20 bg-cyan/[0.05] p-3"><p className="text-sm font-semibold text-ink">{currentLabel}</p>{activeAction?.filePath && <p className="mt-1 truncate font-mono text-[10px] text-ink-muted">{activeAction.filePath}</p>}{searching && <p className="mt-1 truncate font-mono text-[10px] text-ink-muted">{searching.queries.join(" · ")}</p>}</div>
+                <div className="mt-2 rounded-xl border border-cyan/20 bg-cyan/[0.05] p-3"><p className="text-sm font-semibold text-ink">{currentLabel}</p>{activeAction?.filePath && <p className="mt-1 truncate font-mono text-[10px] text-ink-muted">{activeAction.filePath}</p>}{searching && <p className="mt-1 truncate font-mono text-[10px] text-ink-muted">{searching.queries.join(" · ")}</p>}{researchProgress?.url && <p className="mt-1 truncate font-mono text-[10px] text-cyan" title={researchProgress.url}>{researchProgress.url}</p>}{researchProgress?.completedPages !== undefined && <p className="mt-1 text-[9px] text-ink-faint">{researchProgress.completedPages} / {researchProgress.totalPages ?? "?"} pages checked</p>}</div>
               </section>
 
               <section aria-labelledby="reality-track-title"><h3 id="reality-track-title" className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-faint">Execution track</h3><ol className="mt-2 space-y-1.5">{track.map((phase, index) => { const Icon = phaseIcon(phase.state); return <li key={phase.id} className="flex items-start gap-2.5"><span className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${phaseClass(phase.state)}`}>{phase.state === "active" ? <Icon className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}{index < track.length - 1 && <span className="absolute left-1/2 top-7 h-3 w-px bg-edge" />}</span><span className="min-w-0 flex-1 pb-2"><span className="flex items-center gap-2"><span className="text-xs font-semibold text-ink">{phase.label}</span><span className="text-[9px] uppercase tracking-wider text-ink-faint">{phase.state}</span></span><span className="mt-0.5 block text-[10px] leading-4 text-ink-muted">{phase.detail}</span></span></li>; })}</ol></section>
