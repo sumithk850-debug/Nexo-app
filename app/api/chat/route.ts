@@ -26,6 +26,7 @@ import { runNativeToolLoop } from "@/lib/nativeTools.server";
 import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
 import { consumeCraftV5Tokens, requireCraftV5Access } from "@/lib/craftV5Trial.server";
 import { createToolCallStreamMarker } from "@/lib/toolCallDisplay";
+import { verifyWebResearchContext } from "@/lib/webResearchSignature.server";
 
 export const runtime = "nodejs";
 
@@ -1202,8 +1203,9 @@ Structure your review with clear sections and use code examples where helpful.`;
       );
     }
 
-    const webResearchContext = typeof body.webResearchContext === "string"
-      ? body.webResearchContext.slice(0, 28_000)
+    const latestResearchQuery = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+    const webResearchContext = userId
+      ? verifyWebResearchContext(body.webResearchToken, userId, latestResearchQuery) ?? ""
       : "";
     if (webResearchContext) {
       systemPrompt += "\n\nVERIFIED WEB RESEARCH CONTEXT (server-streamed Tavily extraction):\n"
