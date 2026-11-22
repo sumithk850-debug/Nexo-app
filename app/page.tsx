@@ -2020,7 +2020,7 @@ export default function ChatPage() {
         onClose={() => setSidebarOpen(false)}
         user={user}
         onOpenAuth={() => setAuthModalOpen(true)}
-        onSignOut={handleSignOut}
+        onSignOut={() => { setProfileOpen(false); void handleSignOut(); }}
         isCoderMode={isCoderMode}
         onToggleCoderMode={() => {
           if (!isCoderMode && !craftV5Trial) {
