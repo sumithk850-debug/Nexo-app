@@ -2,6 +2,7 @@ import type { ActionEvent, ActionPhase } from "@/lib/actionEngine";
 
 const TOOL_LABELS: Record<string, string> = {
   web_fetch_url: "Web page",
+  tavily_web_research: "Web research · Tavily",
   wikipedia_search: "Wikipedia search",
   github_list_files: "GitHub list files",
   github_read_file: "GitHub read file",
