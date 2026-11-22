@@ -6,7 +6,7 @@ export function isSafeWebResearchQuery(query: string): boolean {
   return !RESTRICTED_TOPIC.test(query);
 }
 
-const WEB_SIGNALS = /\b(?:search(?: the)? web|search online|look up|find out|research|latest|current|currently|today|recent|news|sources?|source links|compare|comparison|review|price|pricing|release|announcement|statistics|what happened|who is|what is|what are|where is|when did|how much|which|tell me about|information about)\b/i;
+const WEB_SIGNALS = /\b(?:search(?: the)? web|search online|look up|find out|research|latest|current|currently|today|recent|news|sources?|source links|compare|comparison|review|price|pricing|release|announcement|statistics|what happened|who is|who was|what is|what are|where is|where did|when did|when was|how does|how do|how did|how much|how many|which|tell me about|explain|describe|history of|biography of|facts about|background on|what causes|causes of|benefits of|differences between|overview of|information about)\b/i;
 
 const SI_WEB_SIGNALS = /අලුත්ම|නවතම|දැනට|වත්මන්|අද|මෑතක|පුවත්|පර්යේෂණ|මූලාශ්‍ර|සසඳ|මිල|තොරතුරු සොය|සොයා බල|අන්තර්ජාලයෙන්|කවුද|කවුරුද|මොකක්ද|කොහෙද|කවදාද|කොහොමද|ඇයි|ගැන කියන්න|ගැන විස්තර|විස්තර සොය|පැහැදිලි කරන්න|විස්තර කරන්න|ඉතිහාසය|හේතු|වෙනස|සංසන්දනය/i;
 
