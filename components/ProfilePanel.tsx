@@ -35,6 +35,20 @@ export function ProfilePanel({
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
     let cancelled = false;
     async function loadAnnouncements() {
       setLoading(true);
@@ -66,6 +80,7 @@ export function ProfilePanel({
   return (
     <div className="fixed inset-0 z-[120] flex justify-end bg-black/55 backdrop-blur-sm" onClick={onClose}>
       <section
+        id="kyvorix-profile-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="kyvorix-profile-title"
@@ -80,7 +95,7 @@ export function ProfilePanel({
               <p className="text-xs text-ink-muted">Account details and KYVORIX updates</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-ink-faint transition hover:bg-void hover:text-ink" aria-label="Close profile"><X className="h-5 w-5" /></button>
+          <button type="button" autoFocus onClick={onClose} className="rounded-lg p-2 text-ink-faint transition hover:bg-void hover:text-ink" aria-label="Close profile"><X className="h-5 w-5" /></button>
         </header>
 
         <div className="flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-7">
