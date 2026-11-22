@@ -21,10 +21,10 @@ const SI_DATE_TIME_ONLY = /^(?:අද දිනය කුමක්ද|අද ද
 
 export function shouldUseWebResearchIntent(raw: string): boolean {
   const query = raw.trim();
-  if (!query || query.length > 4_000 || EXCLUDED_TASK.test(query) || !isSafeWebResearchQuery(query)) return false;
+  if (!query || query.length > 4_000 || !isSafeWebResearchQuery(query)) return false;
   if (/https?:\/\//i.test(query)) return true;
   if (EXPLICIT_WEB_SIGNALS.test(query) || SI_EXPLICIT_WEB_SIGNALS.test(query)) return true;
-  if (DATE_TIME_ONLY.test(query) || SI_DATE_TIME_ONLY.test(query)) return false;
+  if (EXCLUDED_TASK.test(query) || DATE_TIME_ONLY.test(query) || SI_DATE_TIME_ONLY.test(query)) return false;
   // Freshness alone is insufficient: require a real subject as well.
   const hasFreshness = FRESHNESS_SIGNALS.test(query) || SI_FRESHNESS_SIGNALS.test(query);
   const subject = query.replace(FRESHNESS_SIGNALS, " ").replace(SI_FRESHNESS_SIGNALS, " ").replace(/[?!.，,。:;\s]/g, "");
