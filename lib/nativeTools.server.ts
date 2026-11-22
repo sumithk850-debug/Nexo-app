@@ -104,10 +104,10 @@ function capResult(value: unknown): unknown {
 export function shouldUseNativeTools(text: string): boolean {
   const value = text.trim();
   if (!value || value.length > 12_000) return false;
-  return /https?:\\/\\//i.test(value)
-    || /\\b(github|repository|repo|codebase|file path|read file|list files|supabase|database|schema|tables?|vercel|deployment|deployments|deploy|wikipedia|search online|search the web|webpage|website|open this url|read this url|latest|current|currently|today|recent|news|research|sources|source links|compare|comparison|review|price|pricing|release|announcement|statistics|data on|information about|look up|find out)\\b/i.test(value)
-    || /\\b(?:read|reading|open|inspect|summari[sz]e|analy[sz]e|review)\\s+(?:(?:the|this|that|a|an)\\s+)?(?:file|document|readme|package\\.json)\\b/i.test(value)
-    || /ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා|වර්සල්|ඩිප්ලෝයි|විකිපීඩියා|වෙබ් අඩවිය|වෙබ් පිටුව|අලුත්ම|නවතම|දැනට|වත්මන්|අද|මෑතක|පුවත්|පර්යේෂණ|මූලාශ්‍ර|සසඳ|මිල|තොරතුරු සොය|සොයා බල|සෙවීම|අන්තර්ජාලයෙන්/i.test(value);
+  return /https?:\/\//i.test(value)
+    || /\b(github|repository|repo|codebase|file path|read file|list files|supabase|database|schema|tables?|vercel|deployment|deployments|deploy|wikipedia|search online|search the web|webpage|website|open this url|read this url|latest|current|currently|today|recent|news|research|sources|source links|compare|comparison|review|price|pricing|release|announcement|statistics|data on|information about|look up|find out|who is|what is|what are|what happened|when did|where is|why is|how does|how much|which)\\b/i.test(value)
+    || /\b(?:read|reading|open|inspect|summari[sz]e|analy[sz]e|review)\s+(?:(?:the|this|that|a|an)\s+)?(?:file|document|readme|package\.json)\b/i.test(value)
+    || /ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා|වර්සල්|ඩිප්ලෝයි|විකිපීඩියා|වෙබ් අඩවිය|වෙබ් පිටුව|අලුත්ම|නවතම|දැනට|වත්මන්|අද|මෑතක|පුවත්|පර්යේෂණ|මූලාශ්‍ර|සසඳ|මිල|තොරතුරු සොය|සොයා බල|සෙවීම|අන්තර්ජාලයෙන්|කවුද|කවුරුද|මොකක්ද|කොහෙද|කවදාද|ඇයි|කොහොමද/i.test(value);
 }
 
 export async function getNativeToolDefinitions(userId: string | undefined, githubEnabled: boolean): Promise<NativeToolDefinition[]> {
@@ -220,7 +220,8 @@ async function executeNativeTool(name: string, rawArgs: unknown, userId?: string
       const query = cleanString(args.query, 1_000);
       if (!query) throw new Error("A non-empty web research query is required.");
       return await searchAndReadWithTavily(query);
-    }\n    if (name === "wikipedia_search") {
+    }
+    if (name === "wikipedia_search") {
       if (!userId || !(await getWikipediaEnabled(userId))) throw new Error("Wikipedia integration is not enabled for this account.");
       const query = cleanString(args.query, 200);
       if (!query) throw new Error("A non-empty Wikipedia query is required.");
