@@ -13,6 +13,7 @@ import { createActionEvent, transitionAction, type ActionEvent, type ActionProvi
 import { buildToolDocumentationContext } from "@/lib/toolDocumentation";
 import { validateToolCall, verifyToolResult, type ToolDefinitionLike } from "@/lib/toolCallGuard";
 import { getModelToolCapability } from "@/lib/modelToolCapabilities";
+import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 
 export type NativeToolProvider = "openrouter" | "gemini" | "groq";
 export type NativeToolDefinition = ToolDefinitionLike;
@@ -368,7 +369,7 @@ function toolContext(executed: Array<{ name: string; result: unknown }>): string
  */
 export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<NativeToolLoopResult> {
   const latest = [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  if (!shouldUseNativeTools(latest)) return { contextBlock: "", usedTools: [], rounds: 0 };
+  if (!shouldUseNativeTools(latest) && !shouldUseWebResearchIntent(latest)) return { contextBlock: "", usedTools: [], rounds: 0 };
   const needsConnectedIntegration = /github|repository|repo|supabase|database|schema|tables?|vercel|deployment|wikipedia|https?:\/\//i.test(latest);
   if (input.webResearchAlreadyDone && !needsConnectedIntegration) return { contextBlock: "", usedTools: [], rounds: 0 };
   if (!process.env.TAVILY_API_KEY && !needsConnectedIntegration) return { contextBlock: "", usedTools: [], rounds: 0 };
