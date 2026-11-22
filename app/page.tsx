@@ -1158,7 +1158,7 @@ export default function ChatPage() {
     initialContent = "",
     liveToolDepth = 0,
     responseContinuationDepth = 0,
-    webResearchContext?: string
+    webResearchToken?: string
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -1206,7 +1206,7 @@ export default function ChatPage() {
           isAutomaticContinuation: responseContinuationDepth > 0,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
-          webResearchContext,
+          webResearchToken,
         }),
       });
 
@@ -1800,7 +1800,7 @@ export default function ChatPage() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let context: string | null = null;
+      let signedToken: string | null = null;
       let streamError: string | null = null;
 
       const handleEvent = (raw: string) => {
@@ -1817,26 +1817,8 @@ export default function ChatPage() {
         } else if (event.type === "error") {
           streamError = typeof event.message === "string" ? event.message : "Web research could not be completed.";
           setWebResearchProgress({ stage: "failed", message: streamError });
-        } else if (event.type === "result" && event.result && typeof event.result === "object") {
-          const result = event.result as {
-            query?: string;
-            sources?: Array<{ title?: string; url?: string; relevance?: number | null; pageContent?: string; searchContext?: string; linkedFrom?: string }>;
-            failed?: Array<{ url?: string; error?: string }>;
-          };
-          const sources = Array.isArray(result.sources) ? result.sources.filter((source) => typeof source.url === "string" && typeof source.pageContent === "string") : [];
-          if (sources.length > 0) {
-            context = JSON.stringify({
-              query: result.query ?? query,
-              sources: sources.map((source) => ({
-                title: source.title ?? source.url,
-                url: source.url,
-                relevance: source.relevance ?? null,
-                ...(source.linkedFrom ? { linkedFrom: source.linkedFrom } : {}),
-                extractedPageText: source.pageContent,
-              })),
-              failed: Array.isArray(result.failed) ? result.failed.slice(0, 5) : [],
-            }).slice(0, 27_000);
-          }
+        } else if (event.type === "result" && typeof event.token === "string") {
+          signedToken = event.token;
         }
       };
 
@@ -1853,7 +1835,7 @@ export default function ChatPage() {
         }
       }
       if (streamError) return null;
-      return context;
+      return signedToken;
     } catch (error) {
       if (signal.aborted) return null;
       setWebResearchProgress({
@@ -1964,8 +1946,8 @@ export default function ChatPage() {
       );
     }
 
-    const webResearchContext = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal) : null;
-    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchContext ?? undefined);
+    const webResearchToken = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal) : null;
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined);
   }
 
   function handleNewChat() {
@@ -2010,8 +1992,8 @@ export default function ChatPage() {
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
     }
 
-    const webResearchContext = await runWebResearch(text, controller.signal);
-    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchContext ?? undefined);
+    const webResearchToken = await runWebResearch(text, controller.signal);
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined);
   }
 
   async function handleSelectChat(chatId: string) {
