@@ -29,6 +29,7 @@ export interface NativeToolLoopInput {
   geminiApiKey?: string;
   groqApiKey?: string;
   maxRounds?: number;
+  webResearchAlreadyDone?: boolean;
 }
 export interface GitHubNativeToolActivity {
   id: string;
@@ -368,6 +369,9 @@ function toolContext(executed: Array<{ name: string; result: unknown }>): string
 export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<NativeToolLoopResult> {
   const latest = [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
   if (!shouldUseNativeTools(latest)) return { contextBlock: "", usedTools: [], rounds: 0 };
+  const needsConnectedIntegration = /\\b(github|repository|repo|supabase|database|schema|tables?|vercel|deployment|wikipedia)\\b|https?:\\/\\//i.test(latest);
+  if (input.webResearchAlreadyDone && !needsConnectedIntegration) return { contextBlock: "", usedTools: [], rounds: 0 };
+  if (!process.env.TAVILY_API_KEY && !needsConnectedIntegration) return { contextBlock: "", usedTools: [], rounds: 0 };
   const capability = getModelToolCapability(input.model);
   const definitions = await getNativeToolDefinitions(input.userId, input.githubEnabled);
   if (definitions.length === 0) return { contextBlock: toolFailureContext(), usedTools: [], rounds: 0 };
