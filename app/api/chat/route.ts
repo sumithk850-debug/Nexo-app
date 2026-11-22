@@ -63,11 +63,9 @@ function shouldSearchWikipedia(query: string): boolean {
   const value = query.trim();
   if (!value || value.length > 1000) return false;
 
-  // Wikipedia is a user-selected source, not a default search engine.
-  // General factual questions stay in normal chat; fresh web research is
-  // handled by the intent-aware Tavily flow.
-  return /\b(?:wikipedia|encyclopedia|wiki page|wiki article)\b/i.test(value)
-    || /විකිපීඩියා|විශ්වකෝෂ/i.test(value);
+  // Search Wikipedia only when the user explicitly selects that source.
+  return /\b(?:search(?: the)? wikipedia|wikipedia (?:article|page|search)|according to wikipedia|on wikipedia|from wikipedia|use wikipedia)\b/i.test(value)
+    || /විකිපීඩියා(?:වෙන්| ලිපිය| පිටුව).{0,35}(?:සොය|කියව|බල)|විකිපීඩියා සොයන්න/i.test(value);
 }
 function buildCurrentDateTimeContext(now = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-GB", {
