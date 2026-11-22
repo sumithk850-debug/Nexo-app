@@ -331,6 +331,7 @@ function providerForTool(name: string): ActionProvider {
   if (name.startsWith("supabase_")) return "supabase";
   if (name.startsWith("vercel_")) return "vercel";
   if (name === "wikipedia_search") return "wikipedia";
+  if (name === "tavily_web_research") return "research";
   if (name === "web_fetch_url") return "browser";
   return "custom";
 }
@@ -348,7 +349,14 @@ function verifiedActionEvents(executed: Array<{ name: string; args?: unknown; re
       const running = transitionAction(queued, "running", undefined);
       const verifying = transitionAction(running, "verifying", { phase: "succeeded", summary: "Provider responded; result evidence is being checked.", verification: "provider_acknowledged" });
       const verification = verifyToolResult(item.name, item.result);
-      const terminal = transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: verification.summary, verification: failed ? "none" : "result_checked", details: { tool: item.name, resultPresent: Object.keys(result).length > 0, documentationVersion: "1.0.0" } });
+      const sources = Array.isArray(result.sources) ? result.sources as Array<Record<string, unknown>> : [];
+      const firstSource = sources[0] ?? {};
+      const sourceDetails = item.name === "tavily_web_research" ? {
+        sourceCount: sources.length,
+        ...(typeof firstSource.url === "string" ? { firstSourceUrl: firstSource.url } : {}),
+        ...(typeof firstSource.title === "string" ? { firstSourceTitle: firstSource.title } : {}),
+      } : {};
+      const terminal = transitionAction(verifying, failed ? "failed" : "succeeded", { phase: failed ? "failed" : "succeeded", summary: verification.summary, verification: failed ? "none" : "result_checked", details: { tool: item.name, resultPresent: Object.keys(result).length > 0, documentationVersion: "1.0.0", ...sourceDetails } });
       return [queued, running, verifying, terminal];
     } catch {
       return [];
