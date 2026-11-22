@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireVerifiedUser } from "@/lib/requestAuth.server";
 import { searchAndReadWithTavily } from "@/lib/tavily.server";
 import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
+import { signWebResearchContext } from "@/lib/webResearchSignature.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 100;
@@ -33,7 +34,9 @@ export async function POST(request: NextRequest) {
         try {
           send({ type: "progress", stage: "queued", message: "Preparing secure web research." });
           const result = await searchAndReadWithTavily(query, (event) => send({ type: "progress", ...event }));
-          send({ type: "result", result });
+          const context = JSON.stringify(result).slice(0, 28_000);
+          const token = signWebResearchContext(verified.user.id, query, context);
+          send({ type: "result", result, token });
         } catch (error) {
           send({
             type: "error",
