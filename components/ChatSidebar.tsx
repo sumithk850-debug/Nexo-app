@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Search, Sun, Moon, Edit2, Check, Code2, Palette, Zap, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo, Newspaper } from "lucide-react";
+import { Plus, X, MessageSquare, Trash2, LogIn, LogOut, User, Sun, Moon, Edit2, Check, Code2, Atom, PenTool, BarChart2, Sparkles, Bookmark, Star, Plug, FolderOpen, FolderPlus, Folder, ChevronDown, ChevronRight, Info, ListTodo, Newspaper } from "lucide-react";
 import type { DbChat } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/auth";
 import { getStoredTheme, applyTheme, toggleTheme, type Theme } from "@/lib/theme";
@@ -45,7 +45,6 @@ export function ChatSidebar({
   onSignOut,
   isCoderMode,
   onToggleCoderMode,
-  onGlobalSearch,
   onOpenDeepResearch,
   onOpenIntegrations,
   activePersona,
@@ -67,7 +66,6 @@ export function ChatSidebar({
   onSignOut: () => void;
   isCoderMode: boolean;
   onToggleCoderMode: () => void;
-  onGlobalSearch: () => void;
   onOpenDeepResearch: () => void;
   onOpenIntegrations: () => void;
   activePersona: string;
@@ -280,20 +278,37 @@ export function ChatSidebar({
 
           <button
             type="button"
-            onClick={() => document.getElementById("kyvorix-chat-history")?.scrollTo({ top: 0, behavior: "smooth" })}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+            onClick={() => { onToggleCoderMode(); onClose(); }}
+            aria-pressed={isCoderMode}
+            className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 text-left text-sm font-semibold transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(34,211,238,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 ${isCoderMode ? "border-cyan/50 bg-cyan/15 text-cyan shadow-[0_0_22px_rgba(34,211,238,0.12)]" : "border-cyan/20 bg-gradient-to-r from-cyan/[0.10] via-sky-500/[0.06] to-transparent text-ink hover:border-cyan/40 hover:bg-cyan/10"}`}
+            title="Open Kyvorix Coder Agent"
           >
-            <MessageSquare className="h-4 w-4 text-ink-muted" />
-            Chats
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan/20 bg-cyan/10 text-cyan shadow-inner">
+              <Code2 className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">Coder Agent</span>
+              <span className="mt-0.5 block text-[10px] font-medium tracking-wide text-ink-muted">Build · edit · ship</span>
+            </span>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${isCoderMode ? "animate-pulse bg-cyan shadow-[0_0_10px_rgba(34,211,238,0.9)]" : "bg-cyan/45"}`} />
           </button>
 
-          <button
-            onClick={onGlobalSearch}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
+          <Link
+            href="/news"
+            onClick={onClose}
+            className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-emerald-400/20 bg-gradient-to-r from-emerald-400/[0.10] via-teal-400/[0.05] to-transparent px-3 py-3 text-sm font-semibold text-ink transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300/45 hover:shadow-[0_8px_24px_rgba(52,211,153,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/50"
+            aria-label="Open Daily News Summarization by Kyvorix AI"
+            title="Daily News Summarization by Kyvorix AI"
           >
-            <Search className="h-4 w-4 text-ink-muted" />
-            Search
-          </button>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-300/20 bg-emerald-300/10 text-emerald-300">
+              <Newspaper className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">Daily News</span>
+              <span className="mt-0.5 block text-[10px] font-medium tracking-wide text-ink-muted">Today&apos;s world briefing</span>
+            </span>
+            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-300">Live</span>
+          </Link>
 
           <div className="pt-2">
             <button
@@ -311,26 +326,11 @@ export function ChatSidebar({
             </button>
             {moreOpen && (
               <div id="kyvorix-sidebar-more" className="mt-2 space-y-1 rounded-xl border border-edge/70 bg-void/25 p-2">
-                <button
-                  onClick={() => { onToggleCoderMode(); onClose(); }}
-                  className={`group relative flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition ${isCoderMode ? "bg-cyan/10 text-cyan border border-cyan/20" : "text-ink hover:bg-panel"}`}
-                >
-                  <span className="flex items-center gap-2.5"><Code2 className="h-4 w-4" />Kyvorix Coder Agent</span>
-                  {isCoderMode ? <span className="h-1.5 w-1.5 rounded-full bg-cyan animate-pulse" /> : <Zap className="h-3 w-3 text-ink-faint group-hover:text-cyan" />}
-                </button>
-
                 <button type="button" onClick={() => { onOpenDeepResearch(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-cyan/40 hover:bg-cyan/10" aria-label="Deep Research" title="Deep Research">
                   <Sparkles className="h-4 w-4 text-cyan" />
                   <span className="flex-1 text-left">Deep Research</span>
                   <span className="rounded-md bg-cyan/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan">New</span>
                 </button>
-
-                <Link href="/news" onClick={onClose} className="group flex w-full items-center gap-2.5 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2.5 text-sm font-semibold text-ink transition hover:border-emerald-300/40 hover:bg-emerald-400/10" aria-label="Open Daily News Summarization by Kyvorix AI" title="Daily News Summarization by Kyvorix AI">
-                  <span className="relative flex h-5 w-5 items-center justify-center"><span className="absolute h-4 w-4 animate-ping rounded-full bg-emerald-400/25" /><span className="relative h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.95)]" /></span>
-                  <Newspaper className="h-4 w-4 text-emerald-300" />
-                  <span className="flex-1 text-left">Daily News</span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">Live</span>
-                </Link>
 
                 <button type="button" onClick={() => { onOpenIntegrations(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-panel" aria-label="Integrations" title="Integrations">
                   <Plug className="h-4 w-4 text-ink-muted" />Integrations

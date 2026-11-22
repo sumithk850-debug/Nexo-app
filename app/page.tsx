@@ -2029,7 +2029,6 @@ export default function ChatPage() {
           }
           setIsCoderMode(!isCoderMode);
         }}
-        onGlobalSearch={() => setSearchModalOpen(true)}
         onOpenDeepResearch={() => { setDeepResearchOpen(true); setSidebarOpen(false); }}
         onOpenIntegrations={() => setIntegrationsOpen(true)}
         activePersona={activePersona}
