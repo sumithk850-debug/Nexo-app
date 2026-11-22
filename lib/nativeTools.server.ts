@@ -106,14 +106,18 @@ function capResult(value: unknown): unknown {
 export function shouldUseNativeTools(text: string): boolean {
   const value = text.trim();
   if (!value || value.length > 12_000) return false;
+  if (/\b(?:code|coding|debug|debugging|programming|translate|translation|rewrite|proofread)\b/i.test(value)) return false;
   if (/https?:\/\//i.test(value)) return true;
 
-  const integrationTarget = /\b(?:github|repository|repo|codebase|file path|file|supabase|database|schema|tables?|vercel|deployment|deployments|wikipedia)\b|ගිතුබ්|රෙපෝ|රිපൊසිටරි|ගොනුව|ෆයිල්|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා|වර්සල්|ඩිප්ලෝයි|විකිපීඩියා/i.test(value);
-  const explicitOperation = /\b(?:read|open|inspect|list|show|check|review|fetch|connect|deploy|deployment status|status of|my|selected|connected|repository files|file contents)\b|කියවන්න|විවෘත කරන්න|පරීක්ෂා කරන්න|ලැයිස්තුගත|පෙන්වන්න|බලන්න|මගේ|සම්බන්ධිත/i.test(value);
+  const integrationTarget = /\b(?:github|repository|repo|codebase|file path|file|supabase|database|schema|tables?|vercel|deployment|deployments|wikipedia)\b|ගිතුබ්|රෙපෝ|රිපොසිටරි|ගොනුව|ෆයිල්|සුපබේස්|දත්ත සමුදා|ඩේටාබේස්|ටේබල්|ස්කීමා|වර්සල්|ඩිප්ලෝයි|විකිපීඩියා/i.test(value);
+  const explicitOperation = /\b(?:read|open|inspect|list|show|check|review|fetch|connect|deploy|deployment status|status of|repository files|file contents)\b|කියවන්න|විවෘත කරන්න|පරීක්ෂා කරන්න|ලැයිස්තුගත|පෙන්වන්න|බලන්න/i.test(value);
+  const personalResourceQuery = /\b(?:my|connected|selected)\s+(?:github|repo|repository|supabase|database|vercel)\b/i.test(value)
+    && /\b(?:files?|tables?|projects?|deployments?|status|schema)\b/i.test(value);
+
   const directFileOperation = /\b(?:read|open|inspect|summari[sz]e|analy[sz]e|review)\s+(?:(?:the|this|that|a|an)\s+)?(?:file|document|readme|package\.json)\b/i.test(value)
     || /(?:ෆයිල්|ගොනුව).{0,35}(?:කියව|විවෘත|පරීක්ෂා|සාරාංශ)/i.test(value);
 
-  return directFileOperation || (integrationTarget && explicitOperation);
+  return directFileOperation || (integrationTarget && explicitOperation) || personalResourceQuery;
 }
 
 export async function getNativeToolDefinitions(userId: string | undefined, githubEnabled: boolean): Promise<NativeToolDefinition[]> {
