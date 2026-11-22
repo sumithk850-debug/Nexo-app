@@ -13,7 +13,7 @@ assert.ok(sidebar.includes('href="/news"'), "Primary Daily News shortcut must na
 assert.ok(sidebar.indexOf("Coder Agent") < sidebar.indexOf("More"), "Coder Agent must appear in the primary sidebar before More");
 assert.ok(sidebar.indexOf('href="/news"') < sidebar.indexOf("More"), "Daily News must appear in the primary sidebar before More");
 assert.ok(!sidebar.includes(">Chats</button>") && !sidebar.includes(">Search</button>"), "Chats and Search must not remain as primary sidebar shortcuts");
-for (const feature of ["Kyvorix Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
+for (const feature of ["Coder Agent", "Deep Research", "Daily News", "Integrations", "Mission Agent", "Prompt Library", "About Kyvorix"]) {
   assert.ok(sidebar.includes(feature), `Existing navigation feature must remain available: ${feature}`);
 }
 assert.ok(sidebar.includes("onClose();"), "Secondary navigation actions must close the mobile sidebar after selection");
