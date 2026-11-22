@@ -11,6 +11,7 @@ import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { AnnouncementModal } from "@/components/AnnouncementModal";
 import { AuthModal } from "@/components/AuthModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { ProfilePanel } from "@/components/ProfilePanel";
 import { SearchModal } from "@/components/SearchModal";
 import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
@@ -193,6 +194,7 @@ export default function ChatPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [profileSetupOpen, setProfileSetupOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [deepResearchOpen, setDeepResearchOpen] = useState(false);
   const [projectArchitectOpen, setProjectArchitectOpen] = useState(false);
@@ -2033,6 +2035,7 @@ export default function ChatPage() {
         activePersona={activePersona}
         onSelectPersona={setActivePersona}
         onInsertTemplate={(prompt) => setInput((prev) => (prev ? prev + "\n\n" + prompt : prompt))}
+        onOpenProfile={() => { setProfileOpen(true); setSidebarOpen(false); }}
       />
 
       {deepResearchOpen && (
@@ -2420,6 +2423,13 @@ export default function ChatPage() {
         userId={user?.id}
       />
 
+      <ProfilePanel
+        open={profileOpen}
+        user={user}
+        onClose={() => setProfileOpen(false)}
+        onOpenSettings={() => { setProfileOpen(false); setSettingsOpen(true); }}
+        onSignOut={handleSignOut}
+      />
       <SettingsPanel
         open={settingsOpen}
         onClose={() => {
