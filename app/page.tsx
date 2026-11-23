@@ -31,7 +31,7 @@ import { DeepResearchPanel, type DeepResearchRequest, type DeepResearchStage } f
 import { ProjectArchitectPanel } from "@/components/ProjectArchitectPanel";
 import { ProjectFilesWorkspace } from "@/components/ProjectFilesWorkspace";
 import { BrowserConnectionCard, type BrowserConnectionState } from "@/components/BrowserConnectionCard";
-import type { CoderModelId } from "@/lib/providers.server";
+import type { CoderModelId } from "@/lib/coderModels";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
@@ -1174,11 +1174,8 @@ export default function ChatPage() {
     const controller = providedController ?? streamAbortControllerRef.current ?? startStreamingTurn(assistantId);
     let accumulated = initialContent;
     try {
-      // Forward the signed-in user's Supabase access token only to the same
-      // first-party chat route. This allows the server-side settings read to
-      // respect user_id-based RLS policies without exposing any service key.
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-
+      // authenticatedFetch attaches the signed-in user's Supabase access token
+      // as an Authorization header; the server reads it from there.
       const res = await authenticatedFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1190,7 +1187,6 @@ export default function ChatPage() {
           // connection (selected repo + access token) for Craft V3 requests.
           // Without this, /api/chat has no way to know which repo is active.
           userId: user?.id,
-          userAccessToken: authSession?.access_token,
           // The signed-in display name comes from the account profile and is
           // included only in this first-party request for prompt context.
           userName: user?.fullName,
@@ -1632,7 +1628,6 @@ export default function ChatPage() {
   ): Promise<string> {
     if (!sessionId) throw new Error("Your session is still initializing. Please try again in a moment.");
     onProgress("sources");
-    const { data: { session: authSession } } = await supabase.auth.getSession();
     const response = await authenticatedFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1641,7 +1636,6 @@ export default function ChatPage() {
         modelId: selectedModel,
         sessionId,
         userId: user?.id,
-        userAccessToken: authSession?.access_token,
         userName: user?.fullName,
         githubEnabled: false,
         isCoderMode: false,

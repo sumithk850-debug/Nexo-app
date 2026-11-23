@@ -5,15 +5,15 @@ import {
   PROVIDER_CONFIG,
   CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
-} from "@/lib/providersWithWikipedia.server";
-import type { CoderModelId } from "@/lib/providersWithWikipedia.server";
+} from "@/lib/providers.server";
+import type { CoderModelId } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
 import { buildProjectBrainContext } from "@/lib/developmentIntelligence.server";
 import type { NexoModelId } from "@/lib/models";
 import { deriveSupabaseReadIntent } from "@/lib/supabaseReadIntent";
-import { requireVerifiedUser } from "@/lib/requestAuth.server";
+import { getBearerToken, requireVerifiedUser } from "@/lib/requestAuth.server";
 import {
   checkCoderTokenAvailability,
   estimateTokens,
@@ -556,8 +556,10 @@ export async function POST(req: NextRequest) {
 
     let userId = body.userId as string | undefined;
 
-    const userAccessToken =
-      body.userAccessToken as string | undefined;
+    // The user's access token is taken only from the Authorization header that
+    // requireVerifiedUser() has just validated. A token supplied in the JSON
+    // body is never trusted or used.
+    let userAccessToken: string | undefined;
 
     if (userId) {
       const verified = await requireVerifiedUser(req, userId);
@@ -565,6 +567,7 @@ export async function POST(req: NextRequest) {
       if (verified.response) return verified.response;
 
       userId = verified.user.id;
+      userAccessToken = getBearerToken(req);
     }
 
     const userName =

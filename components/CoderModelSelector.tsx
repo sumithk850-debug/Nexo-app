@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Lock, Cpu, Zap, Rocket, LockIcon, Check, Crown, X } from "lucide-react";
-import { CODER_MODELS, type CoderModelId } from "@/lib/providers.server";
+import { CODER_MODELS, type CoderModelId } from "@/lib/coderModels";
 
 interface CoderModelSelectorProps {
   selected: CoderModelId;

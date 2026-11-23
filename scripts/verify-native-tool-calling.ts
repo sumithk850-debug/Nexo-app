@@ -8,7 +8,7 @@ const tools = readFileSync("lib/nativeTools.server.ts", "utf8");
 const route = readFileSync("app/api/chat/route.ts", "utf8");
 const page = readFileSync("app/page.tsx", "utf8");
 const selector = readFileSync("components/CoderModelSelector.tsx", "utf8");
-const providers = readFileSync("lib/providers.server.ts", "utf8");
+const providers = readFileSync("lib/coderModels.ts", "utf8");
 const display = readFileSync("lib/toolCallDisplay.ts", "utf8");
 const craftTrial = readFileSync("lib/craftV5Trial.server.ts", "utf8");
 

@@ -1,4 +1,4 @@
-import type { CoderModelId } from "./providers.server";
+import type { CoderModelId } from "./coderModels";
 import type { NexoModelId } from "./models";
 
 export interface ModelToolCapability {

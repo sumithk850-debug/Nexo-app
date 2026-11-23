@@ -16,6 +16,16 @@ function unauthorized(message: string) {
 }
 
 /**
+ * Extracts the Bearer token from the Authorization header, or undefined when
+ * absent. Only use the result after requireVerifiedUser() has accepted this
+ * same request: that call is what proves the token is valid.
+ */
+export function getBearerToken(req: Request): string | undefined {
+  const authorization = req.headers.get("authorization") ?? "";
+  return authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || undefined;
+}
+
+/**
  * Verifies a Supabase access token supplied through the standard Bearer header.
  * Privileged routes must never trust a browser-provided user ID by itself.
  */
