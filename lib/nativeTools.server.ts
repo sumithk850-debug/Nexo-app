@@ -457,12 +457,18 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       } else if (payload?.candidates?.[0]?.content) {
         geminiContents.push(payload.candidates[0].content);
       }
-      for (const call of calls) {
+      if (input.onActionEvent) {
+        const remaining = Math.max(0, Math.min(MAX_TOOL_CALLS, capability.maxCalls) - totalCalls);
+        calls.slice(0, remaining).forEach((planned, plannedIndex) => {
+          input.onActionEvent?.(createActionEvent({ id: "plan-" + round + "-" + plannedIndex + "-" + planned.name, provider: providerForTool(planned.name), operation: planned.name, target: targetForTool(planned.name, planned.args), summary: "Planned: " + planned.name + "." }));
+        });
+      }
+      for (const [callIndex, call] of calls.entries()) {
         if (totalCalls >= Math.min(MAX_TOOL_CALLS, capability.maxCalls)) break;
         totalCalls += 1;
         const definition = definitionByName.get(call.name);
         const validation = definition ? validateToolCall(definition, call.validArguments ? call.args : null) : { valid: false, args: {}, errors: ["This tool is not available for the current account."] };
-        const liveEvent = input.onActionEvent ? transitionAction(createActionEvent({ id: "live-" + (executed.length + 1) + "-" + call.name, provider: providerForTool(call.name), operation: call.name, target: targetForTool(call.name, call.args), summary: "Calling " + call.name + "." }), "running") : null;
+        const liveEvent = input.onActionEvent ? transitionAction(createActionEvent({ id: "plan-" + round + "-" + callIndex + "-" + call.name, provider: providerForTool(call.name), operation: call.name, target: targetForTool(call.name, call.args), summary: "Calling " + call.name + "." }), "running") : null;
         if (liveEvent) input.onActionEvent?.(liveEvent);
         const result = !definition || !allowed.has(call.name)
           ? { ok: false, error: "This tool is not available for the current account. No action was performed." }

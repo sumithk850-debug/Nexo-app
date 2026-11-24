@@ -29,7 +29,7 @@ export function getActionStatusLabel(phase: ActionPhase): string {
   if (phase === "failed" || phase === "cancelled") return "failed";
   if (phase === "needs_approval") return "approval required";
   if (phase === "needs_connection") return "connection required";
-  return "queued";
+  return "planned";
 }
 
 export function getVerificationLabel(level: ActionEvent["verification"]): string {
