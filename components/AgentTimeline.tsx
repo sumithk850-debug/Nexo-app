@@ -52,37 +52,35 @@ function approvalLabel(state: ApprovalState): TimelineItem {
   return { id: "approval", label: "Waiting for your approval", detail: "No repository change is applied until you approve it.", state: "waiting", icon: ShieldCheck };
 }
 
-function phaseState(streaming: boolean, hasExecution: boolean, hasVerification: boolean): TimelineItem[] {
-  const planning = streaming && !hasExecution;
-  const executing = streaming && hasExecution;
+function phaseState(streaming: boolean, hasExecution: boolean, hasVerification: boolean, toolCount: number): TimelineItem[] {
   const finished = !streaming;
   return [
     {
       id: "understand",
-      label: "Understand the request",
-      detail: "Identifying the goal, constraints, and affected surface.",
-      state: planning ? "complete" : streaming ? "complete" : "complete",
+      label: "Read the request",
+      detail: streaming && !hasExecution ? "Working on the response." : "Request handled.",
+      state: streaming && !hasExecution ? "active" : "complete",
       icon: Sparkles,
     },
     {
       id: "plan",
-      label: "Plan the next steps",
-      detail: planning ? "Preparing a concise plan before taking action." : "Plan established for this response.",
-      state: planning ? "active" : "complete",
+      label: toolCount > 0 ? `Tool calls: ${toolCount}` : "No tool calls",
+      detail: toolCount > 0 ? "Reported by the app for this response." : "Answered directly without tools.",
+      state: toolCount > 0 || finished ? "complete" : "waiting",
       icon: FileSearch,
     },
     {
       id: "execute",
       label: hasExecution ? "Execute the reported work" : "Compose the response",
       detail: hasExecution ? "Following the verified activity reported by the app." : "Generating the answer for this request.",
-      state: executing ? "active" : finished ? "complete" : "waiting",
+      state: streaming && hasExecution ? "active" : finished ? "complete" : "waiting",
       icon: hasExecution ? GitBranch : Pencil,
     },
     {
       id: "verify",
       label: "Check the available result",
-      detail: hasVerification ? "Provider or application evidence is available." : "Separating reported results from unverified claims.",
-      state: streaming ? (hasVerification ? "active" : "waiting") : "complete",
+      detail: hasVerification ? "Provider or application evidence is available." : "No verified evidence reported yet.",
+      state: hasVerification ? "complete" : streaming ? "waiting" : "complete",
       icon: ShieldCheck,
     },
     {
@@ -118,9 +116,9 @@ export function AgentTimeline({
   const hasExecution = Boolean(attachmentState || searching || researchProgress || actions.length > 0 || actionEvents.length > 0 || approvalState);
   if (!hasExecution && !streaming) return null;
 
-  const hasVerification = actionEvents.some((event) => event.verification !== "none" || event.phase === "succeeded") || Boolean(approvalState === "approved");
+  const hasVerification = actionEvents.some((event) => event.verification !== "none") || Boolean(approvalState === "approved");
   const latestToolEvents = latestActionEvents(actionEvents);
-  const items: TimelineItem[] = phaseState(streaming, hasExecution, hasVerification);
+  const items: TimelineItem[] = phaseState(streaming, hasExecution, hasVerification, latestToolEvents.length);
 
   if (attachmentState === "preparing") {
     items.splice(2, 0, { id: "attachments", label: "Prepare attached context", detail: "Reading the files supplied for this request.", state: "active", icon: FileUp });

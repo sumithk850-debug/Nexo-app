@@ -32,6 +32,12 @@ export function getActionStatusLabel(phase: ActionPhase): string {
   return "queued";
 }
 
+export function getVerificationLabel(level: ActionEvent["verification"]): string {
+  if (level === "result_checked") return "verified result";
+  if (level === "provider_acknowledged") return "provider confirmed";
+  return "not verified";
+}
+
 export function latestActionEvents(events: readonly ActionEvent[]): ActionEvent[] {
   const latest = new Map<string, ActionEvent>();
   for (const event of events) {
