@@ -18,6 +18,7 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
 import { AgentStatusLine } from "@/components/AgentStatusLine";
+import { approvalActionEvent } from "@/lib/approvalActionEvent";
 import type { ActionEvent } from "@/lib/actionEngine";
 import { RealityDrawer } from "@/components/RealityDrawer";
 import { ConnectionRecoveryBanner } from "@/components/ConnectionRecoveryBanner";
@@ -615,6 +616,8 @@ export default function ChatPage() {
     return searches.length > 0 ? searches[searches.length - 1] : null;
   })();
   const activityEvents = lastAssistantMsg?.actionEvents ?? [];
+  const approvalEvent = approvalActionEvent(pendingApproval?.status ?? null, pendingApproval?.actions.length ?? 0);
+  const timelineEvents = approvalEvent ? [...activityEvents, approvalEvent] : activityEvents;
   const activeModelLabel = isCoderMode
     ? getModelDisplayName(coderModel, true)
     : getActiveModelDisplayName({ selectedModel, coderModel, isCoderMode });
@@ -2470,7 +2473,7 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <AgentStatusLine streaming={isStreaming} events={activityEvents} />
+            <AgentStatusLine streaming={isStreaming} events={timelineEvents} />
 
             <ConnectionRecoveryBanner />
 
@@ -2481,7 +2484,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
-              actionEvents={activityEvents}
+              actionEvents={timelineEvents}
               researchProgress={webResearchProgress}
             />
 
@@ -2492,7 +2495,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
-              actionEvents={activityEvents}
+              actionEvents={timelineEvents}
               repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               charsPerSecond={typingSpeed}
               researchProgress={webResearchProgress}
