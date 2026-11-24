@@ -228,6 +228,7 @@ export default function ChatPage() {
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
+  const [commitNeedsWriteAccess, setCommitNeedsWriteAccess] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
@@ -1086,7 +1087,11 @@ export default function ChatPage() {
       });
       const proposalData = await proposalResponse.json().catch(() => ({}));
       if (!proposalResponse.ok || typeof proposalData.proposalId !== "string") {
-        throw new Error(proposalData.error ?? "The approved repository proposal could not be created.");
+        setCommitNeedsWriteAccess(proposalData.needsWriteAccess === true);
+        setCommitErrorDetail(proposalData.error ?? "The approved repository proposal could not be created.");
+        setPendingApproval({ ...pendingApproval, status: "error" });
+        setCommitProgressStep(0);
+        return;
       }
 
       const res = await authenticatedFetch("/api/github/commit", {
@@ -1099,9 +1104,13 @@ export default function ChatPage() {
           branchName,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // Only a server-confirmed commit counts as success. The model's own text never does.
+      const verifiedSuccess =
+        res.ok && data.success === true && typeof data.commitUrl === "string" && data.commitUrl.length > 0;
 
-      if (!data.success) {
+      if (!verifiedSuccess) {
+        setCommitNeedsWriteAccess(data.needsWriteAccess === true);
         // Surface the real failure reason instead of a generic "commit failed"
         // so the user knows whether to retry, fix the repo, or reject.
         const failed = Array.isArray(data.results)
@@ -1115,6 +1124,7 @@ export default function ChatPage() {
         console.error("[approve] Commit failed:", data.error ?? data.message);
       } else {
         setCommitErrorDetail(null);
+        setCommitNeedsWriteAccess(false);
         setCommitProgressStep(5);
         setCommitResult({
           commitUrl: typeof data.commitUrl === "string" ? data.commitUrl : undefined,
@@ -1123,7 +1133,7 @@ export default function ChatPage() {
       }
       setPendingApproval({
         ...pendingApproval,
-        status: data.success ? "approved" : "error",
+        status: verifiedSuccess ? "approved" : "error",
       });
     } catch {
       setCommitErrorDetail("Network error — the commit request could not be sent");
@@ -1132,10 +1142,25 @@ export default function ChatPage() {
     }
   }
 
+  async function handleEnableWriteAccess() {
+    try {
+      const response = await authenticatedFetch("/api/github/app-install", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.authorizationUrl !== "string") {
+        setCommitErrorDetail(data.error ?? "Could not start GitHub write-access setup. Please try again.");
+        return;
+      }
+      window.location.assign(data.authorizationUrl);
+    } catch {
+      setCommitErrorDetail("Network error — GitHub write-access setup could not be started.");
+    }
+  }
+
   function handleRejectChanges() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "rejected" });
     setCommitErrorDetail(null);
+    setCommitNeedsWriteAccess(false);
     setCommitResult(null);
     setCommitProgressStep(0);
   }
@@ -1144,6 +1169,7 @@ export default function ChatPage() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "pending" });
     setCommitErrorDetail(null);
+    setCommitNeedsWriteAccess(false);
     setCommitResult(null);
     setCommitProgressStep(0);
   }
@@ -2338,6 +2364,8 @@ export default function ChatPage() {
                                 prUrl={commitResult?.prUrl}
                                 onApprove={handleApproveChanges}
                                 onReject={handleRejectChanges}
+                                needsWriteAccess={commitNeedsWriteAccess}
+                                onEnableWriteAccess={handleEnableWriteAccess}
                               />
                             )}
                         </div>
