@@ -17,6 +17,7 @@ import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
+import { AgentStatusLine } from "@/components/AgentStatusLine";
 import { RealityDrawer } from "@/components/RealityDrawer";
 import { ConnectionRecoveryBanner } from "@/components/ConnectionRecoveryBanner";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
@@ -2402,6 +2403,8 @@ export default function ChatPage() {
                 )}
               </div>
             </div>
+
+            <AgentStatusLine streaming={isStreaming} events={activityEvents} />
 
             <ConnectionRecoveryBanner />
 
