@@ -60,6 +60,8 @@ export function ApprovalCard({
   commitUrl,
   prUrl,
   onRetry,
+  needsWriteAccess,
+  onEnableWriteAccess,
 }: {
   actions: FileAction[];
   commitMessage: string;
@@ -72,6 +74,8 @@ export function ApprovalCard({
   commitUrl?: string | null;
   prUrl?: string | null;
   onRetry?: () => void;
+  needsWriteAccess?: boolean;
+  onEnableWriteAccess?: () => void;
 }) {
   // The proposed diff is the evidence behind approval, so keep it visible
   // instead of hiding the actual change behind a secondary click.
@@ -406,6 +410,14 @@ Create review branch
                 </p>
               )}
             </div>
+            {needsWriteAccess && onEnableWriteAccess && (
+              <button
+                onClick={onEnableWriteAccess}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 py-2 text-xs font-semibold text-void transition hover:bg-amber-400"
+              >
+                Reconnect with write access
+              </button>
+            )}
             {onRetry && (
               <button
                 onClick={onRetry}
