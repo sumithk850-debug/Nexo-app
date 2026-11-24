@@ -27,6 +27,7 @@ import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
 import { consumeCraftV5Tokens, requireCraftV5Access } from "@/lib/craftV5Trial.server";
 import { createToolCallStreamMarker } from "@/lib/toolCallDisplay";
 import { verifyWebResearchContext } from "@/lib/webResearchSignature.server";
+import { verifyNativeToolContext } from "@/lib/nativeToolSignature.server";
 
 export const runtime = "nodejs";
 
@@ -1128,7 +1129,14 @@ Structure your review with clear sections and use code examples where helpful.`;
     // Native provider tool calls are available to all unlocked profiles.
     // This preflight executes read-only tools only; all writes continue through
     // the existing proposal + explicit approval workflow.
-    const nativeToolResult = await runNativeToolLoop({
+    const nativeToolVerified = verifyNativeToolContext(body.nativeToolToken, userId, latestResearchQuery);
+    const nativeToolResult = nativeToolVerified ? {
+      contextBlock: nativeToolVerified.contextBlock,
+      usedTools: nativeToolVerified.usedTools,
+      rounds: 0,
+      githubActivities: nativeToolVerified.githubActivities,
+      actionEvents: nativeToolVerified.actionEvents,
+    } : await runNativeToolLoop({
       provider: config.provider,
       model: config.model,
       fallbackModels: config.fallbackModels,

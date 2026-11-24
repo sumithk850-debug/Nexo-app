@@ -31,6 +31,7 @@ export interface NativeToolLoopInput {
   groqApiKey?: string;
   maxRounds?: number;
   webResearchAlreadyDone?: boolean;
+  onActionEvent?: (event: ActionEvent) => void;
 }
 export interface GitHubNativeToolActivity {
   id: string;
@@ -461,12 +462,20 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
         totalCalls += 1;
         const definition = definitionByName.get(call.name);
         const validation = definition ? validateToolCall(definition, call.validArguments ? call.args : null) : { valid: false, args: {}, errors: ["This tool is not available for the current account."] };
+        const liveEvent = input.onActionEvent ? transitionAction(createActionEvent({ id: "live-" + (executed.length + 1) + "-" + call.name, provider: providerForTool(call.name), operation: call.name, target: targetForTool(call.name, call.args), summary: "Calling " + call.name + "." }), "running") : null;
+        if (liveEvent) input.onActionEvent?.(liveEvent);
         const result = !definition || !allowed.has(call.name)
           ? { ok: false, error: "This tool is not available for the current account. No action was performed." }
           : !validation.valid
             ? { ok: false, error: "Tool arguments failed schema validation. No action was performed.", validationErrors: validation.errors }
             : capResult(await executeNativeTool(call.name, validation.args, input.userId));
         executed.push({ name: call.name, args: validation.args, result });
+        if (liveEvent) {
+          const record = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+          const failedLive = record.ok === false || typeof record.error === "string";
+          const checked = failedLive ? null : verifyToolResult(call.name, result);
+          input.onActionEvent?.(transitionAction(liveEvent, failedLive ? "failed" : "succeeded", { phase: failedLive ? "failed" : "succeeded", summary: checked?.summary ?? "Tool returned an error; no result used.", verification: failedLive ? "none" : "result_checked" }));
+        }
         if (!useGemini) {
           openMessages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });
         } else {

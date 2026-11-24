@@ -18,6 +18,7 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
 import { AgentStatusLine } from "@/components/AgentStatusLine";
+import type { ActionEvent } from "@/lib/actionEngine";
 import { RealityDrawer } from "@/components/RealityDrawer";
 import { ConnectionRecoveryBanner } from "@/components/ConnectionRecoveryBanner";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
@@ -1185,7 +1186,8 @@ export default function ChatPage() {
     initialContent = "",
     liveToolDepth = 0,
     responseContinuationDepth = 0,
-    webResearchToken?: string
+    webResearchToken?: string,
+    nativeToolToken?: string
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -1230,6 +1232,7 @@ export default function ChatPage() {
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
           webResearchToken,
+          nativeToolToken,
         }),
       });
 
@@ -1972,7 +1975,69 @@ export default function ChatPage() {
     }
 
     const webResearchToken = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal) : null;
-    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined);
+    const nativeToolToken = text ? await runNativeTools(text, conversationForApi, assistantId, controller.signal, Boolean(webResearchToken)) : null;
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined, nativeToolToken ?? undefined);
+  }
+
+  async function runNativeTools(
+    text: string,
+    history: Array<{ role: string; content: string }>,
+    assistantId: string,
+    signal: AbortSignal,
+    webResearchAlreadyDone: boolean
+  ): Promise<string | null> {
+    if (!user?.id || !text) return null;
+    try {
+      const res = await authenticatedFetch("/api/native-tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        body: JSON.stringify({
+          userId: user.id,
+          modelId: isCoderMode ? "craft-v3" : selectedModel,
+          query: text,
+          messages: history.slice(-10),
+          githubEnabled: githubIntegrationEnabled,
+          webResearchAlreadyDone,
+        }),
+      });
+      if (!res.ok || !res.body) return null;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let token: string | null = null;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const line = frame.replace(/^data: /, "").trim();
+          if (!line) continue;
+          let frameData: { type?: string; event?: ActionEvent; token?: string };
+          try {
+            frameData = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (frameData.type === "action" && frameData.event) {
+            const incoming = frameData.event;
+            setMessages((prev) => prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, actionEvents: [...(m.actionEvents ?? []).filter((e) => e.id !== incoming.id), incoming] }
+                : m
+            ));
+          } else if (frameData.type === "result" && typeof frameData.token === "string") {
+            token = frameData.token;
+          }
+        }
+      }
+      return token;
+    } catch {
+      return null;
+    }
   }
 
   function handleNewChat() {
@@ -2018,7 +2083,8 @@ export default function ChatPage() {
     }
 
     const webResearchToken = await runWebResearch(text, controller.signal);
-    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined);
+    const nativeToolToken = await runNativeTools(text, nextMessages, assistantId, controller.signal, Boolean(webResearchToken));
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined, nativeToolToken ?? undefined);
   }
 
   async function handleSelectChat(chatId: string) {
