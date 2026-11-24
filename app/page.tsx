@@ -18,7 +18,6 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
 import { AgentStatusLine } from "@/components/AgentStatusLine";
-import { EmptyChatState } from "@/components/EmptyChatState";
 import { approvalActionEvent } from "@/lib/approvalActionEvent";
 import type { ActionEvent } from "@/lib/actionEngine";
 import { RealityDrawer } from "@/components/RealityDrawer";
@@ -62,8 +61,6 @@ import { consumeToolCallStreamMarkers } from "@/lib/toolCallDisplay";
 import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
-import { DRAFT_STORAGE_PREFIX, NEW_CHAT_DRAFT_ID, MAX_DRAFT_LENGTH, DraftStore, getDraftStorageKey, readDraftStore, writeDraftStore, removeDraft, containsGithubToken, AttachmentPreparation, readVerifiedPaths, normalizeRepositoryReadClaims, liveReadCard, type PendingApproval } from "@/lib/chatPageHelpers";
-
 declare global {
   interface Window {
     puter?: {
@@ -81,6 +78,117 @@ const UNLOCKED_TIERS = ["Free", "Galex", "Brainex", "Craft"];
 // across page reloads inside Kyvorix Coder Agent mode.
 const CODER_MODEL_STORAGE_KEY = "kyvorix.coderModel";
 
+// Drafts are intentionally stored only in this browser and scoped to KYVORIX's
+// existing session ID. Attachments are never persisted because File objects
+// may contain private data and cannot be restored reliably after a reload.
+const DRAFT_STORAGE_PREFIX = "kyvorix.chatDrafts:";
+const NEW_CHAT_DRAFT_ID = "__new__";
+const MAX_DRAFT_LENGTH = 100_000;
+
+type DraftStore = Record<string, string>;
+
+function getDraftStorageKey(sessionId: string): string {
+  return `${DRAFT_STORAGE_PREFIX}${sessionId}`;
+}
+
+function readDraftStore(sessionId: string): DraftStore {
+  if (typeof window === "undefined" || !sessionId) return {};
+  try {
+    const raw = window.localStorage.getItem(getDraftStorageKey(sessionId));
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([key, value]) => typeof key === "string" && typeof value === "string" && value.length <= MAX_DRAFT_LENGTH
+      )
+    );
+  } catch {
+    // localStorage can be unavailable or contain malformed data; drafts are
+    // best-effort and must never block the chat UI.
+    return {};
+  }
+}
+
+function writeDraftStore(sessionId: string, drafts: DraftStore): void {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    if (Object.keys(drafts).length === 0) {
+      window.localStorage.removeItem(getDraftStorageKey(sessionId));
+    } else {
+      window.localStorage.setItem(getDraftStorageKey(sessionId), JSON.stringify(drafts));
+    }
+  } catch {
+    // Quota/private-mode failures must not affect sending messages.
+  }
+}
+
+function removeDraft(sessionId: string, draftId: string): void {
+  const drafts = readDraftStore(sessionId);
+  if (!(draftId in drafts)) return;
+  delete drafts[draftId];
+  writeDraftStore(sessionId, drafts);
+}
+
+function containsGithubToken(value: string): boolean {
+  return /(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})/.test(value);
+}
+
+interface PendingApproval {
+  messageId: string;
+  actions: FileAction[];
+  commitMessage: string;
+  status: "pending" | "approving" | "approved" | "rejected" | "error";
+}
+
+type AttachmentPreparation = {
+  names: string[];
+  state: "preparing" | "error";
+  message?: string;
+};
+
+function readVerifiedPaths(response: Response): string[] {
+  const raw = response.headers.get("X-Kyvorix-Verified-Reads");
+  if (!raw) return [];
+  try {
+    const paths = JSON.parse(decodeURIComponent(raw));
+    return Array.isArray(paths)
+      ? paths.filter((path): path is string => typeof path === "string" && path.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeRepositoryReadClaims(content: string, verifiedPaths: string[]): string {
+  const verified = new Set(verifiedPaths);
+  const withoutUnverifiedMarkers = content.replace(
+    /^\[READING FILE\]\s*([^\n]+)$/gim,
+    (marker, rawPath: string) => {
+      const path = rawPath.trim();
+      return verified.has(path)
+        ? marker
+        : `Repository read not verified for \`${path}\`. No file findings are shown for it.`;
+    }
+  );
+
+  // A model-generated summary is allowed to describe changes, but its read
+  // inventory must be grounded in files the server actually fetched this turn.
+  return withoutUnverifiedMarkers.replace(/```task-summary\n([\s\S]*?)```/gi, (_block, details: string) => {
+    const normalizedDetails = details
+      .split("\n")
+      .map((line) => line.trimStart().toLowerCase().startsWith("files read:")
+        ? `files read: ${verifiedPaths.join(", ")}`
+        : line
+      )
+      .join("\n");
+    return `\`\`\`task-summary\n${normalizedDetails}\n\`\`\``;
+  });
+}
+
+function liveReadCard(card: Omit<SupabaseReadCardData, "id">) {
+  return createSupabaseReadBlock(card);
+}
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
@@ -2232,7 +2340,65 @@ export default function ChatPage() {
                   </div>
                 )}
                 {messages.length === 0 && !attachmentPreparation ? (
-                  <EmptyChatState isCoderMode={isCoderMode} firstName={firstName} selectedRepo={selectedRepo} onPrompt={setInput} />
+                  <div className="flex min-h-[60vh] flex-col items-center justify-center text-center animate-fade-up">
+                    <Signal size="lg" className="mb-8" />
+                    <h1 className="font-display text-4xl font-black tracking-tight text-ink md:text-5xl">
+                      {isCoderMode ? "What will you build next," : "How can I help you,"} <span className="text-cyan">{firstName}?</span>
+                    </h1>
+                    <p className="mt-4 max-w-md text-sm font-medium leading-relaxed text-ink-muted">
+                      {isCoderMode 
+                        ? "BrainEx Engine is active. Describe the app or architecture you want to create below."
+                        : "Your personal AI workspace is ready. Start a new conversation or pick up where you left off."}
+                    </p>
+
+                    {isCoderMode && !selectedRepo && (
+                      <p className="mt-4 max-w-md text-xs text-amber-400">
+                        No repository selected — connect GitHub and pick a repo in Settings to enable code commits.
+                      </p>
+                    )}
+                    
+                    {isCoderMode && (
+                      <div className="mt-10 grid grid-cols-2 gap-3 w-full max-w-lg">
+                        <button onClick={() => setInput("Build a CRM system with Next.js and Supabase")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Briefcase className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">CRM & Sales</span>
+                        </button>
+                        <button onClick={() => setInput("Create a booking app for a medical clinic")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Database className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">Booking App</span>
+                        </button>
+                        <button onClick={() => setInput("Design a SaaS landing page with Tailwind CSS")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Layout className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">SaaS Layout</span>
+                        </button>
+                        <button onClick={() => setInput("Implement a secure authentication flow")} className="flex items-center gap-3 rounded-2xl border border-edge bg-panel/50 p-4 text-left transition hover:border-cyan/50 hover:bg-panel">
+                          <Zap className="h-5 w-5 text-cyan" />
+                          <span className="text-xs font-bold text-ink">Auth Logic</span>
+                        </button>
+                      </div>
+                    )}
+                    {!isCoderMode && (
+                      <div aria-label="Quick start prompts" className="mt-8 grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
+                        <button type="button" onClick={() => setInput("Explain this topic clearly and summarize the key takeaways: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><FileText className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Summarize</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Get the key points, clearly explained</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Help me write a clear, polished draft about: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><PenTool className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Write</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Draft, rewrite, or polish your ideas</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Teach me this concept step by step with simple examples: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><Brain className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Learn</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Understand a concept step by step</span></span>
+                        </button>
+                        <button type="button" onClick={() => setInput("Brainstorm creative ideas for: ")} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-edge bg-panel/60 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel hover:shadow-[0_8px_24px_rgba(0,229,255,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/70">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan/20 bg-cyan/10 text-cyan"><Sparkles className="h-5 w-5" /></span>
+                          <span><span className="block text-sm font-bold text-ink">Brainstorm</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">Explore ideas and creative directions</span></span>
+                        </button>
+                      </div>
+                    )}
+                    <p className="mt-5 hidden text-[11px] text-ink-faint sm:block">Quick tip: press <kbd className="rounded border border-edge bg-panel px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">Ctrl / ⌘ K</kbd> to search chats.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2 pb-12">
                     {messages.map((m, i) => {
