@@ -29,6 +29,7 @@ import { createToolCallStreamMarker, getToolDisplayLabel } from "@/lib/toolCallD
 import { withLiveProgress, type ProgressTrackerLike } from "@/lib/progressStream.server";
 import { detectProgressLanguage } from "@/lib/progressSteps";
 import { verifyWebResearchContext } from "@/lib/webResearchSignature.server";
+import { verifyNativeToolContext } from "@/lib/nativeToolSignature.server";
 
 export const runtime = "nodejs";
 
@@ -1192,18 +1193,26 @@ Structure your review with clear sections and use code examples where helpful.`;
     // Native provider tool calls are available to all unlocked profiles.
     // This preflight executes read-only tools only; all writes continue through
     // the existing proposal + explicit approval workflow.
-    // Hidden unless the preflight runs long enough to matter; each real tool
-    // call then appears as its own step.
-    progress.start("tools", { lazy: true });
-    const nativeToolResult = await runNativeToolLoop({
-      onProgress: (event) => {
-        const id = `tool:${event.index}`;
-        if (event.kind === "tool-start") {
-          progress.start("tool", { id, arg: getToolDisplayLabel(event.name) });
-        } else if (event.ok) {
-          progress.done("tool", { id });
-        } else {
-          progress.fail("tool", { id });
+    // When the browser already ran the tools (signed token from /api/native-tools)
+    // the verified result is reused and was reported live there. Otherwise the
+    // preflight runs here, and each real tool call appears as its own step.
+    const nativeToolVerified = verifyNativeToolContext(body.nativeToolToken, userId, latestResearchQuery);
+    // Hidden unless the preflight runs long enough to matter.
+    if (!nativeToolVerified) progress.start("tools", { lazy: true });
+    const nativeToolResult = nativeToolVerified ? {
+      contextBlock: nativeToolVerified.contextBlock,
+      usedTools: nativeToolVerified.usedTools,
+      rounds: 0,
+      githubActivities: nativeToolVerified.githubActivities,
+      actionEvents: nativeToolVerified.actionEvents,
+    } : await runNativeToolLoop({
+      onActionEvent: (event) => {
+        if (event.phase === "running") {
+          progress.start("tool", { id: event.id, arg: getToolDisplayLabel(event.operation) });
+        } else if (event.phase === "succeeded") {
+          progress.done("tool", { id: event.id });
+        } else if (event.phase === "failed" || event.phase === "cancelled") {
+          progress.fail("tool", { id: event.id });
         }
       },
       provider: config.provider,

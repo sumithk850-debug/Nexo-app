@@ -17,6 +17,9 @@ import { NexoCoder } from "@/components/NexoCoder";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { LiveStatusBar } from "@/components/LiveStatusBar";
 import { AgentTimeline } from "@/components/AgentTimeline";
+import { AgentStatusLine } from "@/components/AgentStatusLine";
+import { approvalActionEvent } from "@/lib/approvalActionEvent";
+import type { ActionEvent } from "@/lib/actionEngine";
 import { RealityDrawer } from "@/components/RealityDrawer";
 import { ConnectionRecoveryBanner } from "@/components/ConnectionRecoveryBanner";
 import RateLimitationPanel from "@/components/RateLimitationPanel";
@@ -54,14 +57,20 @@ import { cleanImagePrompt, isImageGenerationRequest } from "@/lib/imageIntent";
 import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { getActiveModelDisplayName, getModelDisplayName } from "@/lib/modelDisplay";
-import { consumeToolCallStreamMarkers } from "@/lib/toolCallDisplay";
+import { consumeToolCallStreamMarkers, getToolDisplayLabel } from "@/lib/toolCallDisplay";
 import {
   applyProgressSnapshot,
   consumeProgressMarkers,
   detectProgressLanguage,
+  progressLabel,
+  progressStatusForPhase,
+  removeProgressStep,
   startProgress,
+  upsertProgressStep,
   withoutLocalSendStep,
+  type ProgressLanguage,
   type ProgressSnapshot,
+  type ProgressStep,
 } from "@/lib/progressSteps";
 import { LIVE_PROGRESS_REQUEST_HEADER, resolveLiveProgressResponse } from "@/lib/liveProgress";
 import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
@@ -237,6 +246,7 @@ export default function ChatPage() {
   const [lastExtractedCode, setLastExtractedCode] = useState<{code: string, lang: string, file: string} | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [commitErrorDetail, setCommitErrorDetail] = useState<string | null>(null);
+  const [commitNeedsWriteAccess, setCommitNeedsWriteAccess] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [usagePanelOpen, setUsagePanelOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
@@ -361,6 +371,28 @@ export default function ChatPage() {
     firstTokenAtRef.current = null;
     speedSamplesRef.current = [];
     setTypingSpeed(0);
+  }
+
+  // Browser-side stages that run before /api/chat (web research, tool
+  // preparation) report into the same reply "Summary" as the server's own steps.
+  // They use the "pre:" id prefix; the send flows set this flag so the first
+  // /api/chat request keeps those steps instead of starting a blank summary.
+  const progressSeededRef = useRef<string | null>(null);
+
+  function upsertPreStep(assistantId: string, lang: ProgressLanguage, step: ProgressStep) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId ? { ...m, progress: upsertProgressStep(m.progress, lang, step) } : m
+      )
+    );
+  }
+
+  function dropPreStep(assistantId: string, id: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId ? { ...m, progress: removeProgressStep(m.progress, id) } : m
+      )
+    );
   }
 
   function startStreamingTurn(assistantId: string) {
@@ -621,6 +653,8 @@ export default function ChatPage() {
     return searches.length > 0 ? searches[searches.length - 1] : null;
   })();
   const activityEvents = lastAssistantMsg?.actionEvents ?? [];
+  const approvalEvent = approvalActionEvent(pendingApproval?.status ?? null, pendingApproval?.actions.length ?? 0);
+  const timelineEvents = approvalEvent ? [...activityEvents, approvalEvent] : activityEvents;
   const activeModelLabel = isCoderMode
     ? getModelDisplayName(coderModel, true)
     : getActiveModelDisplayName({ selectedModel, coderModel, isCoderMode });
@@ -1095,7 +1129,11 @@ export default function ChatPage() {
       });
       const proposalData = await proposalResponse.json().catch(() => ({}));
       if (!proposalResponse.ok || typeof proposalData.proposalId !== "string") {
-        throw new Error(proposalData.error ?? "The approved repository proposal could not be created.");
+        setCommitNeedsWriteAccess(proposalData.needsWriteAccess === true);
+        setCommitErrorDetail(proposalData.error ?? "The approved repository proposal could not be created.");
+        setPendingApproval({ ...pendingApproval, status: "error" });
+        setCommitProgressStep(0);
+        return;
       }
 
       const res = await authenticatedFetch("/api/github/commit", {
@@ -1108,9 +1146,13 @@ export default function ChatPage() {
           branchName,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // Only a server-confirmed commit counts as success. The model's own text never does.
+      const verifiedSuccess =
+        res.ok && data.success === true && typeof data.commitUrl === "string" && data.commitUrl.length > 0;
 
-      if (!data.success) {
+      if (!verifiedSuccess) {
+        setCommitNeedsWriteAccess(data.needsWriteAccess === true);
         // Surface the real failure reason instead of a generic "commit failed"
         // so the user knows whether to retry, fix the repo, or reject.
         const failed = Array.isArray(data.results)
@@ -1124,6 +1166,7 @@ export default function ChatPage() {
         console.error("[approve] Commit failed:", data.error ?? data.message);
       } else {
         setCommitErrorDetail(null);
+        setCommitNeedsWriteAccess(false);
         setCommitProgressStep(5);
         setCommitResult({
           commitUrl: typeof data.commitUrl === "string" ? data.commitUrl : undefined,
@@ -1132,7 +1175,7 @@ export default function ChatPage() {
       }
       setPendingApproval({
         ...pendingApproval,
-        status: data.success ? "approved" : "error",
+        status: verifiedSuccess ? "approved" : "error",
       });
     } catch {
       setCommitErrorDetail("Network error — the commit request could not be sent");
@@ -1141,10 +1184,25 @@ export default function ChatPage() {
     }
   }
 
+  async function handleEnableWriteAccess() {
+    try {
+      const response = await authenticatedFetch("/api/github/app-install", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.authorizationUrl !== "string") {
+        setCommitErrorDetail(data.error ?? "Could not start GitHub write-access setup. Please try again.");
+        return;
+      }
+      window.location.assign(data.authorizationUrl);
+    } catch {
+      setCommitErrorDetail("Network error — GitHub write-access setup could not be started.");
+    }
+  }
+
   function handleRejectChanges() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "rejected" });
     setCommitErrorDetail(null);
+    setCommitNeedsWriteAccess(false);
     setCommitResult(null);
     setCommitProgressStep(0);
   }
@@ -1153,6 +1211,7 @@ export default function ChatPage() {
     if (!pendingApproval) return;
     setPendingApproval({ ...pendingApproval, status: "pending" });
     setCommitErrorDetail(null);
+    setCommitNeedsWriteAccess(false);
     setCommitResult(null);
     setCommitProgressStep(0);
   }
@@ -1167,7 +1226,8 @@ export default function ChatPage() {
     initialContent = "",
     liveToolDepth = 0,
     responseContinuationDepth = 0,
-    webResearchToken?: string
+    webResearchToken?: string,
+    nativeToolToken?: string
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -1186,6 +1246,8 @@ export default function ChatPage() {
     // Live "Summary" steps for this reply. Each request of a reply (the first
     // one and any automatic continuation) owns the steps under its own prefix.
     const progressPrefix = `r${liveToolDepth}.${responseContinuationDepth}:`;
+    const keepPreSteps = progressSeededRef.current === assistantId;
+    if (keepPreSteps) progressSeededRef.current = null;
     const progressLanguage = detectProgressLanguage(
       [...conversationSoFar]
         .reverse()
@@ -1213,7 +1275,7 @@ export default function ChatPage() {
                 progressPrefix,
                 progressLanguage,
                 Date.now(),
-                liveToolDepth === 0 && responseContinuationDepth === 0
+                liveToolDepth === 0 && responseContinuationDepth === 0 && !keepPreSteps
               ),
             }
           : m
@@ -1251,6 +1313,7 @@ export default function ChatPage() {
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
           webResearchToken,
+          nativeToolToken,
         }),
       });
       // Turns the live-progress stream back into the original Response (same
@@ -1848,9 +1911,26 @@ export default function ChatPage() {
     }
   }
 
-  async function runWebResearch(query: string, signal: AbortSignal): Promise<string | null> {
+  async function runWebResearch(query: string, signal: AbortSignal, assistantId?: string): Promise<string | null> {
     if (!user?.id || !shouldUseWebResearchIntent(query)) return null;
     setWebResearchProgress({ stage: "queued", message: "Preparing secure web research." });
+
+    // Mirror the research stages into the reply's Summary as one live step.
+    const researchLang = detectProgressLanguage(query);
+    const researchStartedAt = Date.now();
+    const reportResearch = (status: ProgressStep["status"], detail?: string) => {
+      if (!assistantId) return;
+      upsertPreStep(assistantId, researchLang, {
+        id: "pre:research",
+        key: "research",
+        label: progressLabel("research", researchLang),
+        status,
+        startedAt: researchStartedAt,
+        ...(status !== "running" ? { endedAt: Date.now() } : {}),
+        ...(detail ? { detail: detail.slice(0, 120) } : {}),
+      });
+    };
+    reportResearch("running");
     try {
       const response = await authenticatedFetch("/api/web-research", {
         method: "POST",
@@ -1861,6 +1941,7 @@ export default function ChatPage() {
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
         setWebResearchProgress({ stage: "failed", message: typeof data.error === "string" ? data.error : "Web research is unavailable for this request." });
+        reportResearch("failed", typeof data.error === "string" ? data.error : undefined);
         return null;
       }
 
@@ -1881,10 +1962,12 @@ export default function ChatPage() {
             ...(typeof event.completedPages === "number" ? { completedPages: event.completedPages } : {}),
             ...(typeof event.totalPages === "number" ? { totalPages: event.totalPages } : {}),
           });
+          reportResearch("running", typeof event.message === "string" ? event.message : undefined);
         } else if (event.type === "error") {
           const message = typeof event.message === "string" ? event.message : "Web research could not be completed.";
           streamError = message;
           setWebResearchProgress({ stage: "failed", message });
+          reportResearch("failed", message);
         } else if (event.type === "result" && typeof event.token === "string") {
           signedToken = event.token;
         }
@@ -1903,16 +1986,19 @@ export default function ChatPage() {
         }
       }
       if (streamError) return null;
+      reportResearch(signedToken ? "done" : "failed");
       return signedToken;
     } catch (error) {
       if (signal.aborted) {
         setWebResearchProgress({ stage: "failed", message: "Web research was cancelled." });
+        reportResearch("failed");
         return null;
       }
       setWebResearchProgress({
         stage: "failed",
         message: error instanceof Error ? error.message.slice(0, 220) : "Web research could not be completed.",
       });
+      reportResearch("failed");
       return null;
     }
   }
@@ -2017,8 +2103,114 @@ export default function ChatPage() {
       );
     }
 
-    const webResearchToken = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal) : null;
-    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined);
+    progressSeededRef.current = assistantId;
+    const webResearchToken = text && attachedFiles.length === 0 ? await runWebResearch(text, controller.signal, assistantId) : null;
+    const nativeToolToken = text ? await runNativeTools(text, conversationForApi, assistantId, controller.signal, Boolean(webResearchToken)) : null;
+    await streamResponse(chatId, conversationForApi, assistantId, undefined, prepared.imagePayloads, controller, initialAssistantContent, 0, 0, webResearchToken ?? undefined, nativeToolToken ?? undefined);
+  }
+
+  async function runNativeTools(
+    text: string,
+    history: Array<{ role: string; content: string }>,
+    assistantId: string,
+    signal: AbortSignal,
+    webResearchAlreadyDone: boolean
+  ): Promise<string | null> {
+    if (!user?.id || !text) return null;
+
+    // Mirror each real tool call into the reply's Summary. The preparation call
+    // usually answers at once (no tools needed), so its own step only appears if
+    // it runs long enough to matter, and disappears again if no tool was used.
+    const toolLang = detectProgressLanguage(text);
+    const umbrellaId = "pre:tools";
+    const umbrellaStartedAt = Date.now();
+    const toolStartedAt = new Map<string, number>();
+    let toolEventSeen = false;
+    let umbrellaShown = false;
+    const umbrellaTimer = setTimeout(() => {
+      if (toolEventSeen) return;
+      umbrellaShown = true;
+      upsertPreStep(assistantId, toolLang, {
+        id: umbrellaId,
+        key: "tools",
+        label: progressLabel("tools", toolLang),
+        status: "running",
+        startedAt: umbrellaStartedAt,
+      });
+    }, 450);
+
+    try {
+      const res = await authenticatedFetch("/api/native-tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        body: JSON.stringify({
+          userId: user.id,
+          modelId: isCoderMode ? "craft-v3" : selectedModel,
+          query: text,
+          messages: history.slice(-10),
+          githubEnabled: githubIntegrationEnabled,
+          webResearchAlreadyDone,
+        }),
+      });
+      if (!res.ok || !res.body) return null;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let token: string | null = null;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const line = frame.replace(/^data: /, "").trim();
+          if (!line) continue;
+          let frameData: { type?: string; event?: ActionEvent; token?: string };
+          try {
+            frameData = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (frameData.type === "action" && frameData.event) {
+            const incoming = frameData.event;
+            setMessages((prev) => prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, actionEvents: [...(m.actionEvents ?? []).filter((e) => e.id !== incoming.id), incoming] }
+                : m
+            ));
+            const stepStatus = progressStatusForPhase(incoming.phase);
+            if (stepStatus) {
+              toolEventSeen = true;
+              if (umbrellaShown) {
+                umbrellaShown = false;
+                dropPreStep(assistantId, umbrellaId);
+              }
+              const startedAt = toolStartedAt.get(incoming.id) ?? Date.now();
+              toolStartedAt.set(incoming.id, startedAt);
+              upsertPreStep(assistantId, toolLang, {
+                id: `pre:tool:${incoming.id}`,
+                key: "tool",
+                label: progressLabel("tool", toolLang, getToolDisplayLabel(incoming.operation)),
+                status: stepStatus,
+                startedAt,
+                ...(stepStatus !== "running" ? { endedAt: Date.now() } : {}),
+              });
+            }
+          } else if (frameData.type === "result" && typeof frameData.token === "string") {
+            token = frameData.token;
+          }
+        }
+      }
+      return token;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(umbrellaTimer);
+      if (umbrellaShown) dropPreStep(assistantId, umbrellaId);
+    }
   }
 
   function handleNewChat() {
@@ -2063,8 +2255,10 @@ export default function ChatPage() {
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title } : c)));
     }
 
-    const webResearchToken = await runWebResearch(text, controller.signal);
-    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined);
+    progressSeededRef.current = assistantId;
+    const webResearchToken = await runWebResearch(text, controller.signal, assistantId);
+    const nativeToolToken = await runNativeTools(text, nextMessages, assistantId, controller.signal, Boolean(webResearchToken));
+    await streamResponse(chatId, nextMessages, assistantId, undefined, undefined, controller, "", 0, 0, webResearchToken ?? undefined, nativeToolToken ?? undefined);
   }
 
   async function handleSelectChat(chatId: string) {
@@ -2411,6 +2605,8 @@ export default function ChatPage() {
                                 prUrl={commitResult?.prUrl}
                                 onApprove={handleApproveChanges}
                                 onReject={handleRejectChanges}
+                                needsWriteAccess={commitNeedsWriteAccess}
+                                onEnableWriteAccess={handleEnableWriteAccess}
                               />
                             )}
                         </div>
@@ -2448,6 +2644,8 @@ export default function ChatPage() {
               </div>
             </div>
 
+            <AgentStatusLine streaming={isStreaming} events={timelineEvents} />
+
             <ConnectionRecoveryBanner />
 
             <AgentTimeline
@@ -2457,7 +2655,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
-              actionEvents={activityEvents}
+              actionEvents={timelineEvents}
               researchProgress={webResearchProgress}
             />
 
@@ -2468,7 +2666,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
-              actionEvents={activityEvents}
+              actionEvents={timelineEvents}
               repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               charsPerSecond={typingSpeed}
               researchProgress={webResearchProgress}

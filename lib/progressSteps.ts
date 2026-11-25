@@ -13,6 +13,7 @@ export type ProgressStepKey =
   | "send"
   | "read"
   | "continue"
+  | "research"
   | "links"
   | "images"
   | "preview"
@@ -52,6 +53,7 @@ const FIXED_LABELS: Record<Exclude<ProgressStepKey, "tool">, Record<ProgressLang
   send: { en: "Sending your request", si: "ඔබේ ඉල්ලීම යවමින්" },
   read: { en: "Reading your message", si: "ඔබේ පණිවිඩය කියවමින්" },
   continue: { en: "Continuing from where it stopped", si: "නතර වූ තැනින් දිගටම කරමින්" },
+  research: { en: "Researching the web", si: "වෙබ් එකේ පර්යේෂණය කරමින්" },
   links: { en: "Opening the links you shared", si: "ඔබ දුන් ලින්ක් විවෘත කරමින්" },
   images: { en: "Looking at your image", si: "ඔබේ රූපය විශ්ලේෂණය කරමින්" },
   preview: { en: "Capturing a preview of the page", si: "පිටුවේ පෙනුම ගනිමින්" },
@@ -121,7 +123,7 @@ export const PROGRESS_MARKER_CLOSE = "</kyvorix-progress>";
 const MAX_STEPS = 24;
 const STATUSES = new Set<string>(["running", "done", "failed"]);
 const KEYS = new Set<string>([
-  "send", "read", "continue", "links", "images", "preview", "github",
+  "send", "read", "continue", "research", "links", "images", "preview", "github",
   "context", "wikipedia", "news", "tools", "tool", "connect", "answer",
 ]);
 
@@ -233,6 +235,35 @@ export function applyProgressSnapshot(
   const kept = (previous?.steps ?? []).filter((step) => !step.id.startsWith(prefix));
   const incoming = snapshot.steps.map((step) => ({ ...step, id: `${prefix}${step.id}` }));
   return { lang: snapshot.lang, steps: [...kept, ...incoming] };
+}
+
+/** Adds a step, or replaces the step with the same id, keeping its position. */
+export function upsertProgressStep(
+  previous: MessageProgress | undefined,
+  lang: ProgressLanguage,
+  step: ProgressStep
+): MessageProgress {
+  const steps = previous?.steps ?? [];
+  const index = steps.findIndex((existing) => existing.id === step.id);
+  const next = index >= 0 ? steps.map((existing, i) => (i === index ? step : existing)) : [...steps, step];
+  return { lang: previous?.lang ?? lang, steps: next };
+}
+
+export function removeProgressStep(previous: MessageProgress | undefined, id: string): MessageProgress | undefined {
+  if (!previous) return undefined;
+  const steps = previous.steps.filter((step) => step.id !== id);
+  return steps.length > 0 ? { ...previous, steps } : undefined;
+}
+
+/**
+ * Maps a tool action phase to a step status. "queued" (planned) returns null:
+ * a step only appears once work has actually started.
+ */
+export function progressStatusForPhase(phase: string): ProgressStepStatus | null {
+  if (phase === "running" || phase === "verifying") return "running";
+  if (phase === "succeeded" || phase === "needs_approval") return "done";
+  if (phase === "failed" || phase === "cancelled" || phase === "needs_connection") return "failed";
+  return null;
 }
 
 /** The first step shown before the server has said anything. */

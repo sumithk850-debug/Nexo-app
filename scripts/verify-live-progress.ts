@@ -10,7 +10,10 @@ import {
   parseProgressSnapshot,
   withoutLocalSendStep,
   progressLabel,
+  progressStatusForPhase,
+  removeProgressStep,
   startProgress,
+  upsertProgressStep,
   summarizeProgress,
   type MessageProgress,
   type ProgressSnapshot,
@@ -336,6 +339,29 @@ async function main() {
     assert.deepEqual(updated.steps.map((step) => step.id), ["r1:answer", "r0:read"].sort((a, b) => updated.steps.findIndex((s) => s.id === a) - updated.steps.findIndex((s) => s.id === b)));
     assert.equal(updated.steps.length, 2);
 
+    // Browser-side steps (web research, tool preparation) are upserted by id.
+    const research: ProgressStep = { id: "pre:research", key: "research", label: progressLabel("research", "en"), status: "running", startedAt: 5 };
+    const withResearch = upsertProgressStep(undefined, "en", research);
+    assert.deepEqual(withResearch.steps.map((step) => step.id), ["pre:research"]);
+    const researchDone = upsertProgressStep(withResearch, "en", { ...research, status: "done", endedAt: 2500, detail: "5 pages" });
+    assert.equal(researchDone.steps.length, 1, "Upserting the same id replaces the step");
+    assert.equal(researchDone.steps[0].status, "done");
+    const withTool = upsertProgressStep(researchDone, "en", { id: "pre:tool:a", key: "tool", label: progressLabel("tool", "en", "GitHub read file"), status: "running", startedAt: 3000 });
+    assert.deepEqual(withTool.steps.map((step) => step.id), ["pre:research", "pre:tool:a"], "New steps append in order");
+    // Server steps arrive later under their own prefix and never disturb the browser steps.
+    const merged = applyProgressSnapshot(withTool, { lang: "en", steps: [{ id: "answer", key: "answer", label: "Writing the answer", status: "running", startedAt: 4000 }] }, "r0.0:");
+    assert.deepEqual(merged.steps.map((step) => step.id), ["pre:research", "pre:tool:a", "r0.0:answer"]);
+    assert.equal(removeProgressStep(withResearch, "pre:research"), undefined, "Removing the last step clears the summary");
+    assert.equal(removeProgressStep(withTool, "pre:tool:a")?.steps.length, 1);
+    assert.equal(progressStatusForPhase("queued"), null, "A merely planned tool call is not a step yet");
+    assert.equal(progressStatusForPhase("running"), "running");
+    assert.equal(progressStatusForPhase("verifying"), "running");
+    assert.equal(progressStatusForPhase("succeeded"), "done");
+    assert.equal(progressStatusForPhase("failed"), "failed");
+    assert.equal(progressStatusForPhase("needs_connection"), "failed");
+    assert.equal(progressStatusForPhase("cancelled"), "failed");
+    assert.equal(progressStatusForPhase("needs_approval"), "done");
+
     // A rejected request must not leave a "sending" step behind.
     assert.equal(withoutLocalSendStep(start), undefined);
     assert.deepEqual(withoutLocalSendStep({ lang: "en", steps: [...start.steps, { id: "r0:read", key: "read", label: "Reading your message", status: "done", startedAt: 1 }] })?.steps.map((step) => step.key), ["read"]);
@@ -371,16 +397,20 @@ async function main() {
     for (const key of ["links", "images", "preview", "github", "context", "wikipedia", "news", "tools", "connect", "answer"]) {
       assert.ok(route.includes(`progress.start("${key}"`), `The route must report the "${key}" step`);
     }
-    assert.match(route, /onProgress:/, "The tool loop must report each tool call");
-    assert.match(native, /onProgress\?:/);
-    assert.match(native, /emitProgress\(input, \{ kind: "tool-start"/);
-    assert.match(native, /emitProgress\(input, \{ kind: "tool-end"/);
+    assert.match(route, /onActionEvent: \(event\) =>/, "The fallback tool loop must report each tool call as a step");
+    assert.match(route, /if \(!nativeToolVerified\) progress\.start\("tools"/, "Tools run in the browser step must not be reported twice");
+    assert.match(native, /onActionEvent\?: \(event: ActionEvent\) => void/);
 
     assert.match(page, /\[LIVE_PROGRESS_REQUEST_HEADER\]: "1"/, "The browser must opt in to live progress");
     assert.match(page, /resolveLiveProgressResponse\(/);
     assert.match(page, /consumeProgressMarkers\(/);
     assert.match(page, /applyProgressSnapshot\(/);
     assert.match(page, /withoutLocalSendStep\(m\.progress\)/, "A refused request must clear the sending placeholder");
+    assert.match(page, /progressSeededRef\.current = assistantId;/, "Send flows must keep their browser-side steps");
+    assert.equal((page.match(/progressSeededRef\.current = assistantId;/g) ?? []).length, 2, "Both send flows must seed the summary");
+    assert.match(page, /runWebResearch\(text, controller\.signal, assistantId\)/);
+    assert.match(page, /progressStatusForPhase\(incoming\.phase\)/, "Tool events from /api/native-tools must become steps");
+    assert.match(page, /clearTimeout\(umbrellaTimer\)/, "The tool-preparation timer must never leak");
     assert.match(bubble, /<ProgressSummary/);
     assert.match(types, /progress\?: MessageProgress/);
 
