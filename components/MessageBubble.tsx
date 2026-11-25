@@ -23,6 +23,7 @@ import { GitHubActionCard } from "./GitHubActionCard";
 import { parseGitHubActionBlocks, stripGitHubActionBlocks } from "@/lib/githubActionParser";
 import { SummaryCard } from "./SummaryCard";
 import { getActionStatusLabel, getToolCallLabel, latestActionEvents } from "@/lib/toolCallDisplay";
+import { ProgressSummary } from "@/components/ProgressSummary";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-typescript";
@@ -374,6 +375,9 @@ export function MessageBubble({
           <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-cyan">
             {message.modelLabel || model?.name}
           </p>
+        )}
+        {message.progress && message.progress.steps.length > 0 && (
+          <ProgressSummary progress={message.progress} streaming={isStreaming} />
         )}
         {/* Repository operation markers and file bodies belong exclusively in
             the activity panel above the composer. Only normal prose/report

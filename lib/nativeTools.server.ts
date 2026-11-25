@@ -18,6 +18,11 @@ import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 export type NativeToolProvider = "openrouter" | "gemini" | "groq";
 export type NativeToolDefinition = ToolDefinitionLike;
 export interface NativeToolMessage { role: "user" | "assistant"; content: string; }
+/** Live report of what the tool loop is doing, used for the chat progress timeline. */
+export type NativeToolProgressEvent =
+  | { kind: "tool-start"; name: string; index: number }
+  | { kind: "tool-end"; name: string; index: number; ok: boolean };
+
 export interface NativeToolLoopInput {
   provider: NativeToolProvider;
   model: string;
@@ -31,6 +36,16 @@ export interface NativeToolLoopInput {
   groqApiKey?: string;
   maxRounds?: number;
   webResearchAlreadyDone?: boolean;
+  /** Optional observer. It never affects tool execution; errors thrown by it are ignored. */
+  onProgress?: (event: NativeToolProgressEvent) => void;
+}
+
+function emitProgress(input: NativeToolLoopInput, event: NativeToolProgressEvent): void {
+  try {
+    input.onProgress?.(event);
+  } catch {
+    // Progress reporting must never change what a tool does.
+  }
 }
 export interface GitHubNativeToolActivity {
   id: string;
@@ -459,13 +474,17 @@ export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<Nat
       for (const call of calls) {
         if (totalCalls >= Math.min(MAX_TOOL_CALLS, capability.maxCalls)) break;
         totalCalls += 1;
+        const toolIndex = totalCalls;
         const definition = definitionByName.get(call.name);
         const validation = definition ? validateToolCall(definition, call.validArguments ? call.args : null) : { valid: false, args: {}, errors: ["This tool is not available for the current account."] };
+        const willExecute = Boolean(definition) && allowed.has(call.name) && validation.valid;
+        if (willExecute) emitProgress(input, { kind: "tool-start", name: call.name, index: toolIndex });
         const result = !definition || !allowed.has(call.name)
           ? { ok: false, error: "This tool is not available for the current account. No action was performed." }
           : !validation.valid
             ? { ok: false, error: "Tool arguments failed schema validation. No action was performed.", validationErrors: validation.errors }
             : capResult(await executeNativeTool(call.name, validation.args, input.userId));
+        if (willExecute) emitProgress(input, { kind: "tool-end", name: call.name, index: toolIndex, ok: !(result && typeof result === "object" && (result as { ok?: unknown }).ok === false) });
         executed.push({ name: call.name, args: validation.args, result });
         if (!useGemini) {
           openMessages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });

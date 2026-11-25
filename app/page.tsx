@@ -55,6 +55,15 @@ import { inferBrowserAction, isBrowserIntent } from "@/lib/browserIntent";
 import type { ArtifactDescriptor } from "@/lib/artifactTypes";
 import { getActiveModelDisplayName, getModelDisplayName } from "@/lib/modelDisplay";
 import { consumeToolCallStreamMarkers } from "@/lib/toolCallDisplay";
+import {
+  applyProgressSnapshot,
+  consumeProgressMarkers,
+  detectProgressLanguage,
+  startProgress,
+  withoutLocalSendStep,
+  type ProgressSnapshot,
+} from "@/lib/progressSteps";
+import { LIVE_PROGRESS_REQUEST_HEADER, resolveLiveProgressResponse } from "@/lib/liveProgress";
 import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
@@ -1173,15 +1182,54 @@ export default function ChatPage() {
     const persistedModelId = effectiveCoder ? (coderModel || "craft-v3") : effectiveModel;
     const controller = providedController ?? streamAbortControllerRef.current ?? startStreamingTurn(assistantId);
     let accumulated = initialContent;
+
+    // Live "Summary" steps for this reply. Each request of a reply (the first
+    // one and any automatic continuation) owns the steps under its own prefix.
+    const progressPrefix = `r${liveToolDepth}.${responseContinuationDepth}:`;
+    const progressLanguage = detectProgressLanguage(
+      [...conversationSoFar]
+        .reverse()
+        .find((m) => m.role === "user" && !/^(continue|partial)-/.test(m.id))?.content ?? ""
+    );
+    const applyProgress = (snapshot: ProgressSnapshot) => {
+      // The first snapshot of a live response is empty; keep the local
+      // "sending" step until the server reports something real.
+      if (snapshot.steps.length === 0) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, progress: applyProgressSnapshot(m.progress, snapshot, progressPrefix) }
+            : m
+        )
+      );
+    };
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId
+          ? {
+              ...m,
+              progress: startProgress(
+                m.progress,
+                progressPrefix,
+                progressLanguage,
+                Date.now(),
+                liveToolDepth === 0 && responseContinuationDepth === 0
+              ),
+            }
+          : m
+      )
+    );
+
     try {
       // authenticatedFetch attaches the signed-in user's Supabase access token
       // as an Authorization header; the server reads it from there.
-      const res = await authenticatedFetch("/api/chat", {
+      const liveResponse = await authenticatedFetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [LIVE_PROGRESS_REQUEST_HEADER]: "1" },
         signal: controller.signal,
         body: JSON.stringify({
           modelId: effectiveModel,
+          progressLanguage,
           sessionId,
           // The user's real auth id, used server-side to look up their GitHub
           // connection (selected repo + access token) for Craft V3 requests.
@@ -1205,8 +1253,18 @@ export default function ChatPage() {
           webResearchToken,
         }),
       });
+      // Turns the live-progress stream back into the original Response (same
+      // status, headers and body), reporting progress while the server works.
+      const res = await resolveLiveProgressResponse(liveResponse, { onProgress: applyProgress });
 
       if (!res.ok) {
+        // The request was refused or failed; drop the "sending" placeholder so
+        // the error message is not labelled as a half-finished task.
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, progress: withoutLocalSendStep(m.progress) } : m
+          )
+        );
         const errData = await res.json().catch(() => null);
 
         if (res.status === 429) {
@@ -1299,13 +1357,17 @@ export default function ChatPage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let actionMarkerBuffer = "";
+      let progressMarkerBuffer = "";
       let needsAutomaticContinuation = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const streamedText = decoder.decode(value, { stream: true });
-        const toolMarker = consumeToolCallStreamMarkers(actionMarkerBuffer + streamedText);
+        const progressMarker = consumeProgressMarkers(progressMarkerBuffer + streamedText);
+        progressMarkerBuffer = progressMarker.pending;
+        progressMarker.snapshots.forEach(applyProgress);
+        const toolMarker = consumeToolCallStreamMarkers(actionMarkerBuffer + progressMarker.content);
         actionMarkerBuffer = toolMarker.pending;
         if (toolMarker.events.length > 0) {
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents: [...(m.actionEvents ?? []), ...toolMarker.events] } : m));
@@ -1317,6 +1379,17 @@ export default function ChatPage() {
         const displayContent = stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
+        );
+      }
+
+      // Text held back only because it might have been the start of a marker
+      // (for example a trailing "<") belongs to the reply once the stream ends.
+      if (progressMarkerBuffer && !progressMarkerBuffer.startsWith("<kyvorix-progress>")) {
+        accumulated += progressMarkerBuffer;
+        progressMarkerBuffer = "";
+        const flushedContent = stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: flushedContent } : m))
         );
       }
 

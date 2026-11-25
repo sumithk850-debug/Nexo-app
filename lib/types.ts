@@ -2,6 +2,7 @@ import type { NexoModelId } from "./models";
 import type { ArtifactDescriptor } from "./artifactTypes";
 import type { PresentationDescriptor } from "./presentationTypes";
 import type { ActionEvent } from "./actionEngine";
+import type { MessageProgress } from "./progressSteps";
 
 export interface ChatImageAttachment {
   /** Browser-local data URL used to render the image the user just sent. */
@@ -28,4 +29,6 @@ export interface ChatMessage {
   artifact?: ArtifactDescriptor | PresentationDescriptor;
   /** Verified lifecycle events emitted by server-side tool adapters. */
   actionEvents?: ActionEvent[];
+  /** Live "Summary" steps for this reply. Browser-local; never sent to the server. */
+  progress?: MessageProgress;
 }

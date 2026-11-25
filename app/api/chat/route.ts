@@ -25,7 +25,9 @@ import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { runNativeToolLoop } from "@/lib/nativeTools.server";
 import { getTodayNewsContext, isDailyNewsRequest } from "@/lib/news.server";
 import { consumeCraftV5Tokens, requireCraftV5Access } from "@/lib/craftV5Trial.server";
-import { createToolCallStreamMarker } from "@/lib/toolCallDisplay";
+import { createToolCallStreamMarker, getToolDisplayLabel } from "@/lib/toolCallDisplay";
+import { withLiveProgress, type ProgressTrackerLike } from "@/lib/progressStream.server";
+import { detectProgressLanguage } from "@/lib/progressSteps";
 import { verifyWebResearchContext } from "@/lib/webResearchSignature.server";
 
 export const runtime = "nodejs";
@@ -542,6 +544,12 @@ async function describeScreenshotsWithVisionModel(
 }
 
 export async function POST(req: NextRequest) {
+  // Opted-in browsers receive live progress while this handler works; every
+  // other caller gets exactly the Response the handler returns.
+  return withLiveProgress(req, (progress) => handleChatRequest(req, progress));
+}
+
+async function handleChatRequest(req: NextRequest, progress: ProgressTrackerLike): Promise<Response> {
   try {
     const body = await req.json();
 
@@ -628,6 +636,18 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = [...messages]
       .reverse()
       .find((m) => m.role === "user");
+    // The browser tells us which language the user is really writing in; that
+    // matters for automatic continuations, whose own prompt is always English.
+    const requestedProgressLanguage =
+      body.progressLanguage === "si" || body.progressLanguage === "en"
+        ? body.progressLanguage
+        : undefined;
+    const baseProgressLanguage =
+      requestedProgressLanguage ??
+      detectProgressLanguage(lastUserMessage?.content ?? "");
+    progress.setLanguage(baseProgressLanguage);
+    progress.start(isAutomaticContinuation ? "continue" : "read");
+    progress.done(isAutomaticContinuation ? "continue" : "read");
     const isDeepResearchRequest = body.isDeepResearch === true;
     const researchTopic =
       typeof body.researchTopic === "string"
@@ -768,9 +788,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const messageHasLinks = /https?:\/\//i.test(lastUserMessage?.content ?? "");
+    if (messageHasLinks) progress.start("links");
     const webContext = lastUserMessage
       ? await readUrlsFromText(lastUserMessage.content)
       : "";
+    if (messageHasLinks) progress.done("links");
 
     let visionContext = "";
     let uploadedImageDescription = "";
@@ -786,6 +809,7 @@ export async function POST(req: NextRequest) {
       lastUserMessage &&
       config.provider !== "gemini"
     ) {
+      progress.start("images");
       const description =
         await describeUploadedImagesWithVisionModel(
           uploadedImages,
@@ -794,10 +818,15 @@ export async function POST(req: NextRequest) {
 
       if (description) {
         uploadedImageDescription = description;
+        progress.done("images");
+      } else {
+        progress.fail("images");
       }
     }
 
     if (lastUserMessage) {
+      // Hidden unless the capture runs long enough to matter.
+      if (messageHasLinks) progress.start("preview", { lazy: true });
       const screenshots =
         await captureScreenshotsFromText(
           lastUserMessage.content
@@ -817,7 +846,12 @@ export async function POST(req: NextRequest) {
                 `Screenshot of ${s.url}:\n${description}`
             )
             .join("\n\n");
+          progress.done("preview", { reveal: true });
+        } else {
+          progress.skip("preview");
         }
+      } else {
+        progress.skip("preview");
       }
     }
 
@@ -829,6 +863,8 @@ export async function POST(req: NextRequest) {
       userId &&
       lastUserMessage
     ) {
+      // Only shown when a repository was actually read, or the read is slow.
+      progress.start("github", { lazy: true });
       const githubContext =
         await buildGithubContext(
           userId,
@@ -840,6 +876,16 @@ export async function POST(req: NextRequest) {
 
       verifiedGithubReadPaths =
         githubContext.fetchedFilePaths;
+
+      if (githubContext.fetchedFilePaths.length > 0) {
+        const count = githubContext.fetchedFilePaths.length;
+        progress.done("github", {
+          reveal: true,
+          detail: `${count} ${count === 1 ? "file" : "files"}`,
+        });
+      } else {
+        progress.skip("github");
+      }
     }
 
     const githubMemoryBlock = githubEnabled
@@ -849,6 +895,7 @@ export async function POST(req: NextRequest) {
         )
       : "";
 
+    if (userId) progress.start("context", { lazy: true });
     const [userMem, projectBrainContext] =
       await Promise.all([
         getUserMemory(
@@ -860,6 +907,7 @@ export async function POST(req: NextRequest) {
           : Promise.resolve(""),
       ]);
 
+    if (userId) progress.done("context");
     const memory = userMem.memory;
     const customPersona = userMem.persona;
     const searchGroundingEnabled =
@@ -870,6 +918,13 @@ export async function POST(req: NextRequest) {
       userMem.responseLength ?? "balanced";
     const languagePreference =
       userMem.languagePreference ?? "auto";
+    progress.setLanguage(
+      languagePreference === "sinhala"
+        ? "si"
+        : languagePreference === "english"
+          ? "en"
+          : baseProgressLanguage
+    );
 
     const basePrompt =
       customPersona || config.systemPrompt;
@@ -912,10 +967,16 @@ export async function POST(req: NextRequest) {
         if (await getWikipediaEnabled(userId)) {
           wikipediaSearchRequested = true;
 
+          progress.start("wikipedia");
           const results =
             await searchWikipediaWithVerifiedArticles(
               isDeepResearchRequest ? researchTopic : latestUserText
             );
+          progress.done("wikipedia", {
+            detail: results.length > 0
+              ? `${results.length} ${results.length === 1 ? "article" : "articles"}`
+              : undefined,
+          });
 
           wikipediaSources = results.map(
             ({ title, url }) => ({
@@ -937,6 +998,7 @@ export async function POST(req: NextRequest) {
         wikipediaContext = "";
         wikipediaSources = [];
         wikipediaSearchRequested = false;
+        progress.fail("wikipedia");
       }
     }
 
@@ -947,7 +1009,9 @@ export async function POST(req: NextRequest) {
       isDailyNewsRequest(latestUserText)
     );
     if (dailyNewsRequested) {
+      progress.start("news");
       dailyNewsContext = await getTodayNewsContext();
+      progress.done("news");
     }
 
     const hasExplicitSupabaseIntent =
@@ -1128,7 +1192,20 @@ Structure your review with clear sections and use code examples where helpful.`;
     // Native provider tool calls are available to all unlocked profiles.
     // This preflight executes read-only tools only; all writes continue through
     // the existing proposal + explicit approval workflow.
+    // Hidden unless the preflight runs long enough to matter; each real tool
+    // call then appears as its own step.
+    progress.start("tools", { lazy: true });
     const nativeToolResult = await runNativeToolLoop({
+      onProgress: (event) => {
+        const id = `tool:${event.index}`;
+        if (event.kind === "tool-start") {
+          progress.start("tool", { id, arg: getToolDisplayLabel(event.name) });
+        } else if (event.ok) {
+          progress.done("tool", { id });
+        } else {
+          progress.fail("tool", { id });
+        }
+      },
       provider: config.provider,
       model: config.model,
       fallbackModels: config.fallbackModels,
@@ -1142,6 +1219,12 @@ Structure your review with clear sections and use code examples where helpful.`;
       maxRounds: 3,
       webResearchAlreadyDone: Boolean(webResearchContext),
     });
+
+    if (nativeToolResult.usedTools.length > 0) {
+      progress.done("tools", { reveal: true });
+    } else {
+      progress.skip("tools");
+    }
 
     if (nativeToolResult.contextBlock) {
       systemPrompt += nativeToolResult.contextBlock;
@@ -1169,6 +1252,7 @@ Structure your review with clear sections and use code examples where helpful.`;
 
     let upstreamRes: Response | null = null;
     let lastProviderError: unknown = null;
+    progress.start("connect");
 
     let activeProvider:
       | "openrouter"
@@ -1416,6 +1500,7 @@ Structure your review with clear sections and use code examples where helpful.`;
         status,
         errBody.slice(0, 500)
       );
+      progress.fail("connect");
 
       return new Response(
         JSON.stringify({
@@ -1443,6 +1528,9 @@ Structure your review with clear sections and use code examples where helpful.`;
         ""
       );
     }
+
+    progress.done("connect");
+    progress.start("answer");
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
