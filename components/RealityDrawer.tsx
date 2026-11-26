@@ -79,6 +79,7 @@ export function RealityDrawer({
   repoFullName,
   charsPerSecond,
   researchProgress = null,
+  taskSummary = null,
 }: {
   streaming: boolean;
   actions: FileAction[];
@@ -86,6 +87,7 @@ export function RealityDrawer({
   attachmentState?: AttachmentState;
   approvalState?: ApprovalState | null;
   modelLabel: string;
+  taskSummary?: string | null;
   actionEvents: ActionEvent[];
   repoFullName?: string | null;
   charsPerSecond?: number;
@@ -101,7 +103,8 @@ export function RealityDrawer({
   const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
   const track = phases({ streaming, hasExecution, hasVerification, hasError });
   const activeAction = actions[actions.length - 1];
-  const currentLabel = approvalState === "pending"
+  // The model's one-sentence task summary, when it wrote one, leads the dashboard.
+  const currentLabel = taskSummary?.trim() || (approvalState === "pending"
     ? "Waiting for your approval"
     : approvalState === "approving"
       ? "Applying approved repository change"
@@ -119,7 +122,7 @@ export function RealityDrawer({
               ? "Action needs attention"
               : streaming
                 ? "Preparing the next step"
-                : "Execution complete";
+                : "Execution complete");
   const statusLabel = hasError ? "needs attention" : streaming ? "working" : "ready";
 
   useEffect(() => {

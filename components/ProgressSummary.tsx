@@ -43,6 +43,20 @@ export function ProgressSummary({ progress, streaming }: { progress: MessageProg
   const ui = PROGRESS_UI_TEXT[progress.lang];
   const summary = summarizeProgress(progress, streaming);
   const stepCount = progress.steps.length;
+  const headline = progress.headline;
+  // The model's one-sentence task summary leads the timeline.
+  const rows: ProgressStep[] = headline
+    ? [
+        {
+          id: "headline",
+          key: "plan",
+          label: headline,
+          status: "done",
+          startedAt: progress.steps[0]?.startedAt ?? 0,
+        },
+        ...progress.steps,
+      ]
+    : progress.steps;
 
   const close = useCallback(() => {
     setEntered(false);
@@ -84,7 +98,7 @@ export function ProgressSummary({ progress, streaming }: { progress: MessageProg
     if (list) list.scrollTop = list.scrollHeight;
   }, [open, streaming, stepCount]);
 
-  if (stepCount === 0) return null;
+  if (stepCount === 0 && !headline) return null;
 
   return (
     <>
@@ -132,13 +146,17 @@ export function ProgressSummary({ progress, streaming }: { progress: MessageProg
 
               <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
                 <ol className="m-0 list-none p-0">
-                  {progress.steps.map((step, index) => {
-                    const isLast = index === progress.steps.length - 1;
-                    const duration = formatStepDuration(step);
+                  {rows.map((step, index) => {
+                    const isLast = index === rows.length - 1;
+                    const duration = step.id === "headline" ? null : formatStepDuration(step);
                     return (
                       <li key={step.id} className="relative flex gap-4 pb-6 last:pb-1">
                         {!isLast && <span className="absolute left-[4.5px] top-5 h-[calc(100%-0.75rem)] w-px bg-edge" aria-hidden="true" />}
-                        <StepDot step={step} streaming={streaming} />
+                        {step.id === "headline" ? (
+                          <span className="mt-[7px] h-2.5 w-2.5 shrink-0 rounded-full bg-cyan" aria-hidden="true" />
+                        ) : (
+                          <StepDot step={step} streaming={streaming} />
+                        )}
                         <div className="min-w-0 flex-1">
                           <p className={`break-words text-[17px] leading-snug ${step.status === "failed" ? "text-rose-200" : "text-ink"}`}>{step.label}</p>
                           {(step.detail || duration) && (

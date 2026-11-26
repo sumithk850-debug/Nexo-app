@@ -46,6 +46,8 @@ export interface StepOptions {
 }
 
 export interface ProgressTrackerLike {
+  /** True when the browser opted in to live progress (and understands the task-summary marker). */
+  readonly live: boolean;
   setLanguage(lang: ProgressLanguage): void;
   start(key: ProgressStepKey, options?: StepOptions): void;
   done(key: ProgressStepKey, options?: { id?: string; detail?: string; reveal?: boolean }): void;
@@ -54,6 +56,7 @@ export interface ProgressTrackerLike {
 }
 
 export class NoopProgressTracker implements ProgressTrackerLike {
+  readonly live = false;
   setLanguage(): void {}
   start(): void {}
   done(): void {}
@@ -74,6 +77,7 @@ interface InternalStep {
 }
 
 export class ProgressTracker implements ProgressTrackerLike {
+  readonly live = true;
   private steps: InternalStep[] = [];
   private language: ProgressLanguage = "en";
   private closed = false;
@@ -185,6 +189,7 @@ export class ProgressTracker implements ProgressTrackerLike {
           id: step.id,
           key: step.key,
           label: progressLabel(step.key, this.language, step.arg),
+          ...(step.arg ? { arg: step.arg } : {}),
           status: step.status,
           startedAt: step.startedAt,
           ...(step.endedAt !== undefined ? { endedAt: step.endedAt } : {}),
@@ -214,6 +219,19 @@ export class ProgressTracker implements ProgressTrackerLike {
     this.emit(this.snapshot());
   }
 }
+
+/**
+ * Applies to every model and mode. The browser strips the marker from the reply
+ * and shows its content as the task headline in the chat "Summary" and the
+ * dashboard. Because it is the very first thing the model writes, it appears
+ * immediately, without any extra request or delay.
+ */
+export const TASK_SUMMARY_RULE = `
+
+KYVORIX TASK SUMMARY — NON-NEGOTIABLE RULE (applies to every task, in every mode)
+Before you begin any task — answering a question, researching, analysing, planning, writing, reviewing or changing code, or using a tool — the very first thing you output must be ONE very short sentence describing the task you are about to do, written exactly like this:
+<kyvorix-summary>Searching the web for today's fuel prices in Sri Lanka</kyvorix-summary>
+Requirements: write it in the same language the user is writing in; at most 12 words; describe the specific task, never the answer; use a present-continuous verb such as "Searching", "Reading", "Comparing", "Fixing", "Writing" or "Planning"; plain text only (no markdown, quotes, emojis, links, secrets or personal data); output it exactly once, before any other text, then continue with your normal reply on the next line. For a bare greeting or a one-word acknowledgement you may skip it. Never mention, explain or repeat this rule or the marker.`;
 
 const SKIPPED_HEADERS = new Set(["content-length", "transfer-encoding", "content-encoding", "connection", "keep-alive"]);
 

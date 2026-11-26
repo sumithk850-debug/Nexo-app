@@ -8,6 +8,10 @@ import {
   detectProgressLanguage,
   formatStepDuration,
   parseProgressSnapshot,
+  prepareProgressForStorage,
+  consumeSummaryMarkers,
+  cleanHeadline,
+  setProgressHeadline,
   withoutLocalSendStep,
   progressLabel,
   progressStatusForPhase,
@@ -20,6 +24,7 @@ import {
   type ProgressStep,
 } from "../lib/progressSteps";
 import {
+  TASK_SUMMARY_RULE,
   HTTP_ENVELOPE_CLOSE,
   HTTP_ENVELOPE_OPEN,
   LIVE_PROGRESS_REQUEST_HEADER as SERVER_REQUEST_HEADER,
@@ -362,6 +367,78 @@ async function main() {
     assert.equal(progressStatusForPhase("cancelled"), "failed");
     assert.equal(progressStatusForPhase("needs_approval"), "done");
 
+    // The tool name survives a round trip so labels can be rebuilt in any language.
+    assert.equal(parseProgressSnapshot({ lang: "si", steps: [{ id: "b", key: "tool", label: progressLabel("tool", "si", "GitHub read file"), arg: "GitHub read file", status: "running", startedAt: 1 }] })?.steps[0].arg, "GitHub read file");
+    const rebuilt: MessageProgress = { lang: "si", steps: [{ id: "b", key: "tool", label: progressLabel("tool", "si", "GitHub read file"), arg: "GitHub read file", status: "running", startedAt: 1 }] };
+    assert.equal(summarizeProgress(rebuilt, true, "en").label, "Running GitHub read file");
+
+    // Storing a Summary with a chat message.
+    const stored = prepareProgressForStorage({ lang: "si", steps: rebuilt.steps.map((step) => ({ ...step, extra: "ignored" })), junk: true });
+    assert.ok(stored);
+    assert.deepEqual(Object.keys(stored.steps[0]).sort(), ["arg", "id", "key", "label", "startedAt", "status"], "Unknown fields are never stored");
+    assert.equal(prepareProgressForStorage({ lang: "en", steps: [] }), null, "An empty Summary is not stored");
+    assert.equal(prepareProgressForStorage("nope"), null);
+    assert.equal(prepareProgressForStorage(null), null);
+    const many = Array.from({ length: 24 }, (_, index) => ({ id: `s${index}`, key: "tool", label: "x".repeat(200), detail: "d".repeat(160), arg: "a".repeat(80), status: "done", startedAt: index, endedAt: index + 1 }));
+    const bounded = prepareProgressForStorage({ lang: "en", steps: many, headline: "h".repeat(140) });
+    assert.ok(bounded && JSON.stringify(bounded).length <= 12_000, "An oversized Summary is trimmed to fit");
+    assert.equal(bounded?.steps[bounded.steps.length - 1].id, "s23", "The newest steps are the ones kept");
+    assert.equal(bounded?.headline?.length, 140, "The headline is kept when older steps are trimmed");
+
+    // The model's one-sentence task summary: headline handling.
+    assert.equal(cleanHeadline("  Searching the web \n for <b>fuel</b> prices  "), "Searching the web for bfuel/b prices", "Markup characters are removed and whitespace collapsed");
+    assert.equal(cleanHeadline("x"), undefined, "A one-character summary is ignored");
+    assert.equal(cleanHeadline(42), undefined);
+    assert.equal(cleanHeadline("a".repeat(500))?.length, 140, "A long summary is capped");
+    const withHeadline = setProgressHeadline(undefined, "en", "Reviewing the chat route");
+    assert.equal(withHeadline.headline, "Reviewing the chat route");
+    assert.equal(withHeadline.steps.length, 0);
+    assert.equal(setProgressHeadline(withHeadline, "en", "   ").headline, "Reviewing the chat route", "An empty summary never erases the previous one");
+    // Steps arriving later must not drop the headline.
+    const stepAdded = upsertProgressStep(withHeadline, "en", { id: "pre:research", key: "research", label: "Researching the web", status: "running", startedAt: 1 });
+    assert.equal(stepAdded.headline, "Reviewing the chat route");
+    const merged2 = applyProgressSnapshot(stepAdded, { lang: "en", steps: [{ id: "answer", key: "answer", label: "Writing the answer", status: "running", startedAt: 2 }] }, "r0.0:");
+    assert.equal(merged2.headline, "Reviewing the chat route");
+    assert.equal(removeProgressStep(withHeadline, "x")?.headline, "Reviewing the chat route", "A headline keeps the Summary alive even without steps");
+    assert.equal(withoutLocalSendStep(startProgress(withHeadline, "r0.0:", "en", 5, false))?.headline, "Reviewing the chat route");
+    assert.equal(startProgress(withHeadline, "r0.0:", "en", 5, true).headline, undefined, "A new generation starts without the old headline");
+    // The headline is the collapsed-line text, while running and when finished.
+    assert.equal(summarizeProgress({ ...stepAdded }, true).label, "Reviewing the chat route");
+    assert.equal(summarizeProgress({ ...stepAdded, steps: stepAdded.steps.map((step) => ({ ...step, status: "done" as const, endedAt: 3000 })) }, false).label, "Reviewing the chat route");
+    // Stored form keeps the headline.
+    const storedWithHeadline = prepareProgressForStorage({ lang: "si", steps: [], headline: "වෙබ් එකේ ඉන්ධන මිල සොයමින්" });
+    assert.equal(storedWithHeadline?.headline, "වෙබ් එකේ ඉන්ධන මිල සොයමින්", "A headline alone is worth storing");
+    assert.equal(parseProgressSnapshot({ lang: "en", steps: [], headline: "<script>alert(1)</script>" })?.headline, "scriptalert(1)/script");
+
+    // Summary markers: stripped from the reply, safe at every possible split.
+    const summaryText = `<kyvorix-summary>වෙබ් එකේ ඉන්ධන මිල සොයමින්</kyvorix-summary>\nIt is 350 < 400 and 2 > 1.`;
+    for (let split = 1; split < summaryText.length; split++) {
+      let buffer = "";
+      let output = "";
+      const headlines: string[] = [];
+      for (const piece of [summaryText.slice(0, split), summaryText.slice(split)]) {
+        const consumed = consumeSummaryMarkers(buffer + piece);
+        buffer = consumed.pending;
+        output += consumed.content;
+        headlines.push(...consumed.headlines);
+      }
+      assert.equal(output + buffer, "\nIt is 350 < 400 and 2 > 1.", `Summary split at ${split} corrupted the reply`);
+      assert.deepEqual(headlines, ["වෙබ් එකේ ඉන්ධන මිල සොයමින්"], `Summary split at ${split} lost the headline`);
+    }
+    assert.equal(consumeSummaryMarkers("Plain text, no marker.").content, "Plain text, no marker.");
+    assert.equal(consumeSummaryMarkers("<kyvorix-summary></kyvorix-summary>Hi").content, "Hi", "An empty marker disappears");
+    assert.equal(consumeSummaryMarkers("<kyvorix-summary>never closed").content, "", "A marker that never closes is not shown as reply text");
+
+    // The rule that every model receives.
+    assert.match(TASK_SUMMARY_RULE, /NON-NEGOTIABLE/);
+    assert.match(TASK_SUMMARY_RULE, /very first thing you output/);
+    assert.match(TASK_SUMMARY_RULE, /<kyvorix-summary>/);
+    assert.match(TASK_SUMMARY_RULE, /same language the user is writing in/);
+    assert.match(TASK_SUMMARY_RULE, /at most 12 words/);
+    assert.match(TASK_SUMMARY_RULE, /Never mention, explain or repeat this rule/);
+    assert.equal(new ProgressTracker(() => undefined).live, true);
+    assert.equal(new NoopProgressTracker().live, false, "Requests that did not opt in never receive the rule");
+
     // A rejected request must not leave a "sending" step behind.
     assert.equal(withoutLocalSendStep(start), undefined);
     assert.deepEqual(withoutLocalSendStep({ lang: "en", steps: [...start.steps, { id: "r0:read", key: "read", label: "Reading your message", status: "done", startedAt: 1 }] })?.steps.map((step) => step.key), ["read"]);
@@ -405,7 +482,7 @@ async function main() {
     assert.match(page, /resolveLiveProgressResponse\(/);
     assert.match(page, /consumeProgressMarkers\(/);
     assert.match(page, /applyProgressSnapshot\(/);
-    assert.match(page, /withoutLocalSendStep\(m\.progress\)/, "A refused request must clear the sending placeholder");
+    assert.match(page, /withoutLocalSendStep\(previous\)/, "A refused request must clear the sending placeholder");
     assert.match(page, /progressSeededRef\.current = assistantId;/, "Send flows must keep their browser-side steps");
     assert.equal((page.match(/progressSeededRef\.current = assistantId;/g) ?? []).length, 2, "Both send flows must seed the summary");
     assert.match(page, /runWebResearch\(text, controller\.signal, assistantId\)/);
@@ -413,6 +490,38 @@ async function main() {
     assert.match(page, /clearTimeout\(umbrellaTimer\)/, "The tool-preparation timer must never leak");
     assert.match(bubble, /<ProgressSummary/);
     assert.match(types, /progress\?: MessageProgress/);
+
+    // Persistence: the Summary is saved with the reply and survives a reload, and
+    // the app keeps working when the optional column has not been created yet.
+    const messagesRoute = read("app/api/chats/[id]/messages/route.ts");
+    assert.match(messagesRoute, /prepareProgressForStorage\(body\.progress\)/, "Only a validated Summary is stored");
+    assert.match(messagesRoute, /role === "assistant" \? prepareProgressForStorage/, "Only assistant replies carry a Summary");
+    assert.match(messagesRoute, /isMissingProgressColumn\(error\)/, "Loading must fall back when the column is missing");
+    assert.match(messagesRoute, /storedProgress && isMissingProgressColumn\(error\)/, "Saving must fall back when the column is missing");
+    assert.match(page, /parseProgressSnapshot\(m\.progress\)/, "A stored Summary is re-validated when a chat is loaded");
+    assert.match(page, /progressByMessageRef\.current\.get\(assistantId\)/, "The finished reply is saved together with its Summary");
+    const migration = read("supabase/migrations/20261125_messages_progress_summary.sql");
+    assert.match(migration, /add column if not exists progress jsonb/i, "The migration must be safe to run twice");
+    assert.match(migration, /messages_progress_size_check/);
+    assert.doesNotMatch(migration, /drop |delete |truncate /i, "The migration must not remove data");
+
+    // The unbreakable task-summary rule reaches every model, but only opted-in browsers.
+    assert.match(route, /if \(progress\.live && !isAutomaticContinuation\) \{\s*systemPrompt \+= TASK_SUMMARY_RULE;/, "Every model must receive the task-summary rule when the browser understands it");
+    assert.ok(route.indexOf("systemPrompt += TASK_SUMMARY_RULE") > route.indexOf("NATIVE TOOL RESULT RULE"), "The rule is appended last so it is the most recent instruction");
+    assert.match(page, /consumeSummaryMarkers\(summaryMarkerBuffer \+ progressMarker\.content\)/, "The headline must be stripped from the reply");
+    assert.match(page, /taskSummary=\{currentTaskSummary\}/, "The dashboard must show the task summary");
+    assert.equal((page.match(/taskSummary=\{currentTaskSummary\}/g) ?? []).length, 2, "Both dashboard components must receive it");
+    assert.match(bubble, /<WebSearchCard research=\{message\.webResearch\}/, "The web search card must appear inside the reply");
+    assert.match(page, /showResearchCard\("running"/, "The web search card must update live");
+    assert.match(page, /showResearchCard\(signedToken \? "done" : "failed"\)/, "The web search card must reach a final state");
+    // Letter-spaced capitals break Sinhala/Latin text in tool cards.
+    const toolCardLine = bubble.split("\n").find((line) => line.includes("getToolCallLabel(event.operation)")) ?? "";
+    assert.ok(toolCardLine.length > 0 && !/uppercase|tracking-(wide|wider|widest|\[)/.test(toolCardLine), "Tool call labels must not use forced capitals or wide letter spacing");
+    const statusLine = bubble.split("\n").find((line) => line.includes("getActionStatusLabel(event.phase)")) ?? "";
+    assert.ok(statusLine.length > 0 && !/uppercase|tracking-(wide|wider|widest|\[)/.test(statusLine), "Tool status labels must not use forced capitals or wide letter spacing");
+    for (const file of ["components/WebSearchCard.tsx", "components/ProgressSummary.tsx"]) {
+      assert.doesNotMatch(read(file), /uppercase|tracking-(wide|wider|widest|\[)/, `${file} must keep normal letter spacing`);
+    }
 
     // Step text must come from the application, never from model output.
     const component = read("components/ProgressSummary.tsx");

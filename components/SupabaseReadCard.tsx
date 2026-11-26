@@ -23,7 +23,7 @@ export function SupabaseReadCard({ card }: { card: SupabaseReadCardData }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-ink">{card.title}</p>
-            <span className="rounded-full border border-current/25 bg-void/35 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider">
+            <span className="rounded-full border border-current/25 bg-void/35 px-2 py-0.5 text-[10px] font-medium tracking-normal">
               {isLoading ? "Reading live data" : isSuccess ? "Verified result" : isNeedsProject ? "Action needed" : "Connection error"}
             </span>
           </div>

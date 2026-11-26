@@ -24,7 +24,11 @@ assert.match(chatApi, /getSupabaseAdmin/);
 assert.match(chatApi, /Invalid or missing session/);
 assert.match(usage, /Invalid or missing session/);
 assert.match(page, /"x-session-id": sessionId/);
-assert.match(page, /JSON\.stringify\(\{ role, content, modelId, sessionId \}\)/);
+// The saved-message request still identifies the chat session; it may also carry the
+// reply's Summary (validated again on the server) but never a user identifier or token.
+assert.match(page, /JSON\.stringify\(\{ role, content, modelId, sessionId, \.\.\.\(progress && /);
+const saveMessageBody = page.slice(page.indexOf("async function saveMessage("), page.indexOf("async function handleNexoLiveTurnComplete"));
+assert.doesNotMatch(saveMessageBody, /userId|userAccessToken|access_token/);
 assert.match(rateLimits, /import ["']server-only["']/);
 assert.match(rateLimits, /getSupabaseAdmin/);
 assert.doesNotMatch(rateLimits, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);

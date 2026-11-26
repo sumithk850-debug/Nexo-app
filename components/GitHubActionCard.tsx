@@ -22,10 +22,10 @@ export function GitHubActionCard({ activity }: { activity: GitHubActionActivity 
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-current">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-normal text-current">
               <Github className="h-3.5 w-3.5" /> GitHub
             </div>
-            <span className="rounded-full border border-current/25 bg-void/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+            <span className="rounded-full border border-current/25 bg-void/30 px-2 py-0.5 text-[10px] font-semibold tracking-normal">
               {isSuccess ? "Verified" : isNeedsConnection ? "Action needed" : "Not completed"}
             </span>
           </div>

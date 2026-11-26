@@ -46,7 +46,7 @@ export function SupabaseTaskCard({
         <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
           {streaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" aria-label="Supabase" />}
         </div>
-        <div><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">Database agent</span><span className="text-[9px] text-ink-faint">Supabase execution workspace</span></div>
+        <div><span className="block text-[11px] font-bold tracking-normal text-emerald-300">Database agent</span><span className="text-[9px] text-ink-faint">Supabase execution workspace</span></div>
         <span className="ml-auto rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-2 py-1 text-[9px] font-mono text-emerald-200">{task.operation}</span>
       </div>
       <div className="space-y-2.5 px-4 py-3">

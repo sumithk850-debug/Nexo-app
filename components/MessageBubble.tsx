@@ -24,6 +24,7 @@ import { parseGitHubActionBlocks, stripGitHubActionBlocks } from "@/lib/githubAc
 import { SummaryCard } from "./SummaryCard";
 import { getActionStatusLabel, getToolCallLabel, latestActionEvents } from "@/lib/toolCallDisplay";
 import { ProgressSummary } from "@/components/ProgressSummary";
+import { WebSearchCard } from "@/components/WebSearchCard";
 import Prism from "prismjs";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-typescript";
@@ -376,9 +377,10 @@ export function MessageBubble({
             {message.modelLabel || model?.name}
           </p>
         )}
-        {message.progress && message.progress.steps.length > 0 && (
+        {message.progress && (message.progress.steps.length > 0 || message.progress.headline) && (
           <ProgressSummary progress={message.progress} streaming={isStreaming} />
         )}
+        {message.webResearch && <WebSearchCard research={message.webResearch} />}
         {/* Repository operation markers and file bodies belong exclusively in
             the activity panel above the composer. Only normal prose/report
             segments remain in the transcript. */}
@@ -398,8 +400,8 @@ export function MessageBubble({
               return (
                 <div key={event.id} className={`rounded-xl border px-3 py-2.5 ${statusClass}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{getToolCallLabel(event.operation)}</span>
-                    <span className="text-[10px] uppercase tracking-wide">{getActionStatusLabel(event.phase)}</span>
+                    <span className="min-w-0 break-words text-[12px] font-semibold tracking-normal">{getToolCallLabel(event.operation)}</span>
+                    <span className="text-[11px] font-medium tracking-normal opacity-90">{getActionStatusLabel(event.phase)}</span>
                   </div>
                   <p className="mt-1 break-words text-xs text-ink">{event.summary}</p>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-faint">

@@ -28,8 +28,8 @@ export function VercelReadCard({ card }: { card: VercelReadCardData }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-current">Deployment agent</p><p className="mt-0.5 text-sm font-semibold text-ink">{card.title}</p></div>
-            <span className="rounded-full border border-current/25 bg-void/35 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider">
+            <div><p className="text-[11px] font-bold tracking-normal text-current">Deployment agent</p><p className="mt-0.5 text-sm font-semibold text-ink">{card.title}</p></div>
+            <span className="rounded-full border border-current/25 bg-void/35 px-2 py-0.5 text-[10px] font-medium tracking-normal">
               {isLoading ? "Reading live data" : isSuccess ? "Verified result" : needsConnection ? "Action needed" : "Connection error"}
             </span>
           </div>

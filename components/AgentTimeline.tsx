@@ -102,6 +102,7 @@ export function AgentTimeline({
   modelLabel = "KYVORIX AI",
   actionEvents = [],
   researchProgress = null,
+  taskSummary = null,
 }: {
   streaming: boolean;
   actions: FileAction[];
@@ -109,6 +110,7 @@ export function AgentTimeline({
   attachmentState?: AttachmentState;
   approvalState?: ApprovalState | null;
   modelLabel?: string;
+  taskSummary?: string | null;
   actionEvents?: ActionEvent[];
   researchProgress?: WebResearchProgress;
 }) {
@@ -167,7 +169,8 @@ export function AgentTimeline({
   const progress = Math.min(100, Math.round((completedCount / Math.max(items.length, 1)) * 100));
   const agentCount = Math.min(3, 1 + Number(Boolean(searching)) + Number(actions.length > 0));
   const activeTool = latestToolEvents.find((event) => event.phase === "running" || event.phase === "verifying");
-  const currentLabel = researchProgress?.message ?? (activeTool ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}` : activeItem?.label) ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete");
+  // The model's one-sentence task summary, when it wrote one, leads the dashboard.
+  const currentLabel = taskSummary?.trim() || (researchProgress?.message ?? (activeTool ? `${getToolCallLabel(activeTool.operation)} · ${getActionStatusLabel(activeTool.phase)}` : activeItem?.label) ?? (hasError ? "Action needs attention" : streaming ? "Preparing the next step" : "Execution complete"));
 
   return (
     <section className="mx-auto mb-3 hidden w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-[1.35rem] border border-cyan/20 bg-panel/95 shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:block" aria-label={`${modelLabel} execution dashboard`} aria-live="polite">
@@ -255,7 +258,7 @@ export function AgentTimeline({
               <div key={event.id} className="flex min-w-0 items-center gap-2 text-[10px]">
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${event.phase === "succeeded" ? "bg-emerald-400" : event.phase === "failed" || event.phase === "cancelled" ? "bg-rose-400" : "bg-cyan"}`} />
                 <span className="shrink-0 font-semibold text-ink-muted">{getToolCallLabel(event.operation)}</span>
-                <span className="shrink-0 uppercase tracking-wide text-cyan/80">{getActionStatusLabel(event.phase)}</span>
+                <span className="shrink-0 tracking-normal text-cyan/80">{getActionStatusLabel(event.phase)}</span>
                 <span className="truncate text-ink-faint">{event.summary}</span>
               </div>
             ))}

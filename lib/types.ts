@@ -2,7 +2,18 @@ import type { NexoModelId } from "./models";
 import type { ArtifactDescriptor } from "./artifactTypes";
 import type { PresentationDescriptor } from "./presentationTypes";
 import type { ActionEvent } from "./actionEngine";
-import type { MessageProgress } from "./progressSteps";
+import type { MessageProgress, ProgressLanguage } from "./progressSteps";
+
+/** Live state of the web search card shown inside an assistant reply. */
+export interface WebResearchCardState {
+  stage: string;
+  message: string;
+  url?: string;
+  completedPages?: number;
+  totalPages?: number;
+  status: "running" | "done" | "failed";
+  lang: ProgressLanguage;
+}
 
 export interface ChatImageAttachment {
   /** Browser-local data URL used to render the image the user just sent. */
@@ -31,4 +42,6 @@ export interface ChatMessage {
   actionEvents?: ActionEvent[];
   /** Live "Summary" steps for this reply. Browser-local; never sent to the server. */
   progress?: MessageProgress;
+  /** Live web search card for this reply. Browser-local. */
+  webResearch?: WebResearchCardState;
 }

@@ -39,7 +39,7 @@ import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
 import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, WebResearchCardState } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
 import { createSupabaseReadBlock, type SupabaseReadCardData } from "@/lib/supabaseReadParser";
 import { parseSupabaseReadToolIntents, stripSupabaseReadToolBlocks, type SupabaseReadToolIntent } from "@/lib/supabaseToolParser";
@@ -61,13 +61,17 @@ import { consumeToolCallStreamMarkers, getToolDisplayLabel } from "@/lib/toolCal
 import {
   applyProgressSnapshot,
   consumeProgressMarkers,
+  consumeSummaryMarkers,
+  setProgressHeadline,
   detectProgressLanguage,
+  parseProgressSnapshot,
   progressLabel,
   progressStatusForPhase,
   removeProgressStep,
   startProgress,
   upsertProgressStep,
   withoutLocalSendStep,
+  type MessageProgress,
   type ProgressLanguage,
   type ProgressSnapshot,
   type ProgressStep,
@@ -378,21 +382,38 @@ export default function ChatPage() {
   // They use the "pre:" id prefix; the send flows set this flag so the first
   // /api/chat request keeps those steps instead of starting a blank summary.
   const progressSeededRef = useRef<string | null>(null);
+  // The latest Summary per reply, readable synchronously so the finished reply
+  // can be saved together with it (React state would lag behind by a render).
+  const progressByMessageRef = useRef<Map<string, MessageProgress | undefined>>(new Map());
+  const latestMessagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    latestMessagesRef.current = messages;
+  }, [messages]);
+
+  function updateProgress(
+    assistantId: string,
+    update: (previous: MessageProgress | undefined) => MessageProgress | undefined
+  ) {
+    const map = progressByMessageRef.current;
+    const previous = map.has(assistantId)
+      ? map.get(assistantId)
+      : latestMessagesRef.current.find((m) => m.id === assistantId)?.progress;
+    const next = update(previous);
+    map.set(assistantId, next);
+    setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, progress: next } : m)));
+  }
 
   function upsertPreStep(assistantId: string, lang: ProgressLanguage, step: ProgressStep) {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === assistantId ? { ...m, progress: upsertProgressStep(m.progress, lang, step) } : m
-      )
-    );
+    updateProgress(assistantId, (previous) => upsertProgressStep(previous, lang, step));
   }
 
   function dropPreStep(assistantId: string, id: string) {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === assistantId ? { ...m, progress: removeProgressStep(m.progress, id) } : m
-      )
-    );
+    updateProgress(assistantId, (previous) => removeProgressStep(previous, id));
+  }
+
+  function setResearchCard(assistantId: string | undefined, card: WebResearchCardState) {
+    if (!assistantId) return;
+    setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, webResearch: card } : m)));
   }
 
   function startStreamingTurn(assistantId: string) {
@@ -655,6 +676,8 @@ export default function ChatPage() {
   const activityEvents = lastAssistantMsg?.actionEvents ?? [];
   const approvalEvent = approvalActionEvent(pendingApproval?.status ?? null, pendingApproval?.actions.length ?? 0);
   const timelineEvents = approvalEvent ? [...activityEvents, approvalEvent] : activityEvents;
+  // The model's one-sentence summary of the task in progress (or the latest finished one).
+  const currentTaskSummary = [...messages].reverse().find((m) => m.role === "assistant")?.progress?.headline ?? null;
   const activeModelLabel = isCoderMode
     ? getModelDisplayName(coderModel, true)
     : getActiveModelDisplayName({ selectedModel, coderModel, isCoderMode });
@@ -886,12 +909,15 @@ export default function ChatPage() {
           data.messages.map((m: any) => {
             const modelId = typeof m.model_id === "string" ? m.model_id : undefined;
             const isCoderMessage = modelId === "craft-v3-lite" || modelId === "craft-v5" || modelId === "craft-v3" || modelId === "craft-v4";
+            // Re-validate the stored Summary; a malformed one is simply not shown.
+            const storedProgress = m.role === "assistant" ? parseProgressSnapshot(m.progress) : null;
             return {
               id: m.id,
               role: m.role,
               content: m.content,
               modelId: modelId as NexoModelId | undefined,
               ...(isCoderMessage && modelId ? { modelLabel: getModelDisplayName(modelId, true) } : {}),
+              ...(storedProgress && (storedProgress.steps.length > 0 || storedProgress.headline) ? { progress: { lang: storedProgress.lang, steps: storedProgress.steps, ...(storedProgress.headline ? { headline: storedProgress.headline } : {}) } } : {}),
               persisted: true,
             };
           })
@@ -930,12 +956,12 @@ export default function ChatPage() {
     return null;
   }
 
-  async function saveMessage(chatId: string, role: "user" | "assistant", content: string, modelId?: string) {
+  async function saveMessage(chatId: string, role: "user" | "assistant", content: string, modelId?: string, progress?: MessageProgress) {
     try {
       await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, content, modelId, sessionId }),
+        body: JSON.stringify({ role, content, modelId, sessionId, ...(progress && (progress.steps.length > 0 || progress.headline) ? { progress } : {}) }),
       });
     } catch {
       // non-critical
@@ -1257,28 +1283,15 @@ export default function ChatPage() {
       // The first snapshot of a live response is empty; keep the local
       // "sending" step until the server reports something real.
       if (snapshot.steps.length === 0) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, progress: applyProgressSnapshot(m.progress, snapshot, progressPrefix) }
-            : m
-        )
-      );
+      updateProgress(assistantId, (previous) => applyProgressSnapshot(previous, snapshot, progressPrefix));
     };
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === assistantId
-          ? {
-              ...m,
-              progress: startProgress(
-                m.progress,
-                progressPrefix,
-                progressLanguage,
-                Date.now(),
-                liveToolDepth === 0 && responseContinuationDepth === 0 && !keepPreSteps
-              ),
-            }
-          : m
+    updateProgress(assistantId, (previous) =>
+      startProgress(
+        previous,
+        progressPrefix,
+        progressLanguage,
+        Date.now(),
+        liveToolDepth === 0 && responseContinuationDepth === 0 && !keepPreSteps
       )
     );
 
@@ -1323,11 +1336,7 @@ export default function ChatPage() {
       if (!res.ok) {
         // The request was refused or failed; drop the "sending" placeholder so
         // the error message is not labelled as a half-finished task.
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, progress: withoutLocalSendStep(m.progress) } : m
-          )
-        );
+        updateProgress(assistantId, (previous) => withoutLocalSendStep(previous));
         const errData = await res.json().catch(() => null);
 
         if (res.status === 429) {
@@ -1421,6 +1430,7 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let actionMarkerBuffer = "";
       let progressMarkerBuffer = "";
+      let summaryMarkerBuffer = "";
       let needsAutomaticContinuation = false;
 
       while (true) {
@@ -1430,7 +1440,13 @@ export default function ChatPage() {
         const progressMarker = consumeProgressMarkers(progressMarkerBuffer + streamedText);
         progressMarkerBuffer = progressMarker.pending;
         progressMarker.snapshots.forEach(applyProgress);
-        const toolMarker = consumeToolCallStreamMarkers(actionMarkerBuffer + progressMarker.content);
+        // The model's one-sentence task summary is shown in the Summary, never in the reply.
+        const summaryMarker = consumeSummaryMarkers(summaryMarkerBuffer + progressMarker.content);
+        summaryMarkerBuffer = summaryMarker.pending;
+        summaryMarker.headlines.forEach((headline) =>
+          updateProgress(assistantId, (previous) => setProgressHeadline(previous, progressLanguage, headline))
+        );
+        const toolMarker = consumeToolCallStreamMarkers(actionMarkerBuffer + summaryMarker.content);
         actionMarkerBuffer = toolMarker.pending;
         if (toolMarker.events.length > 0) {
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents: [...(m.actionEvents ?? []), ...toolMarker.events] } : m));
@@ -1447,6 +1463,10 @@ export default function ChatPage() {
 
       // Text held back only because it might have been the start of a marker
       // (for example a trailing "<") belongs to the reply once the stream ends.
+      if (summaryMarkerBuffer && !summaryMarkerBuffer.startsWith("<kyvorix-summary>")) {
+        accumulated += summaryMarkerBuffer;
+        summaryMarkerBuffer = "";
+      }
       if (progressMarkerBuffer && !progressMarkerBuffer.startsWith("<kyvorix-progress>")) {
         accumulated += progressMarkerBuffer;
         progressMarkerBuffer = "";
@@ -1568,14 +1588,14 @@ export default function ChatPage() {
       }
 
       if (chatId && accumulated) {
-        saveMessage(chatId, "assistant", accumulated, persistedModelId);
+        saveMessage(chatId, "assistant", accumulated, persistedModelId, progressByMessageRef.current.get(assistantId));
       }
     } catch {
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (
           m.id === assistantId ? { ...m, generationState: "stopped" } : m
         )));
-        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, persistedModelId);
+        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, persistedModelId, progressByMessageRef.current.get(assistantId));
         return;
       }
       setMessages((prev) =>
@@ -1931,6 +1951,12 @@ export default function ChatPage() {
       });
     };
     reportResearch("running");
+    let lastCard: Omit<WebResearchCardState, "status" | "lang"> = { stage: "queued", message: "Preparing secure web research." };
+    const showResearchCard = (status: WebResearchCardState["status"], patch: Partial<typeof lastCard> = {}) => {
+      lastCard = { ...lastCard, ...patch };
+      setResearchCard(assistantId, { ...lastCard, status, lang: researchLang });
+    };
+    showResearchCard("running");
     try {
       const response = await authenticatedFetch("/api/web-research", {
         method: "POST",
@@ -1942,6 +1968,7 @@ export default function ChatPage() {
         const data = await response.json().catch(() => ({}));
         setWebResearchProgress({ stage: "failed", message: typeof data.error === "string" ? data.error : "Web research is unavailable for this request." });
         reportResearch("failed", typeof data.error === "string" ? data.error : undefined);
+        showResearchCard("failed", { message: typeof data.error === "string" ? data.error : "Web research is unavailable for this request." });
         return null;
       }
 
@@ -1963,11 +1990,19 @@ export default function ChatPage() {
             ...(typeof event.totalPages === "number" ? { totalPages: event.totalPages } : {}),
           });
           reportResearch("running", typeof event.message === "string" ? event.message : undefined);
+          showResearchCard("running", {
+            stage: typeof event.stage === "string" ? event.stage : "working",
+            message: typeof event.message === "string" ? event.message : "Working on web research.",
+            ...(typeof event.url === "string" ? { url: event.url } : {}),
+            ...(typeof event.completedPages === "number" ? { completedPages: event.completedPages } : {}),
+            ...(typeof event.totalPages === "number" ? { totalPages: event.totalPages } : {}),
+          });
         } else if (event.type === "error") {
           const message = typeof event.message === "string" ? event.message : "Web research could not be completed.";
           streamError = message;
           setWebResearchProgress({ stage: "failed", message });
           reportResearch("failed", message);
+          showResearchCard("failed", { message });
         } else if (event.type === "result" && typeof event.token === "string") {
           signedToken = event.token;
         }
@@ -1987,11 +2022,13 @@ export default function ChatPage() {
       }
       if (streamError) return null;
       reportResearch(signedToken ? "done" : "failed");
+      showResearchCard(signedToken ? "done" : "failed");
       return signedToken;
     } catch (error) {
       if (signal.aborted) {
         setWebResearchProgress({ stage: "failed", message: "Web research was cancelled." });
         reportResearch("failed");
+        showResearchCard("failed", { message: "Web research was cancelled." });
         return null;
       }
       setWebResearchProgress({
@@ -1999,6 +2036,7 @@ export default function ChatPage() {
         message: error instanceof Error ? error.message.slice(0, 220) : "Web research could not be completed.",
       });
       reportResearch("failed");
+      showResearchCard("failed", { message: error instanceof Error ? error.message.slice(0, 220) : "Web research could not be completed." });
       return null;
     }
   }
@@ -2194,6 +2232,7 @@ export default function ChatPage() {
                 id: `pre:tool:${incoming.id}`,
                 key: "tool",
                 label: progressLabel("tool", toolLang, getToolDisplayLabel(incoming.operation)),
+                arg: getToolDisplayLabel(incoming.operation),
                 status: stepStatus,
                 startedAt,
                 ...(stepStatus !== "running" ? { endedAt: Date.now() } : {}),
@@ -2655,6 +2694,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
+              taskSummary={currentTaskSummary}
               actionEvents={timelineEvents}
               researchProgress={webResearchProgress}
             />
@@ -2666,6 +2706,7 @@ export default function ChatPage() {
               attachmentState={attachmentPreparation?.state ?? null}
               approvalState={pendingApproval?.status ?? null}
               modelLabel={activeModelLabel}
+              taskSummary={currentTaskSummary}
               actionEvents={timelineEvents}
               repoFullName={githubIntegrationEnabled ? selectedRepo : null}
               charsPerSecond={typingSpeed}
