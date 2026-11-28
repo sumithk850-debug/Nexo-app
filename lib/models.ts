@@ -29,17 +29,17 @@ export const NEXO_MODELS: NexoModelPublic[] = [
   },
   {
     id: "spadec-3.5",
-    name: "KYVORIX Spadec 3.5",
-    tagline: "Enhanced reasoning & creativity",
+    name: "KYVORIX Gemma 4 26B A4B",
+    tagline: "Fast everyday chat powered by Gemma 4",
     tier: "Free",
-    badge: "FREE",
+    badge: "GEMMA",
   },
   {
     id: "galex-4.0",
-    name: "KYVORIX Galex 4.5",
-    tagline: "Advanced reasoning + ultra speed",
+    name: "KYVORIX Gemma 4 31B",
+    tagline: "Advanced reasoning powered by Gemma 4",
     tier: "Galex",
-    badge: "GALEX",
+    badge: "GEMMA",
     isNew: true,
   },
   {
