@@ -1372,11 +1372,6 @@ export default function ChatPage() {
     };
 
     try {
-      if (chatId && !durableMessageId && liveToolDepth === 0 && responseContinuationDepth === 0 && responseRecoveryDepth === 0) {
-        // Create one durable assistant row up front; subsequent checkpoints update this row.
-        durableMessageId = await saveMessage(chatId, "assistant", initialContent, persistedModelId);
-      }
-
       // authenticatedFetch attaches the signed-in user's Supabase access token
       // as an Authorization header; the server reads it from there.
       const liveResponse = await authenticatedFetch("/api/chat", {
@@ -1544,6 +1539,19 @@ export default function ChatPage() {
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
+
+        // Persist only after the first real text arrives, avoiding empty assistant rows.
+        if (chatId && !durableMessageId && accumulated.trim()) {
+          durableMessageId = await saveMessage(
+            chatId,
+            "assistant",
+            accumulated,
+            persistedModelId,
+            progressByMessageRef.current.get(assistantId)
+          );
+          lastCheckpointAt = Date.now();
+          lastCheckpointLength = accumulated.length;
+        }
 
         if (
           chatId &&
