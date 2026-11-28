@@ -94,6 +94,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return Response.json({ message: data }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch { return jsonError("Invalid message checkpoint.", 400); }
+  const { messageId, content, modelId, sessionId } = body;
+  if (!id || !isValidSessionId(sessionId) ||
+      typeof messageId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageId) ||
+      typeof content !== "string" || content.length > 100_000 ||
+      (modelId !== undefined && modelId !== null && typeof modelId !== "string")) {
+    return jsonError("Invalid message checkpoint.", 400);
+  }
+
+  const ownership = await findOwnedChat(id, sessionId);
+  if (ownership.failed) return jsonError("Unable to save chat checkpoint.", 500);
+  if (!ownership.chat) return jsonError("Chat not found for this session.", 404);
+
+  const admin = getSupabaseAdmin();
+  const row: Record<string, unknown> = {
+    content,
+    model_id: typeof modelId === "string" ? modelId.slice(0, 120) || null : null,
+  };
+  const storedProgress = prepareProgressForStorage(body.progress);
+  if (storedProgress) row.progress = storedProgress;
+
+  const update = async (values: Record<string, unknown>) => admin.from("messages")
+    .update(values)
+    .eq("id", messageId)
+    .eq("chat_id", id)
+    .eq("role", "assistant")
+    .select("id")
+    .maybeSingle();
+
+  let { data, error } = await update(row);
+  if (error && storedProgress && isMissingProgressColumn(error)) {
+    const fallback = { ...row };
+    delete fallback.progress;
+    ({ data, error } = await update(fallback));
+  }
+  if (error) {
+    console.error("[chat-messages] Checkpoint update failed:", error.message);
+    return jsonError("Unable to save chat checkpoint.", 500);
+  }
+  if (!data) return jsonError("Assistant message not found.", 404);
+
+  const { error: updateError } = await admin.from("chats")
+    .update({ updated_at: new Date().toISOString() }).eq("id", id).eq("session_id", sessionId);
+  if (updateError) console.error("[chat-messages] Chat timestamp update failed:", updateError.message);
+  return Response.json({ ok: true, messageId }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const messageId = req.nextUrl.searchParams.get("id");

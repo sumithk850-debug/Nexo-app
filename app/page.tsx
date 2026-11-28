@@ -37,7 +37,7 @@ import { BrowserConnectionCard, type BrowserConnectionState } from "@/components
 import type { CoderModelId } from "@/lib/coderModels";
 import { SecretDetectedModal } from "@/components/SecretDetectedModal";
 import { parseCraftResponse, parseCraftSegments, applyDiff, type FileAction } from "@/lib/craftParser";
-import { canAutomaticallyContinue, consumeResponseContinuationMarker } from "@/lib/responseContinuation";
+import { canAutomaticallyContinue, canRecoverInterruptedResponse, consumeResponseContinuationMarker, isRecoverableResponseStatus, isRecoverableStreamError } from "@/lib/responseContinuation";
 import { getPublicModel, type NexoModelId } from "@/lib/models";
 import type { ChatMessage, WebResearchCardState } from "@/lib/types";
 import type { SupabaseTask } from "@/lib/supabaseTaskParser";
@@ -957,15 +957,33 @@ export default function ChatPage() {
     return null;
   }
 
-  async function saveMessage(chatId: string, role: "user" | "assistant", content: string, modelId?: string, progress?: MessageProgress) {
+  async function saveMessage(chatId: string, role: "user" | "assistant", content: string, modelId?: string, progress?: MessageProgress): Promise<string | undefined> {
     try {
-      await fetch(`/api/chats/${chatId}/messages`, {
+      const response = await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, content, modelId, sessionId, ...(progress && (progress.steps.length > 0 || progress.headline) ? { progress } : {}) }),
       });
+      const payload = await response.json().catch(() => null);
+      return response.ok && typeof payload?.message?.id === "string" ? payload.message.id : undefined;
     } catch {
-      // non-critical
+      // Chat persistence is best-effort; response generation must continue if it is unavailable.
+      return undefined;
+    }
+  }
+
+  async function updateSavedMessage(chatId: string, messageId: string, content: string, modelId?: string, progress?: MessageProgress): Promise<void> {
+    try {
+      await fetch(`/api/chats/${chatId}/messages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId, content, modelId, sessionId,
+          ...(progress && (progress.steps.length > 0 || progress.headline) ? { progress } : {}),
+        }),
+      });
+    } catch {
+      // A failed checkpoint must never interrupt the live answer.
     }
   }
 
@@ -1254,7 +1272,9 @@ export default function ChatPage() {
     liveToolDepth = 0,
     responseContinuationDepth = 0,
     webResearchToken?: string,
-    nativeToolToken?: string
+    nativeToolToken?: string,
+    responseRecoveryDepth = 0,
+    persistedMessageId?: string
   ) {
     const effectiveModel = override
       ? override.modelId
@@ -1272,7 +1292,7 @@ export default function ChatPage() {
 
     // Live "Summary" steps for this reply. Each request of a reply (the first
     // one and any automatic continuation) owns the steps under its own prefix.
-    const progressPrefix = `r${liveToolDepth}.${responseContinuationDepth}:`;
+    const progressPrefix = `r${liveToolDepth}.${responseContinuationDepth}.retry${responseRecoveryDepth}:`;
     const keepPreSteps = progressSeededRef.current === assistantId;
     if (keepPreSteps) progressSeededRef.current = null;
     const progressLanguage = detectProgressLanguage(
@@ -1295,6 +1315,61 @@ export default function ChatPage() {
         liveToolDepth === 0 && responseContinuationDepth === 0 && !keepPreSteps
       )
     );
+
+    let durableMessageId = persistedMessageId;
+    let lastCheckpointAt = Date.now();
+
+    const persistAssistantContent = async (content: string) => {
+      if (!chatId || !content) return;
+      const progress = progressByMessageRef.current.get(assistantId);
+      if (durableMessageId) {
+        await updateSavedMessage(chatId, durableMessageId, content, persistedModelId, progress);
+      } else {
+        durableMessageId = await saveMessage(chatId, "assistant", content, persistedModelId, progress);
+      }
+    };
+
+    const recoverInterruptedResponse = async (): Promise<boolean> => {
+      if (
+        !canRecoverInterruptedResponse(responseRecoveryDepth) ||
+        controller.signal.aborted ||
+        liveToolDepth > 0 ||
+        Boolean(webResearchToken) ||
+        Boolean(nativeToolToken)
+      ) return false;
+
+      const partial = stripRawToolCallText(stripWikipediaChatMarkers(accumulated)).trim();
+      const recoveryContext: ChatMessage[] = partial
+        ? [
+            ...conversationSoFar,
+            { id: `partial-recovery-${assistantId}-${responseRecoveryDepth}`, role: "assistant", content: partial },
+            {
+              id: `continue-recovery-${assistantId}-${responseRecoveryDepth}`,
+              role: "user",
+              content: "Your previous response was interrupted by a temporary connection or server timeout. Continue exactly from the last completed sentence. Do not repeat earlier content, and complete the original request.",
+            },
+          ]
+        : conversationSoFar;
+
+      await persistAssistantContent(accumulated);
+      await new Promise((resolve) => setTimeout(resolve, 400 * (responseRecoveryDepth + 1)));
+      await streamResponse(
+        chatId,
+        recoveryContext,
+        assistantId,
+        override,
+        uploadedImages,
+        controller,
+        accumulated,
+        liveToolDepth,
+        responseContinuationDepth,
+        undefined,
+        undefined,
+        responseRecoveryDepth + 1,
+        durableMessageId
+      );
+      return true;
+    };
 
     try {
       // authenticatedFetch attaches the signed-in user's Supabase access token
@@ -1323,7 +1398,7 @@ export default function ChatPage() {
           // still verifies it against this user's connected account before use.
           supabaseProjectId: typeof window !== "undefined" ? window.localStorage.getItem("kyvorix:supabaseProjectId") : null,
           uploadedImages,
-          isAutomaticContinuation: responseContinuationDepth > 0,
+          isAutomaticContinuation: responseContinuationDepth > 0 || responseRecoveryDepth > 0,
           messages: conversationSoFar.map((m) => ({ role: m.role, content: m.content })),
           persona: activePersona,
           webResearchToken,
@@ -1340,6 +1415,10 @@ export default function ChatPage() {
         updateProgress(assistantId, (previous) => withoutLocalSendStep(previous));
         const errData = await res.json().catch(() => null);
 
+        if (isRecoverableResponseStatus(res.status) && await recoverInterruptedResponse()) {
+          return;
+        }
+
         if (res.status === 429) {
           // Keep the active Craft task in place when its token allowance ends.
           // It must never be silently retried with another model because that
@@ -1355,36 +1434,31 @@ export default function ChatPage() {
                 m.id === assistantId ? { ...m, content: pausedMessage } : m
               )
             );
-            if (chatId) {
-              await saveMessage(chatId, "assistant", pausedMessage, persistedModelId);
-            }
+            await persistAssistantContent(pausedMessage);
             setIsStreaming(false);
             return;
           }
 
+          const limitMessage = errData?.message ?? "You've reached today's message limit. Come back tomorrow, or upgrade for unlimited access.";
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? {
-                    ...m,
-                    content:
-                      errData?.message ??
-                      "You've reached today's message limit. Come back tomorrow, or upgrade for unlimited access.",
-                  }
-                : m
-            )
+            prev.map((m) => m.id === assistantId ? { ...m, content: limitMessage } : m)
           );
+          await persistAssistantContent(limitMessage);
           setIsStreaming(false);
           return;
         }
 
         // Upstream provider error (502, 500, etc.) — show friendly message
         const friendlyMsg = errData?.message ?? "Something went wrong reaching KYVORIX. Please try again.";
+        const finalContent = accumulated.trim()
+          ? `${accumulated.trim()}\n\n---\n\n⚠️ The response was interrupted before completion. Your partial answer has been saved.\n\n${friendlyMsg}`
+          : friendlyMsg;
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: friendlyMsg, generationState: "failed" } : m
+            m.id === assistantId ? { ...m, content: finalContent, generationState: "failed" } : m
           )
         );
+        await persistAssistantContent(finalContent);
         setIsStreaming(false);
         return;
       }
@@ -1433,6 +1507,7 @@ export default function ChatPage() {
       let progressMarkerBuffer = "";
       let summaryMarkerBuffer = "";
       let needsAutomaticContinuation = false;
+      let lastCheckpointLength = accumulated.length;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1464,6 +1539,36 @@ export default function ChatPage() {
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
+
+        // Persist only after the first real text arrives, avoiding empty assistant rows.
+        if (chatId && !durableMessageId && accumulated.trim()) {
+          durableMessageId = await saveMessage(
+            chatId,
+            "assistant",
+            accumulated,
+            persistedModelId,
+            progressByMessageRef.current.get(assistantId)
+          );
+          lastCheckpointAt = Date.now();
+          lastCheckpointLength = accumulated.length;
+        }
+
+        if (
+          chatId &&
+          durableMessageId &&
+          accumulated.length > lastCheckpointLength &&
+          Date.now() - lastCheckpointAt >= 10_000
+        ) {
+          await updateSavedMessage(
+            chatId,
+            durableMessageId,
+            accumulated,
+            persistedModelId,
+            progressByMessageRef.current.get(assistantId)
+          );
+          lastCheckpointAt = Date.now();
+          lastCheckpointLength = accumulated.length;
+        }
       }
 
       // Text held back only because it might have been the start of a marker
@@ -1519,6 +1624,10 @@ export default function ChatPage() {
           accumulated,
           liveToolDepth,
           responseContinuationDepth + 1,
+          undefined,
+          undefined,
+          responseRecoveryDepth,
+          durableMessageId
         );
       }
 
@@ -1562,7 +1671,12 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           verifiedTool.card,
-          liveToolDepth + 1
+          liveToolDepth + 1,
+          responseContinuationDepth,
+          undefined,
+          undefined,
+          responseRecoveryDepth,
+          durableMessageId
         );
       }
 
@@ -1594,28 +1708,42 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           verifiedTool.card,
-          liveToolDepth + 1
+          liveToolDepth + 1,
+          responseContinuationDepth,
+          undefined,
+          undefined,
+          responseRecoveryDepth,
+          durableMessageId
         );
       }
 
       if (chatId && accumulated) {
-        saveMessage(chatId, "assistant", accumulated, persistedModelId, progressByMessageRef.current.get(assistantId));
+        await persistAssistantContent(accumulated);
       }
-    } catch {
+    } catch (error) {
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (
           m.id === assistantId ? { ...m, generationState: "stopped" } : m
         )));
-        if (chatId && accumulated) saveMessage(chatId, "assistant", accumulated, persistedModelId, progressByMessageRef.current.get(assistantId));
+        await persistAssistantContent(accumulated);
         return;
       }
+
+      if (isRecoverableStreamError(error) && await recoverInterruptedResponse()) {
+        return;
+      }
+
+      const failureContent = accumulated.trim()
+        ? `${accumulated.trim()}\n\n---\n\n⚠️ The response was interrupted before completion. Your partial answer has been saved.`
+        : "Something went wrong reaching KYVORIX. Please try again.";
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: accumulated || "Something went wrong reaching KYVORIX. Please try again.", generationState: "failed" }
+            ? { ...m, content: failureContent, generationState: "failed" }
             : m
         )
       );
+      await persistAssistantContent(failureContent);
     } finally {
       if (responseContinuationDepth === 0) finishStreamingTurn(assistantId);
     }
