@@ -1700,7 +1700,12 @@ export default function ChatPage() {
           uploadedImages,
           controller,
           verifiedTool.card,
-          liveToolDepth + 1
+          liveToolDepth + 1,
+          responseContinuationDepth,
+          undefined,
+          undefined,
+          responseRecoveryDepth,
+          durableMessageId
         );
       }
 
