@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:auth-onboarding && npm run test:profile-sidebar && npm run test:native-tools && npm run test:web-research && npm run test:github-action-cards && npm run test:action-engine && npm run test:phase-d && npm run test:live-progress && npm run test:response-completion && npm run test:web-browse && npm run test:github-context && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
+    "build": "npm run test:auth-onboarding && npm run test:profile-sidebar && npm run test:context-bridge && npm run test:native-tools && npm run test:web-research && npm run test:github-action-cards && npm run test:action-engine && npm run test:phase-d && npm run test:live-progress && npm run test:response-completion && npm run test:web-browse && npm run test:github-context && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
     "start": "next start",
     "lint": "eslint .",
     "test:auth-onboarding": "rm -rf .tmp-auth-onboarding-test && tsc scripts/verify-auth-onboarding.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-auth-onboarding-test && node .tmp-auth-onboarding-test/verify-auth-onboarding.js",
@@ -30,7 +30,8 @@
     "test:browser-extension": "node scripts/verify-browser-extension.mjs && node --check browser-extension/popup.js && node --check browser-extension/content.js",
     "test:github-action-cards": "rm -rf .tmp-github-action-cards-test && tsc lib/githubActionParser.ts scripts/verify-github-action-cards.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-github-action-cards-test && node .tmp-github-action-cards-test/scripts/verify-github-action-cards.js",
     "test:action-engine": "rm -rf .tmp-action-engine-test && tsc lib/actionEngine.ts scripts/verify-action-engine.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-action-engine-test && node .tmp-action-engine-test/scripts/verify-action-engine.js",
-    "test:profile-sidebar": "rm -rf .tmp-profile-sidebar-test && tsc scripts/verify-profile-sidebar.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-profile-sidebar-test && node .tmp-profile-sidebar-test/verify-profile-sidebar.js"
+    "test:profile-sidebar": "rm -rf .tmp-profile-sidebar-test && tsc scripts/verify-profile-sidebar.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-profile-sidebar-test && node .tmp-profile-sidebar-test/verify-profile-sidebar.js",
+    "test:context-bridge": "rm -rf .tmp-context-bridge-test && tsc lib/contextBridge.ts scripts/verify-context-bridge.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-context-bridge-test && node .tmp-context-bridge-test/scripts/verify-context-bridge.js"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
