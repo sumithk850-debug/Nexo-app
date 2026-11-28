@@ -76,15 +76,16 @@ assert(CODER_MODELS.find((model) => model.id === "craft-v3")?.locked === true, "
 assert(CODER_MODELS.find((model) => model.id === "craft-v4")?.locked === true, "Paid Craft V4 must remain locked");
 
 const chatRoute = readFileSync("app/api/chat/route.ts", "utf8");
+const chatRouting = readFileSync("lib/chatRouting.ts", "utf8");
 const chatPage = readFileSync("app/page.tsx", "utf8");
 assert(chatRoute.includes('const groqApiKey = process.env.GROQ_API_KEY'), "Brainex must read the Groq key only from server-side environment variables");
 assert(chatRoute.includes('reasoning_effort: "high"'), "Brainex must use high reasoning effort on Groq");
 assert(chatRoute.includes('{ type: "browser_search" }') && chatRoute.includes('{ type: "code_interpreter" }'), "Brainex must enable Groq built-in browser search and code execution");
 assert(chatRoute.includes("requestedLockedCoderModel"), "Server must enforce the paid Craft model lock");
-assert(chatRoute.includes('coderModel === "craft-v3" || coderModel === "craft-v4"'), "Both paid Coder variants must be locked server-side");
-assert(chatRoute.includes('!isCoderMode && modelId === "craft-v3"'), "The public Craft V3 profile must remain paid-gated");
+assert(chatRouting.includes('coderModel === "craft-v3" || coderModel === "craft-v4"'), "Both paid Coder variants must be locked server-side");
+assert(chatRouting.includes('!isCoderMode && input.modelId === "craft-v3"'), "The public Craft V3 profile must remain paid-gated");
 assert(chatRoute.includes("This Craft model is locked until the Kyvorix Pro plan is available."), "Paid-model response must explain the Pro requirement");
-assert(chatRoute.includes('coderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated prompt route");
+assert(chatRouting.includes('coderModel === "craft-v3-lite"'), "Craft V3 Lite must use its dedicated Coder Agent route");
 assert(chatRoute.includes('activeCoderModel === "craft-v5"'), "Craft V5 selection must remain explicit and server-side");
 assert(chatRoute.includes("Math.min(1_000, estimateTokens(lastUserMessage?.content ?? \"\") + 512)"), "Craft V5 reservation must fit the 1,000-token daily allowance");
 assert(chatPage.includes("proposalId: proposalData.proposalId"), "GitHub writes must continue through the server-approved proposal flow");
