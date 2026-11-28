@@ -53,7 +53,7 @@ export function selectRelevantKnowledgeEntries(
 
 function safeText(value: unknown, maxLength: number): string {
   return typeof value === "string"
-    ? value.replace(/\u0000/g, "").replace(/[\r\t]+/g, " ").trim().slice(0, maxLength)
+    ? value.replace(/\u0000/g, "").replace(/[\r\n\t]+/g, " ").replace(/={3,}/g, "---").trim().slice(0, maxLength)
     : "";
 }
 
