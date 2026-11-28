@@ -35,7 +35,7 @@ const messagesRouteSource = readFileSync("app/api/chats/[id]/messages/route.ts",
 assert.match(messagesRouteSource, /export async function PATCH/, "owned assistant messages must support safe checkpoint updates");
 
 const chatRouteSource = readFileSync("app/api/chat/route.ts", "utf8");
-assert.match(chatRouteSource, /finish_reason\s*===\s*"length"/, "server must detect an output-limited response");
+assert.match(chatRouteSource, /providerFinishReason\s*===\s*"length"/, "server must detect an output-limited response");
 assert.match(chatRouteSource, /RESPONSE_CONTINUATION_MARKER/, "server must signal output continuation without truncating text");
 
 const pageSource = readFileSync("app/page.tsx", "utf8");
