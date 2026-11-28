@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { resolveChatRouting } from "../lib/chatRouting";
+const regular = resolveChatRouting({ modelId: "craft-v3", isCoderMode: false, coderModel: "craft-v3-lite" });
+assert.ok(regular);
+assert.equal(regular.isCoderMode, false);
+assert.equal(regular.requestedLockedCoderModel, true, "regular Craft V3 paid lock must remain active");
+assert.equal(regular.explicitlyUnlockedLite, false, "Lite must not unlock regular Craft V3");
+const lite = resolveChatRouting({ modelId: "craft-v3", isCoderMode: true, coderModel: "craft-v3-lite" });
+assert.ok(lite);
+assert.equal(lite.explicitlyUnlockedLite, true, "Lite remains available in Coder Agent");
+assert.equal(lite.requestedLockedCoderModel, false);
+assert.equal(lite.usesCoderBudget, true);
+assert.equal(resolveChatRouting({ modelId: "craft-v3", isCoderMode: true, coderModel: "craft-v3" })?.requestedLockedCoderModel, true);
+assert.equal(resolveChatRouting({ modelId: "craft-v3", isCoderMode: true, coderModel: "craft-v5" })?.usesCoderBudget, false);
+assert.equal(resolveChatRouting({ modelId: "craft-v3", isCoderMode: true, coderModel: "unknown" }), null);
+assert.equal(resolveChatRouting({ modelId: "nexio-1.1", isCoderMode: "true", coderModel: "craft-v3-lite" })?.isCoderMode, false);
+console.log("Chat routing checks passed.");

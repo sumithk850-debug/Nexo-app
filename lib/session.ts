@@ -10,9 +10,13 @@ export function getSessionId(): string {
   if (typeof window === "undefined") return "";
 
   let sessionId = localStorage.getItem(SESSION_KEY);
-  if (!sessionId) {
+  const isCanonicalUuidV4 =
+    typeof sessionId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId);
+
+  if (!isCanonicalUuidV4) {
     sessionId = crypto.randomUUID();
     localStorage.setItem(SESSION_KEY, sessionId);
   }
-  return sessionId;
+  return sessionId!;
 }

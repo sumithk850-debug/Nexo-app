@@ -60,7 +60,23 @@ export async function resolveLiveProgressResponse(
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) return interruptedResponse();
+    if (done) {
+      // Flush buffered UTF-8 bytes before deciding the protocol envelope is missing.
+      rest += decoder.decode();
+      const finalChunk = consumeProgressMarkers(rest);
+      for (const snapshot of finalChunk.snapshots) handlers.onProgress?.(snapshot);
+      rest = finalChunk.content + finalChunk.pending;
+      const open = rest.indexOf(ENVELOPE_OPEN);
+      const close = open >= 0 ? rest.indexOf(ENVELOPE_CLOSE, open) : -1;
+      if (open >= 0 && close >= 0) {
+        const envelope = parseEnvelope(rest.slice(open + ENVELOPE_OPEN.length, close));
+        if (envelope) {
+          const leftover = rest.slice(close + ENVELOPE_CLOSE.length);
+          return new Response(envelope.body ?? leftover, { status: envelope.status, headers: new Headers(envelope.headers) });
+        }
+      }
+      return interruptedResponse();
+    }
 
     const consumed = consumeProgressMarkers(rest + decoder.decode(value, { stream: true }));
     for (const snapshot of consumed.snapshots) handlers.onProgress?.(snapshot);

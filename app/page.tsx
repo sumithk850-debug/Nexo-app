@@ -1281,9 +1281,9 @@ export default function ChatPage() {
       : isCoderMode
       ? "craft-v3"
       : selectedModel;
-    const effectiveCoder = Boolean(
-      (override ? override.isCoder : isCoderMode) || effectiveModel === "craft-v3"
-    );
+    // Only explicit Coder Agent mode may activate a Coder sub-model.
+    // Regular Craft V3 selection must never inherit the stored Lite profile.
+    const effectiveCoder = Boolean(override ? override.isCoder : isCoderMode);
     // Keep the selected Coder sub-model in history while the public modelId
     // remains the profile used for the server routing request.
     const persistedModelId = effectiveCoder ? (coderModel || "craft-v3") : effectiveModel;
@@ -1318,6 +1318,7 @@ export default function ChatPage() {
 
     let durableMessageId = persistedMessageId;
     let lastCheckpointAt = Date.now();
+    let responseBodyCompleted = false;
 
     const persistAssistantContent = async (content: string) => {
       if (!chatId || !content) return;
@@ -1511,7 +1512,10 @@ export default function ChatPage() {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          responseBodyCompleted = true;
+          break;
+        }
         const streamedText = decoder.decode(value, { stream: true });
         const progressMarker = consumeProgressMarkers(progressMarkerBuffer + streamedText);
         progressMarkerBuffer = progressMarker.pending;
@@ -1721,6 +1725,17 @@ export default function ChatPage() {
         await persistAssistantContent(accumulated);
       }
     } catch (error) {
+      // A normally completed body must not be replayed or mislabeled because
+      // a later local presentation/persistence step failed.
+      if (responseBodyCompleted) {
+        const completedContent = stripRawToolCallText(stripWikipediaChatMarkers(accumulated));
+        setMessages((prev) => prev.map((m) => (
+          m.id === assistantId ? { ...m, content: completedContent } : m
+        )));
+        await persistAssistantContent(completedContent);
+        return;
+      }
+
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (
           m.id === assistantId ? { ...m, generationState: "stopped" } : m

@@ -16,7 +16,7 @@ export function isRecoverableResponseStatus(status: number): boolean {
 export function isRecoverableStreamError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   if (["TypeError", "NetworkError", "TimeoutError"].includes(error.name)) return true;
-  return /network|fetch|stream|connection|timeout|terminated|unexpected end|no response stream/i.test(error.message);
+  return /network|fetch|stream|connection|timeout|terminated|unexpected end|no response stream|upstream_stream_ended_early/i.test(error.message);
 }
 
 export function consumeResponseContinuationMarker(text: string): {

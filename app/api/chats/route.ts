@@ -1,12 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
+import { isValidSessionId } from "@/lib/sessionValidation";
 
 export const runtime = "nodejs";
-
-function isValidSessionId(value: unknown): value is string {
-  return typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
 
 function jsonError(error: string, status: number) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });

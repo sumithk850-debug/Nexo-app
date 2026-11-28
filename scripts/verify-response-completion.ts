@@ -35,7 +35,7 @@ const messagesRouteSource = readFileSync("app/api/chats/[id]/messages/route.ts",
 assert.match(messagesRouteSource, /export async function PATCH/, "owned assistant messages must support safe checkpoint updates");
 
 const chatRouteSource = readFileSync("app/api/chat/route.ts", "utf8");
-assert.match(chatRouteSource, /finish_reason\s*===\s*"length"/, "server must detect an output-limited response");
+assert.match(chatRouteSource, /providerFinishReason\s*===\s*"length"/, "server must detect an output-limited response");
 assert.match(chatRouteSource, /RESPONSE_CONTINUATION_MARKER/, "server must signal output continuation without truncating text");
 
 const pageSource = readFileSync("app/page.tsx", "utf8");
@@ -46,3 +46,11 @@ assert.match(pageSource, /updateSavedMessage/, "continuation requests must updat
 assert.doesNotMatch(pageSource, /The provider ended before it returned the file findings/, "client must not fabricate partial repository summaries");
 
 console.log("Repository-read retry and response-completion checks passed.");
+
+const routingPageSource = readFileSync("app/page.tsx", "utf8");
+assert.match(routingPageSource, /const effectiveCoder = Boolean\(override \? override\.isCoder : isCoderMode\)/);
+assert.match(routingPageSource, /responseBodyCompleted = true/);
+assert.match(routingPageSource, /if \(responseBodyCompleted\)/);
+const serverRouteSource = readFileSync("app/api/chat/route.ts", "utf8");
+assert.match(serverRouteSource, /resolveChatRouting\(/);
+assert.match(serverRouteSource, /UPSTREAM_STREAM_ENDED_EARLY/);
