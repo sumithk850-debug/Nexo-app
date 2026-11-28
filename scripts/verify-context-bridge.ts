@@ -22,7 +22,7 @@ assert(tokenizeContextQuery("KYVORIX recovery ගැන") .includes("kyvorix"), 
 assert(tokenizeContextQuery("KYVORIX recovery ගැන").includes("recovery"), "Mixed Sinhala-English queries should tokenize.");
 assert(scoreKnowledgeEntry("response recovery", entries[0]) > scoreKnowledgeEntry("response recovery", entries[1]), "Relevant entries should score higher.");
 assert(selectRelevantKnowledgeEntries("dark cyan gold UI", entries)[0]?.id === "2", "Tag/title matching should prioritize the relevant entry.");
-assert(selectRelevantKnowledgeEntries("unrelated astronomy subject", entries).length === 0, "Irrelevant notes must not be injected.");
+assert(selectRelevantKnowledgeEntries("quasar nebula telescope", entries).length === 0, "Irrelevant notes must not be injected.");
 assert(selectRelevantKnowledgeEntries("KYVORIX recovery", entries).length <= 4, "Retrieval must remain bounded.");
 assert(selectRelevantKnowledgeEntries("", entries).length === 0, "Empty queries must not retrieve notes.");
 
