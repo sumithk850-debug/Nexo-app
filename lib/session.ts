@@ -18,5 +18,5 @@ export function getSessionId(): string {
     sessionId = crypto.randomUUID();
     localStorage.setItem(SESSION_KEY, sessionId);
   }
-  return sessionId;
+  return sessionId!;
 }
