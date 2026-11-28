@@ -46,3 +46,11 @@ assert.match(pageSource, /updateSavedMessage/, "continuation requests must updat
 assert.doesNotMatch(pageSource, /The provider ended before it returned the file findings/, "client must not fabricate partial repository summaries");
 
 console.log("Repository-read retry and response-completion checks passed.");
+
+const routingPageSource = readFileSync("app/page.tsx", "utf8");
+assert.match(routingPageSource, /const effectiveCoder = Boolean\(override \? override\.isCoder : isCoderMode\)/);
+assert.match(routingPageSource, /responseBodyCompleted = true/);
+assert.match(routingPageSource, /if \(responseBodyCompleted\)/);
+const serverRouteSource = readFileSync("app/api/chat/route.ts", "utf8");
+assert.match(serverRouteSource, /resolveChatRouting\(/);
+assert.match(serverRouteSource, /UPSTREAM_STREAM_ENDED_EARLY/);

@@ -39,3 +39,9 @@ assert.match(migration, /create policy "Public can read announcements"/i);
 assert.doesNotMatch(migration, /create policy "Allow all access to (chats|messages|rate_limits|announcements)"/i);
 
 console.log("Supabase RLS hardening source checks passed.");
+
+const sessionValidation = read("../lib/sessionValidation.ts");
+assert.match(sessionValidation, /-4\\[0-9a-f\\]\\{3\\}/i, "server chat APIs must share UUIDv4-only session validation");
+for (const route of [chats, messages, chatApi, usage]) {
+  assert.match(route, /sessionValidation|isValidSessionId/, "chat and usage routes must validate the same session token format");
+}

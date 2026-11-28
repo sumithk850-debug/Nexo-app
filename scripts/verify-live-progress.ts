@@ -244,7 +244,27 @@ async function main() {
     assert.ok(final.steps.every((step) => step.status === "done"), "Everything is done at the end");
   }
 
-  // 5c. Non-streaming results (JSON errors) keep their status and body.
+  // 5c. Flush final UTF-8 bytes before classifying an envelope at EOF.
+  {
+    const envelope = "<kyvorix-http>" + JSON.stringify({
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      body: "අවසන් පිළිතුර ✓",
+    }) + "</kyvorix-http>";
+    const bytes = encoder.encode(envelope);
+    const result = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, bytes.length - 1));
+        controller.enqueue(bytes.slice(bytes.length - 1));
+        controller.close();
+      },
+    }), { headers: { [CLIENT_RESPONSE_HEADER]: "1" } });
+    const resolved = await resolveLiveProgressResponse(result);
+    assert.equal(resolved.status, 200);
+    assert.equal(await resolved.text(), "අවසන් පිළිතුර ✓");
+  }
+
+  // 5d. Non-streaming results (JSON errors) keep their status and body.
   {
     const result = await withLiveProgress(liveRequest(), async (tracker) => {
       tracker.start("read");

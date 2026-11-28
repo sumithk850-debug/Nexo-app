@@ -3,15 +3,15 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin.server";
 import {
   PROVIDER_CONFIG,
-  CODER_MODELS,
   CODER_PROMPT_OVERRIDES,
 } from "@/lib/providers.server";
-import type { CoderModelId } from "@/lib/providers.server";
 import { readUrlsFromText, captureScreenshotsFromText } from "@/lib/urlReader.server";
 import { buildGithubContext } from "@/lib/githubContext.server";
 import { buildGithubMemoryContext } from "@/lib/githubMemory.server";
 import { buildProjectBrainContext } from "@/lib/developmentIntelligence.server";
 import type { NexoModelId } from "@/lib/models";
+import { resolveChatRouting } from "@/lib/chatRouting";
+import { isValidSessionId } from "@/lib/sessionValidation";
 import { deriveSupabaseReadIntent } from "@/lib/supabaseReadIntent";
 import { getBearerToken, requireVerifiedUser } from "@/lib/requestAuth.server";
 import {
@@ -240,10 +240,6 @@ const MODEL_TOKEN_LIMITS: Partial<Record<NexoModelId, number>> = {
 
 const GEMINI_VISION_MODEL = "gemini-2.5-flash";
 const VISION_FALLBACK_MODEL = "google/gemma-4-31b-it:free";
-
-function isValidSessionId(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
 
 function getSupabase(userAccessToken?: string) {
   return createClient(
@@ -589,12 +585,19 @@ async function handleChatRequest(req: NextRequest, progress: ProgressTrackerLike
         : "";
 
     const githubEnabled = body.githubEnabled !== false;
-    const isCoderMode = body.isCoderMode as boolean | undefined;
+    const routing = resolveChatRouting({
+      modelId,
+      isCoderMode: body.isCoderMode,
+      coderModel: body.coderModel,
+    });
+    if (!routing) {
+      return Response.json({ error: "invalid_coder_model", message: "The selected Coder model is not available." }, { status: 400 });
+    }
+    const {
+      isCoderMode, coderModel, requestedCraftV5, requestedLockedCoderModel,
+      activeCoderModel, usesCoderBudget,
+    } = routing;
     const activePersona = body.persona as string | undefined;
-
-    const coderModel = body.coderModel as string | undefined;
-
-    const requestedCraftV5 = isCoderMode && coderModel === "craft-v5";
     if (requestedCraftV5) {
       if (!userId) {
         return Response.json({ error: "craft_v5_auth_required", message: "Sign in is required to start the Craft V5 trial." }, { status: 401 });
@@ -608,11 +611,6 @@ async function handleChatRequest(req: NextRequest, progress: ProgressTrackerLike
         return Response.json({ error: "craft_v5_activation_required", message: "Activate Craft V5 once to unlock its daily 1,000-token allowance." }, { status: 403 });
       }
     }
-    const requestedLockedCoderModel =
-      (isCoderMode &&
-        (coderModel === "craft-v3" || coderModel === "craft-v4")) ||
-      (!isCoderMode && modelId === "craft-v3");
-
     if (requestedLockedCoderModel) {
       return new Response(
         JSON.stringify({
@@ -629,14 +627,6 @@ async function handleChatRequest(req: NextRequest, progress: ProgressTrackerLike
         }
       );
     }
-
-    const explicitlyUnlockedLite = isCoderMode && coderModel === "craft-v3-lite";
-    const explicitlyUnlockedV5 = requestedCraftV5;
-    const activeCoderModel: CoderModelId = explicitlyUnlockedV5
-      ? "craft-v5"
-      : explicitlyUnlockedLite
-        ? "craft-v3-lite"
-        : CODER_MODELS[0].id;
 
     const lastUserMessage = [...messages]
       .reverse()
@@ -658,10 +648,6 @@ async function handleChatRequest(req: NextRequest, progress: ProgressTrackerLike
       typeof body.researchTopic === "string"
         ? body.researchTopic.trim().slice(0, 1000)
         : "";
-
-    const usesCoderBudget = Boolean(
-      (isCoderMode || modelId === "craft-v3") && !requestedCraftV5
-    );
 
     let coderRemainingTokens: number | undefined;
 

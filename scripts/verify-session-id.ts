@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { isValidSessionId } from "../lib/sessionValidation";
+assert.equal(isValidSessionId("123e4567-e89b-42d3-a456-426614174000"), true);
+assert.equal(isValidSessionId("123e4567-e89b-12d3-a456-426614174000"), false, "UUIDv1 is not accepted");
+assert.equal(isValidSessionId("not-a-session"), false);
+const source = readFileSync("lib/session.ts", "utf8");
+assert.match(source, /crypto\\.randomUUID\\(\\)/);
+assert.match(source, /-4\\[0-9a-f\\]\\{3\\}/i);
+assert.match(source, /if \\(!isCanonicalUuidV4\\)/);
+console.log("Session identity checks passed.");
