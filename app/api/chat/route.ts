@@ -1575,6 +1575,8 @@ Structure your review with clear sections and use code examples where helpful.`;
         let usageRecorded = false;
         let needsContinuation = false;
         let continuationSent = false;
+        let sawDoneSignal = false;
+        let sawProviderFinish = false;
 
         const persistTokenUsage = async () => {
           if (
@@ -1665,6 +1667,7 @@ Structure your review with clear sections and use code examples where helpful.`;
                 trimmed.slice(5).trim();
 
               if (data === "[DONE]") {
+                sawDoneSignal = true;
                 if (
                   needsContinuation &&
                   !continuationSent
@@ -1719,18 +1722,19 @@ Structure your review with clear sections and use code examples where helpful.`;
                     : json.choices?.[0]
                         ?.delta?.content;
 
+                const providerFinishReason =
+                  activeProvider === "gemini"
+                    ? json.candidates?.[0]?.finishReason
+                    : json.choices?.[0]?.finish_reason;
+                if (typeof providerFinishReason === "string" && providerFinishReason.length > 0) {
+                  sawProviderFinish = true;
+                }
                 if (
-                  activeProvider ===
-                  "gemini"
-                    ? json.candidates?.[0]
-                        ?.finishReason ===
-                      "MAX_TOKENS"
-                    : json.choices?.[0]
-                        ?.finish_reason ===
-                      "length"
+                  activeProvider === "gemini"
+                    ? providerFinishReason === "MAX_TOKENS"
+                    : providerFinishReason === "length"
                 ) {
-                  needsContinuation =
-                    true;
+                  needsContinuation = true;
                 }
 
                 if (delta) {
@@ -1746,6 +1750,10 @@ Structure your review with clear sections and use code examples where helpful.`;
                 // Ignore malformed keep-alive lines.
               }
             }
+          }
+
+          if (!sawDoneSignal && !sawProviderFinish) {
+            throw new Error("UPSTREAM_STREAM_ENDED_EARLY");
           }
 
           if (
