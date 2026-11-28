@@ -80,6 +80,8 @@ export function verifyToolResult(toolName: string, result: unknown): ToolVerific
     wikipedia_search: () => Array.isArray(result.results),
     github_read_file: () => typeof result.repository === "string" && typeof result.path === "string" && typeof result.content === "string",
     github_list_files: () => typeof result.repository === "string" && Array.isArray(result.files),
+    github_public_repo: () => typeof result.repository === "string" && (result.kind === "overview" || result.kind === "directory" || result.kind === "file"),
+    github_search_repositories: () => typeof result.query === "string" && Array.isArray(result.repositories),
     supabase_list_projects: () => Array.isArray(result.projects),
     supabase_list_tables: () => isRecord(result.project) && Array.isArray(result.tables),
     supabase_describe_table: () => isRecord(result.project) && typeof result.table === "string" && Array.isArray(result.columns),

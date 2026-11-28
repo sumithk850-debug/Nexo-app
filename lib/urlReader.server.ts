@@ -248,6 +248,10 @@ export interface PageRead {
   error?: string;
 }
 
+export async function readPublicPage(url: string): Promise<PageRead> {
+  return readSinglePage(url);
+}
+
 async function readSinglePage(url: string): Promise<PageRead> {
   if (!(await isSafeUrl(url))) {
     return { url, ok: false, error: "URL is not a readable public http(s) address." };

@@ -77,6 +77,7 @@ import {
   type ProgressStep,
 } from "@/lib/progressSteps";
 import { LIVE_PROGRESS_REQUEST_HEADER, resolveLiveProgressResponse } from "@/lib/liveProgress";
+import { stripRawToolCallText } from "@/lib/toolTextGuard";
 import { shouldUseWebResearchIntent } from "@/lib/webResearchIntent";
 import { Settings, Code2, Sparkles, Zap, Plus, Search, Layers, Briefcase, Database, Layout, Menu, BarChart3, Brain, FileText, Loader2, PenTool } from "lucide-react";
 
@@ -1455,7 +1456,11 @@ export default function ChatPage() {
         needsAutomaticContinuation ||= marker.shouldContinue;
         accumulated += marker.content;
         recordStreamText(marker.content);
-        const displayContent = stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
+        // A tool call is shown as a card; its raw syntax must never appear in the reply.
+        const displayContent = stripRawToolCallText(
+          stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths)),
+          { streaming: true }
+        );
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: displayContent } : m))
         );
@@ -1470,7 +1475,10 @@ export default function ChatPage() {
       if (progressMarkerBuffer && !progressMarkerBuffer.startsWith("<kyvorix-progress>")) {
         accumulated += progressMarkerBuffer;
         progressMarkerBuffer = "";
-        const flushedContent = stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
+        const flushedContent = stripRawToolCallText(
+          stripWikipediaChatMarkers(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths)),
+          { streaming: true }
+        );
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: flushedContent } : m))
         );
@@ -1479,7 +1487,10 @@ export default function ChatPage() {
       const completedMarker = consumeResponseContinuationMarker(accumulated);
       needsAutomaticContinuation ||= completedMarker.shouldContinue;
       accumulated = completedMarker.content;
-      accumulated = normalizeRepositoryReadClaims(accumulated, verifiedReadPaths);
+      accumulated = stripRawToolCallText(normalizeRepositoryReadClaims(accumulated, verifiedReadPaths));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId && m.content !== accumulated ? { ...m, content: accumulated } : m))
+      );
       if (actionEvents.length > 0) {
         setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, actionEvents } : m));
       }

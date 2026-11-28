@@ -4,6 +4,8 @@ const TOOL_LABELS: Record<string, string> = {
   web_fetch_url: "Web page",
   tavily_web_research: "Web research · Tavily",
   wikipedia_search: "Wikipedia search",
+  github_search_repositories: "GitHub repository search",
+  github_public_repo: "GitHub public repository",
   github_list_files: "GitHub list files",
   github_read_file: "GitHub read file",
   supabase_list_projects: "Supabase list projects",
@@ -19,7 +21,7 @@ export function getToolDisplayLabel(operation: string): string {
 }
 
 export function getToolCallLabel(operation: string): string {
-  return `call-tool (${getToolDisplayLabel(operation)})`;
+  return `Tool call · ${getToolDisplayLabel(operation)}`;
 }
 
 export function getActionStatusLabel(phase: ActionPhase): string {

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:auth-onboarding && npm run test:profile-sidebar && npm run test:native-tools && npm run test:web-research && npm run test:github-action-cards && npm run test:action-engine && npm run test:phase-d && npm run test:live-progress && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
+    "build": "npm run test:auth-onboarding && npm run test:profile-sidebar && npm run test:native-tools && npm run test:web-research && npm run test:github-action-cards && npm run test:action-engine && npm run test:phase-d && npm run test:live-progress && npm run test:web-browse && npm run test:durable-missions && npm run test:deep-research && npm run test:browser-extension && next build",
     "start": "next start",
     "lint": "eslint .",
     "test:auth-onboarding": "rm -rf .tmp-auth-onboarding-test && tsc scripts/verify-auth-onboarding.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-auth-onboarding-test && node .tmp-auth-onboarding-test/verify-auth-onboarding.js",
@@ -15,6 +15,7 @@
     "test:deep-research": "rm -rf .tmp-deep-research-test && tsc scripts/verify-deep-research.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-deep-research-test && node .tmp-deep-research-test/verify-deep-research.js",
     "test:native-tools": "rm -rf .tmp-native-tools-test && tsc scripts/verify-native-tool-calling.ts lib/nativeToolParsing.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-native-tools-test && node .tmp-native-tools-test/scripts/verify-native-tool-calling.js",
     "test:web-research": "rm -rf .tmp-web-research-test && tsc scripts/verify-web-research.ts lib/webResearchIntent.ts --rootDir . --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-web-research-test && node .tmp-web-research-test/scripts/verify-web-research.js",
+    "test:web-browse": "rm -rf .tmp-web-browse-test && tsc scripts/verify-web-browse-tools.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-web-browse-test && node .tmp-web-browse-test/scripts/verify-web-browse-tools.js",
     "test:live-progress": "rm -rf .tmp-live-progress-test && tsc scripts/verify-live-progress.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-live-progress-test && node .tmp-live-progress-test/scripts/verify-live-progress.js",
     "test:phase-d": "rm -rf .tmp-phase-d-test && tsc scripts/verify-phase-d-regression.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-phase-d-test && node .tmp-phase-d-test/verify-phase-d-regression.js",
     "test:response-completion": "rm -rf .tmp-response-completion-test && tsc scripts/verify-response-completion.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-response-completion-test && node .tmp-response-completion-test/scripts/verify-response-completion.js",

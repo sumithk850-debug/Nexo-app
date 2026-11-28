@@ -37,7 +37,8 @@ assert.ok(tools.includes("resolveGithubConnectionCredential"), "GitHub tools mus
 assert.ok(tools.includes("SupabaseClient.forUser"), "Supabase tools must use the user's protected connection");
 assert.ok(tools.includes("getVercelConnection"), "Vercel tools must use the user's protected connection");
 assert.ok(tools.includes("getWikipediaEnabled"), "Wikipedia tool must respect the user's integration toggle");
-assert.ok(tools.includes("readUrlsFromText"), "Web fetching must reuse the SSRF-protected page reader");
+// Web fetching reuses the SSRF-protected page reader (readPublicPage is its single-page entry point).
+assert.ok(tools.includes("readPublicPage") && readFileSync("lib/urlReader.server.ts", "utf8").includes("if (!(await isSafeUrl(url)))"), "Web fetching must reuse the SSRF-protected page reader");
 assert.ok(tools.includes("isReadableWebPageResult(content)"), "Web-fetch failures must not be reported as successful reads");
 assert.ok(tools.includes("call.validArguments ? call.args : null"), "Malformed provider arguments must be rejected before execution");
 assert.ok(tools.includes('functionCallingConfig: { mode: executed.length === 0 ? "ANY" : "AUTO" }'), "Gemini must require the initial tool call, then allow a final answer after tool results.");
@@ -60,7 +61,8 @@ assert.ok(route.includes("groqApiKey,"), "Chat route must pass the server-side G
 assert.ok(route.includes("systemPrompt += nativeToolResult.contextBlock"), "Verified tool results must be supplied to final generation");
 assert.ok(route.includes("createToolCallStreamMarker"), "Validated tool calls must emit a live stream marker");
 assert.ok(page.includes("consumeToolCallStreamMarkers"), "The client must consume live tool-call markers");
-assert.ok(display.includes("call-tool ("), "Tool activity must use the compact call-tool display contract");
+assert.ok(display.includes("Tool call · "), "Tool activity must use the readable tool-call title contract");
+assert.ok(!display.includes("call-tool ("), "Tool activity titles must not look like code");
 assert.ok(route.includes("requestedLockedCoderModel") && route.includes("coder_model_locked"), "Paid Craft V3/V4 server lock must remain active");
 assert.ok(route.includes("requireVerifiedUser"), "Protected integration access must require verified auth");
 assert.ok(page.includes("proposalId: proposalData.proposalId"), "GitHub writes must keep the explicit proposal approval flow");
