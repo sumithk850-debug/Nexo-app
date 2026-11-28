@@ -6,6 +6,13 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { resolveGithubConnectionCredential } from "@/lib/githubApp.server";
+import {
+  MAX_AUTO_FILE_CHARS,
+  MAX_AUTO_TOTAL_CHARS,
+  chooseAutoFiles,
+  isRepositoryQuestion,
+  summarizeTree,
+} from "@/lib/githubRepoHeuristics";
 
 const GITHUB_API = "https://api.github.com";
 // A normal application page can exceed 40KB. Preserve a substantially larger
@@ -13,6 +20,7 @@ const GITHUB_API = "https://api.github.com";
 // common case instead of analysing a misleading prefix.
 const MAX_FILE_BYTES = 200_000;
 const MAX_FILES_PER_REQUEST = 4;
+
 const GITHUB_READ_MAX_ATTEMPTS = 4;
 const GITHUB_READ_TIMEOUT_MS = 180_000;
 const GITHUB_RETRY_DELAYS_MS = [1_500, 4_000, 9_000] as const;
@@ -180,8 +188,17 @@ export async function buildGithubContext(
   }
 
   const connection = await getConnection(userId);
-  if (!connection || !connection.selected_repo) {
-    return { connected: !!connection, repoFullName: null, contextBlock: "", fetchedFilePaths: [] };
+  if (!connection) {
+    const contextBlock = isRepositoryQuestion(latestUserMessage)
+      ? "\n\nGITHUB IS NOT CONNECTED for this user. If they ask about their repository or code, tell them plainly to open Integrations → GitHub and connect it (then choose a repository). Do not invent repository contents."
+      : "";
+    return { connected: false, repoFullName: null, contextBlock, fetchedFilePaths: [] };
+  }
+  if (!connection.selected_repo) {
+    const contextBlock = isRepositoryQuestion(latestUserMessage)
+      ? `\n\nGITHUB IS CONNECTED${connection.github_username ? ` (account: ${connection.github_username})` : ""} but NO REPOSITORY IS SELECTED. If the user asks about their repository or code, tell them to open Integrations → GitHub and pick the repository they want you to work on. Do not say GitHub is not connected, and do not invent repository contents.`
+      : "";
+    return { connected: true, repoFullName: null, contextBlock, fetchedFilePaths: [] };
   }
 
   const repoFullName = connection.selected_repo;
@@ -223,7 +240,11 @@ export async function buildGithubContext(
   }
 
   const treePaths = tree.map((entry) => entry.path);
-  const referencedPaths = extractReferencedPaths(latestUserMessage, treePaths);
+  const namedPaths = extractReferencedPaths(latestUserMessage, treePaths);
+  // Nothing named? For a question about the repository, read the key files
+  // ourselves instead of leaving the assistant blind.
+  const autoSelected = namedPaths.length === 0 && isRepositoryQuestion(latestUserMessage);
+  const referencedPaths = autoSelected ? chooseAutoFiles(latestUserMessage, treePaths) : namedPaths;
 
   let fileContentsBlock = "";
   let fetchedFilePaths: string[] = [];
@@ -235,8 +256,21 @@ export async function buildGithubContext(
         content: await fetchFileContent(repoFullName, path, credential.token),
       }))
     );
-    const usableFiles = fetchedFiles.filter((f) => f.content !== null);
+    let usableFiles = fetchedFiles.filter((f) => f.content !== null);
     unreadableFilePaths = fetchedFiles.filter((f) => f.content === null).map((file) => file.path);
+    if (autoSelected) {
+      // Keep automatic reads small enough for the prompt, and never report an
+      // automatic read failure as if the user had asked for that file.
+      unreadableFilePaths = [];
+      let budget = MAX_AUTO_TOTAL_CHARS;
+      usableFiles = usableFiles.flatMap((file) => {
+        if (budget <= 0) return [];
+        const content = (file.content as string).slice(0, Math.min(MAX_AUTO_FILE_CHARS, budget));
+        budget -= content.length;
+        const cut = (file.content as string).length > content.length;
+        return [{ path: file.path, content: cut ? `${content}\n\n... [truncated for this summary read]` : content }];
+      });
+    }
     if (usableFiles.length > 0) {
       fetchedFilePaths = usableFiles.map((file) => file.path);
       fileContentsBlock = usableFiles
@@ -245,10 +279,7 @@ export async function buildGithubContext(
     }
   }
 
-  const treeSummary =
-    treePaths.length > 100
-      ? `${treePaths.slice(0, 100).join("\n")}\n... [${treePaths.length - 100} more files not shown]`
-      : treePaths.join("\n");
+  const treeSummary = summarizeTree(treePaths);
 
   const contextBlock = `
 
@@ -259,10 +290,10 @@ Below is the current file structure of this repository (paths only). Use this as
 ${treeSummary}
 ===== END REPOSITORY STRUCTURE =====${
     fileContentsBlock
-      ? `\n\n===== FETCHED FILE CONTENTS =====\nThe user's message appears to reference the following file(s). Their current real content is provided below — use it as ground truth when discussing, explaining, or proposing changes to these files.\n\n${fileContentsBlock}\n===== END FETCHED FILE CONTENTS =====`
+      ? `\n\n===== FETCHED FILE CONTENTS =====\n${autoSelected ? "The repository's key files were read automatically for this question" : "The user's message appears to reference the following file(s)"}. Their current real content is provided below — use it as ground truth when discussing, explaining, or proposing changes to these files. ${autoSelected ? "Other files exist (see the structure above) and can be read on request." : ""}\n\n${fileContentsBlock}\n===== END FETCHED FILE CONTENTS =====`
       : unreadableFilePaths.length > 0
         ? `\n\n===== VERIFIED REPOSITORY READ FAILURE =====\nThe requested file read did not complete after ${GITHUB_READ_MAX_ATTEMPTS} server-side attempts: ${unreadableFilePaths.join(", ")}. Do not infer, summarize, explain, or propose unrelated work from this unread file. State only that KYVORIX could not complete the verified read and offer to retry the same path.\n===== END REPOSITORY READ FAILURE =====`
-        : `\n\nNo specific file was fetched for this message. If the user asks about a particular file's contents and you need to see it, ask them to name the exact file path, or tell them you'll need it referenced by name so it can be fetched.`
+        : `\n\nThe repository IS connected and its structure is listed above. No file contents are attached to this message. Never say you cannot access or read the repository. Answer from the structure, use any tool results you were given, and if you need a particular file's contents, name the path you would read and ask the user to confirm it (or to mention it) so it can be fetched.`
   }`;
 
   return { connected: true, repoFullName, contextBlock, fetchedFilePaths };

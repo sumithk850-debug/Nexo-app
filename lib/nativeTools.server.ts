@@ -9,6 +9,7 @@ import { searchWikipediaWithVerifiedArticles } from "@/lib/wikipedia.server";
 import { readPublicPage } from "@/lib/urlReader.server";
 import { githubPublicRepo, githubSearchRepositories } from "@/lib/githubPublic.server";
 import { shouldUseWebBrowseIntent } from "@/lib/webBrowseIntent";
+import { isRepositoryQuestion } from "@/lib/githubRepoHeuristics";
 import { searchAndReadWithTavily } from "@/lib/tavily.server";
 import { isReadableWebPageResult, parseGeminiToolCalls, parseOpenRouterToolCalls } from "@/lib/nativeToolParsing";
 import { createActionEvent, transitionAction, type ActionEvent, type ActionProvider } from "@/lib/actionEngine";
@@ -116,6 +117,8 @@ export function shouldUseNativeTools(text: string): boolean {
   if (!value || value.length > 12_000) return false;
   // Looking something up on the web / GitHub and going inside what is found.
   if (shouldUseWebBrowseIntent(value)) return true;
+  // Sinhala (or mixed) questions about the user's connected repository.
+  if (/[\u0D80-\u0DFF]/.test(value) && isRepositoryQuestion(value)) return true;
   if (/\b(?:code|coding|debug|debugging|programming|translate|translation|rewrite|proofread)\b/i.test(value)) return false;
   if (/https?:\/\//i.test(value)) return true;
 
@@ -408,7 +411,7 @@ function toolContext(executed: Array<{ name: string; result: unknown }>): string
 export async function runNativeToolLoop(input: NativeToolLoopInput): Promise<NativeToolLoopResult> {
   const latest = [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
   if (!shouldUseNativeTools(latest) && !shouldUseWebResearchIntent(latest)) return { contextBlock: "", usedTools: [], rounds: 0 };
-  const needsConnectedIntegration = /github|repository|repo|supabase|database|schema|tables?|vercel|deployment|wikipedia|https?:\/\//i.test(latest) || shouldUseWebBrowseIntent(latest);
+  const needsConnectedIntegration = /github|repository|repo|supabase|database|schema|tables?|vercel|deployment|wikipedia|https?:\/\//i.test(latest) || shouldUseWebBrowseIntent(latest) || isRepositoryQuestion(latest);
   if (input.webResearchAlreadyDone && !needsConnectedIntegration) return { contextBlock: "", usedTools: [], rounds: 0 };
   if (!process.env.TAVILY_API_KEY && !needsConnectedIntegration && !shouldUseWebBrowseIntent(latest)) return { contextBlock: "", usedTools: [], rounds: 0 };
   const capability = getModelToolCapability(input.model);
